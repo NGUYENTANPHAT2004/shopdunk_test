@@ -1,0 +1,60 @@
+.tablenhap {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 10px;
+}
+
+.tablenhap thead th {
+    position: relative;
+    min-width: 70px;
+    overflow: hidden;
+}
+
+
+.theadnhap .tdnhap {
+    font-weight: bold;
+    resize: horizontal;
+
+}
+
+.tablenhap td {
+    padding: 10px;
+    text-align: center;
+    border: 1px solid #ddd;
+    overflow: hidden;
+    min-width: 70px;
+}
+
+.tablenhap tbody tr:hover {
+    background-color: #f2f2f2;
+    /* Màu nền khi hover */
+    cursor: pointer;
+    /* Con trỏ chuột sẽ là kiểu pointer */
+}
+
+td img {
+    width: 100px;
+    height: 100px;
+    object-fit: cover;
+}
+
+.tongtienthanhtoan {
+    display: flex;
+    justify-content: space-between;
+    padding: 10px;
+    margin-top: 10px;
+    box-shadow: 0 4px 8px 0 rgba(0, 0, 0, 0.2);
+    border-radius: 15px;
+}
+.btnthanhtoan{
+    background-color: #ff2323;
+    border: none;
+    outline: none;
+    color: white;
+    border-radius: 15px;
+    padding: 10px;
+    cursor: pointer;
+    &:hover{
+        background-color: #b10000;
+    }
+}
