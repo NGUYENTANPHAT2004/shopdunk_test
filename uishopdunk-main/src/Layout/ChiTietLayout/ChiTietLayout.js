@@ -15,12 +15,20 @@ import 'slick-carousel/slick/slick-theme.css'
 const ChiTietLayout = () => {
   const { tieude, loaisp } = useParams()
   const [product, setProduct] = useState(null)
+
   const [isLoading, setIsLoading] = useState(true)
   const [dungluong, setdungluong] = useState([])
   const [dungluong1, setdungluong1] = useState([])
   const [mausac1, setmausac1] = useState([])
   const [annhmausac, setanhmausac] = useState([])
+  const [pricemausac,setpricemausac] = useState(0)
   const [idmausac, setidmausac] = useState('')
+  const [idsanpham, setidsanpham] = useState('')
+  const [iddungluong, setiddungluong] = useState('')
+
+  const [imgsanpham, setimgsanpham] = useState('')
+
+
 
   const settings = {
     dots: true, // Hiển thị chấm điều hướng
@@ -49,32 +57,34 @@ const ChiTietLayout = () => {
   useEffect(() => {
     if (dungluong.length > 0) {
       setdungluong1(dungluong[0].name)
+      setiddungluong(dungluong[0]._id)
       if (dungluong[0].mausac.length > 0) {
         setmausac1(dungluong[0].mausac[0].name)
         setidmausac(dungluong[0].mausac[0]._id)
+        setpricemausac(dungluong[0].mausac[0].price)
       }
     }
   }, [dungluong])
 
-  const handleChangeDungLuong = name => {
+  const handleChangeDungLuong = (id,name) => {
+    setiddungluong(id)
     setdungluong1(name)
 
-    // Tìm dung lượng mới
     const dungLuongMoi = dungluong.find(dl => dl.name === name)
     if (!dungLuongMoi) return
 
-    // Kiểm tra màu sắc hiện tại có trong dung lượng mới không
     const mauHienTai = dungLuongMoi.mausac.find(mau => mau.name === mausac1)
 
     if (mauHienTai) {
-      // Nếu có, giữ nguyên màu nhưng cập nhật ID
       setidmausac(mauHienTai._id)
+      setpricemausac(mauHienTai.price)
     } else if (dungLuongMoi.mausac.length > 0) {
-      // Nếu không, chọn màu đầu tiên của dung lượng mới
       setmausac1(dungLuongMoi.mausac[0].name)
       setidmausac(dungLuongMoi.mausac[0]._id)
+      setpricemausac(dungLuongMoi.mausac[0].price)
     }
   }
+
 
   const fetchdungluong = async () => {
     try {
@@ -99,6 +109,8 @@ const ChiTietLayout = () => {
       const data = await response.json()
       if (response.ok) {
         setProduct(data)
+        setidsanpham(data._id)
+        setimgsanpham(data.image)
       } else {
         console.error('Không tìm thấy sản phẩm')
       }
@@ -139,6 +151,42 @@ const ChiTietLayout = () => {
   if (!product) {
     return <p>Không tìm thấy sản phẩm!</p>
   }
+
+  const handleBuyNow = () => {
+  if (!dungluong1 || !mausac1) {
+    alert('Vui lòng chọn dung lượng và màu sắc!')
+    return
+  }
+
+  const newItem = {
+    idsanpham,
+    imgsanpham,
+    iddungluong,
+    dungluong: dungluong1,
+    mausac: mausac1,
+    pricemausac
+  }
+
+  let cart = JSON.parse(localStorage.getItem('cart')) || []
+
+  const isExist = cart.some(
+    item =>
+      item.idmay === idsanpham &&
+      item.dungluong === dungluong1 &&
+      item.mausac === mausac1
+  )
+
+  if (!isExist) {
+    cart.push(newItem)
+    localStorage.setItem('cart', JSON.stringify(cart))
+    alert('Sản phẩm đã được thêm vào giỏ hàng!')
+  } else {
+    alert('Sản phẩm này đã có trong giỏ hàng!')
+  }
+  window.dispatchEvent(new Event('cartUpdated'))
+
+}
+
 
   return (
     <div className='container-chitiet'>
@@ -185,7 +233,7 @@ const ChiTietLayout = () => {
             </div>
             <div className='chitietprice'>
               <span className='current-price'>
-                {product.price.toLocaleString()}
+                {pricemausac.toLocaleString()}đ
               </span>
               <span className='old-price'>50.000.000đ</span>{' '}
             </div>
@@ -204,7 +252,7 @@ const ChiTietLayout = () => {
                             ? 'dungluong_item dungluong_item_active'
                             : 'dungluong_item'
                         }
-                        onClick={() => handleChangeDungLuong(item.name)}
+                        onClick={() => handleChangeDungLuong(item._id,item.name)}
                       >
                         <span>{item.name}</span>
                       </div>
@@ -231,6 +279,7 @@ const ChiTietLayout = () => {
                               onClick={() => {
                                 setmausac1(mau.name)
                                 setidmausac(mau._id)
+                                setpricemausac(mau.price)
                               }}
                             >
                               <div
@@ -362,7 +411,7 @@ const ChiTietLayout = () => {
               </p>
             </div>
           </div>
-          <div className='divbtn_muagay'>MUA NGAY</div>
+          <div className='divbtn_muagay' onClick={handleBuyNow}>MUA NGAY</div>
           <div className='short-des'>
             <p className='pchitiet lh-2'>
               <span style={{ color: '#000000' }}>

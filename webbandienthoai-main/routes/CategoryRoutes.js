@@ -57,5 +57,44 @@ router.get('/listcate', async (req, res) => {
     res.status(500).json({ message: `Lỗi: ${error.message}` });
   }
 });
+router.delete('/deletecate/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({ message: "ID danh mục không hợp lệ" });
+    }
+
+    const category = await Category.findById(id);
+    if (!category) {
+      return res.status(404).json({ message: "Danh mục không tồn tại" });
+    }
+
+    // Nếu danh mục có cha, loại bỏ ID này khỏi mảng children của danh mục cha
+    if (category.parent) {
+      const parentCategory = await Category.findById(category.parent);
+      if (parentCategory) {
+        parentCategory.children = parentCategory.children.filter(childId => childId.toString() !== id);
+        await parentCategory.save();
+      }
+    }
+
+    const deleteCategoryAndChildren = async (catId) => {
+      const cat = await Category.findById(catId);
+      if (cat && cat.children && cat.children.length > 0) {
+        for (const childId of cat.children) {
+          await deleteCategoryAndChildren(childId);
+        }
+      }
+      await Category.findByIdAndDelete(catId);
+    };
+
+    await deleteCategoryAndChildren(id);
+
+    res.json({ message: "Danh mục và các danh mục con đã được xóa" });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: `Đã xảy ra lỗi: ${error.message}` });
+  }
+});
 
 module.exports = router;

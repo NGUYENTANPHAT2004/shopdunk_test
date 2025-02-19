@@ -1,45 +1,40 @@
+import { useState } from 'react';
 import { Modal } from '../../../../components/Modal'
 import { MdDeleteForever } from 'react-icons/md'
 import { MdCancelPresentation } from 'react-icons/md'
 
-function DeleteCate ({ isOpen, onClose, idblog, fetchdata }) {
-  const handleXoaBlog = async () => {
+function DeleteCate({ isOpen, onClose, idcate, fetchdata }) {
+  const [error, setError] = useState('');
+
+  const handleDelete = async () => {
     try {
-      const response = await fetch(
-        `http://localhost:3005/deleteblog/${idblog}`,
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json'
-          }
-        }
-      )
-      if (response.ok) {
-        onClose()
-        fetchdata()
-        alert('Xóa thành công!')
+      const response = await fetch(`http://localhost:3005/deletecate/${idcate}`, {
+        method: 'DELETE'
+      });
+      if (!response.ok) {
+        const data = await response.json();
+        setError(data.message || 'Lỗi khi xóa danh mục');
+        return;
       }
-    } catch (error) {
-      console.error('lỗi xóa blog:', error)
+      onClose();
+      fetchdata(); // Làm mới danh sách sau khi xóa
+    } catch (err) {
+      console.error(err);
+      setError('Lỗi kết nối');
     }
-  }
+  };
+
   return (
     <Modal isOpen={isOpen} onClose={onClose}>
-      <div>
-        <p>Bạn có chắc muốn xóa Danh muc này?</p>
-        <div className='divbtnxtl'>
-          <button onClick={handleXoaBlog} className='btndelete'>
-            <MdDeleteForever />
-            Xóa
-          </button>
-          <button onClick={onClose} className='btnhuy'>
-            <MdCancelPresentation />
-            Hủy
-          </button>
-        </div>
+      <h2>Xóa Danh Mục</h2>
+      {error && <p className="error">{error}</p>}
+      <p>Bạn có chắc chắn muốn xóa danh mục này?</p>
+      <div className="modal-actions">
+        <button onClick={handleDelete}>Xóa</button>
+        <button onClick={onClose}>Hủy</button>
       </div>
     </Modal>
-  )
+  );
 }
 
-export default DeleteCate
+export default DeleteCate;
