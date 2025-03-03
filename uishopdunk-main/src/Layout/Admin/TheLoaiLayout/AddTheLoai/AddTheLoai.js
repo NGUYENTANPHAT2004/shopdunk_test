@@ -1,9 +1,8 @@
 import { Modal } from '../../../../components/Modal'
-import { useState } from 'react'
+import { useState,useEffect  } from 'react'
 import './AddTheLoai.scss'
 import ReactQuill from 'react-quill'
 import 'react-quill/dist/quill.snow.css'
-
 function AddTheLoai ({ isOpen, onClose, fetchdata }) {
   const [name, setname] = useState('')
   const [manhinh, setManhinh] = useState('')
@@ -15,6 +14,41 @@ function AddTheLoai ({ isOpen, onClose, fetchdata }) {
   const [hang, sethang] = useState('')
   const [congsac, setcongsac] = useState('')
   const [thongtin, sethongtin] = useState('')
+  const [categories, setCategories] = useState([])
+  const [selectedCategory, setSelectedCategory] = useState('')
+  useEffect(() => {
+    const fetchCategories = async () => {
+      try {
+        const res = await fetch('http://localhost:3005/listcate')
+        if (res.ok) {
+          const data = await res.json()
+          setCategories(data)
+        }
+      } catch (error) {
+        console.error('Lỗi khi fetch danh mục:', error)
+      }
+    }
+    fetchCategories()
+  }, [])
+
+  // -----------------------------
+  // 4. Hàm đệ quy "flatten" danh mục (nếu muốn hiển thị dạng dropdown đơn)
+  // -----------------------------
+  const flattenCategories = (arr, prefix = '') => {
+    let result = []
+    arr.forEach(cat => {
+      // Thêm danh mục hiện tại
+      result.push({
+        _id: cat._id,
+        name: prefix + cat.name
+      })
+      // Nếu có children, gọi đệ quy thêm
+      if (cat.children && cat.children.length > 0) {
+        result = result.concat(flattenCategories(cat.children, prefix + '-- '))
+      }
+    })
+    return result
+  }
   const handelAddTheLoai = async () => {
     try {
       const response = await fetch('http://localhost:3005/postloaisp', {
@@ -32,7 +66,8 @@ function AddTheLoai ({ isOpen, onClose, fetchdata }) {
           pinsac,
           hang,
           congsac,
-          thongtin
+          thongtin,
+          category: selectedCategory
         })
       })
       if (response.ok) {
@@ -107,6 +142,20 @@ function AddTheLoai ({ isOpen, onClose, fetchdata }) {
             />
           </div>
         </div>
+        <div className="select-group">
+  <label>Chọn danh mục:</label>
+  <select
+    value={selectedCategory}
+    onChange={e => setSelectedCategory(e.target.value)}
+  >
+    <option value="">-- Chọn danh mục --</option>
+    {flattenCategories(categories).map(cat => (
+      <option key={cat._id} value={cat._id}>
+        {cat.name}
+      </option>
+    ))}
+  </select>
+</div>
 
         <label>Mô tả sản phẩm:</label>
         <ReactQuill

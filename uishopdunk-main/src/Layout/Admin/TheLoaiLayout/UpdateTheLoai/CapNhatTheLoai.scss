@@ -4,60 +4,86 @@
   left: 0;
   width: 100%;
   height: 100%;
-  background: rgba(0, 0, 0, 0.5);
+  background-color: rgba(0, 0, 0, 0.5);
   display: flex;
   justify-content: center;
   align-items: center;
-}
 
-.modal-content-capnhat {
-  background: #fff;
-  padding: 20px;
-  border-radius: 8px;
-  width: 500px;
-  box-shadow: 0 0 10px rgba(0, 0, 0, 0.3);
-}
+  .modal-content-capnhat {
+    background-color: #fff;
+    border-radius: 8px;
+    padding: 20px;
+    width: 600px;
+    max-height: 80vh;
+    overflow-y: auto;
 
-.modal-content-capnhat h2 {
-  margin-bottom: 20px;
-}
+    h2 {
+      margin-bottom: 16px;
+    }
 
-.modal-content-capnhat input {
-  width: 90%;
-  padding: 10px;
-  margin-bottom: 20px;
-  border: 1px solid #ccc;
-  border-radius: 4px;
-}
+    .div_input_group {
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+      margin-bottom: 16px;
 
-.modal-actions {
-  display: flex;
-  justify-content: space-between;
-  margin-top: 10px;
-}
+      .input-group {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 12px;
 
-.modal-actions button {
-  padding: 10px 20px;
-  border: none;
-  border-radius: 4px;
-  cursor: pointer;
-}
+        input {
+          flex: 1;
+          padding: 8px;
+          border-radius: 4px;
+          border: 1px solid #ccc;
+          &:focus {
+            outline: none;
+            border-color: #67a3ff;
+          }
+        }
+      }
+    }
 
-.modal-actions button:first-child {
-  background: #616161;
-  color: #fff;
-}
+    label {
+      display: block;
+      margin: 8px 0 4px;
+      font-weight: 500;
+    }
 
-.modal-actions button:last-child {
-  background: #9b9b9b;
-  color: #fff;
-}
+    select {
+      width: 100%;
+      padding: 8px;
+      border-radius: 4px;
+      border: 1px solid #ccc;
+      &:focus {
+        outline: none;
+        border-color: #67a3ff;
+      }
+    }
 
-.div_input_group {
-  display: flex;
-  gap: 30px;
+    .ql-container {
+      min-height: 120px;
+      margin-bottom: 16px;
+    }
 
-  .input-group {
-    flex: 1;
+    .modal-actions {
+      display: flex;
+      justify-content: flex-end;
+      gap: 10px;
+      margin-top: 20px;
+
+      button {
+        padding: 8px 16px;
+        border: none;
+        border-radius: 4px;
+        background-color: #555;
+        color: #fff;
+        cursor: pointer;
+        &:hover {
+          background-color: #444;
+        }
+      }
+    }
   }
 }
