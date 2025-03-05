@@ -1,0 +1,165 @@
+/* Navbar.scss */
+/* Phần bao cho toàn bộ .navbar */
+.navbar {
+  position: relative;
+  background-color: #6f6f6f; /* Màu nền chính cho navbar */
+  color: #fff;
+  font-family: Arial, sans-serif;
+
+  .navbar-container {
+    max-width: 1200px;
+    margin: 0 auto;
+    display: flex;
+    align-items: center;
+    justify-content: space-between; /* Logo / nút menu / etc */
+    padding: 5px 10px;
+    position: relative;
+  }
+
+  /* Menu chính */
+  .menu {
+    list-style: none;
+    display: flex;
+    align-items: center;
+    margin: 0;
+    padding: 0;
+
+    /* Khi mở menu ở mobile => menu-open class */
+    &.menu-open {
+      /* Tùy layout mobile, ví dụ:
+         display: block; 
+         position: absolute; 
+         top: 50px; etc. 
+         Hoặc 
+         display: flex; flex-direction: column;
+      */
+    }
+
+    /* Từng mục menu cấp 1 */
+    .menu-item {
+      position: relative;
+      margin: 0 7px;
+
+      a {
+        text-decoration: none;
+        color: #fff;
+        font-size: 15px;
+        padding: 8px 10px;
+        display: inline-block;
+        &:hover {
+          text-decoration: underline;
+        }
+      }
+
+      /* Danh mục sản phẩm hay các item có submenu */
+      &.has-submenu {
+        /* Submenu (ul) bên trong */
+        .submenu {
+          display: none;
+          position: absolute;
+          top: 100%; /* Căn ngay dưới item cha */
+          left: 0;   /* Hoặc left: 0 => submenu mở thẳng dưới li cha */
+          background-color: #6f6f6f;
+          list-style: none;
+          margin: 0;
+          padding: 0;
+          min-width: 160px;
+          z-index: 9999;
+
+          /* Từng li con trong submenu */
+          li {
+            border-bottom: 1px solid transparent;
+            a {
+              display: block;
+              padding: 6px 10px;
+              white-space: nowrap; 
+              &:hover {
+                background-color: #be8c45;
+              }
+            }
+          }
+
+          /* Sub-submenu (cấp tiếp theo) => CategoryItem đệ quy */
+          .submenu {
+            /* Mặc định ẩn, position: absolute
+               Muốn hiển thị ngang -> left: 100%; top: 0; 
+               Muốn hiển thị thả xuống -> left: 0; top: 100%;
+            */
+            top: 0;
+            left: 100%;
+          }
+        }
+
+        /* Hover vào li cha -> hiển thị submenu */
+        &:hover {
+          .submenu {
+            display: block;
+          }
+        }
+
+        /* Nếu dùng state isOpen, .submenu-active => hiển thị
+           .submenu-open => hiển thị submenu 
+           (để hỗ trợ click thay vì hover) */
+        &.submenu-active {
+          .submenu {
+            display: block;
+          }
+        }
+      }
+    }
+
+    /* Logo ẩn / hiện tùy ý */
+    .menu-logo1 {
+      .menu-logo2 {
+        height: 50px;
+      }
+    }
+  }
+}
+
+/* Responsive cho mobile (tùy ý)
+   Ở max-width: 768px, bạn thay đổi layout menu */
+@media (max-width: 768px) {
+  .navbar-container {
+    /* ...Nếu muốn nút toggle hiển thị... */
+  }
+
+  .menu {
+    display: none; /* Ẩn khi chưa mở */
+    flex-direction: column;
+    width: 100%;
+    background-color: #6f6f6f;
+
+    &.menu-open {
+      display: flex; 
+      position: absolute;
+      top: 60px; /* Tuỳ chiều cao thanh navbar */
+      left: 0;
+      right: 0;
+    }
+
+    .menu-item {
+      width: 100%;
+      border-bottom: 1px solid #fff;
+      margin: 0;
+
+      a {
+        width: 100%;
+      }
+
+      /* Submenu có thể hiển thị dạng accordion 
+         thay vì hover. Lúc này thay :hover bằng logic isOpen. */
+      &.has-submenu {
+        .submenu {
+          position: static; 
+          background-color: inherit;
+          border-top: none;
+          /* v.v. */
+          li {
+            border-bottom: 1px solid #eee;
+          }
+        }
+      }
+    }
+  }
+}

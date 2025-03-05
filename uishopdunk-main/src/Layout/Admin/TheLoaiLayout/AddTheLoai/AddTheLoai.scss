@@ -1,0 +1,74 @@
+/* Các nhóm input chung */
+.input-group {
+    display: flex;
+    flex-direction: column;
+    margin-bottom: 10px;
+    gap: 10px;
+  
+    label {
+      margin-bottom: 5px;
+    }
+  
+    input {
+      padding: 10px;
+      border-radius: 5px;
+      border: 1px solid #ccc;
+      outline: none;
+    }
+  }
+  
+  /* Nếu bạn có nhóm input thứ hai, ví dụ như mô tả */
+  .input-group1 {
+    display: flex;
+    flex-direction: column;
+    margin-bottom: 10px;
+    justify-content: center;
+    align-items: center;
+    gap: 10px;
+  }
+  
+  /* Nhóm chọn danh mục (có thể đặt tên tùy ý, ví dụ .select-group) */
+  .select-group {
+    display: flex;
+    flex-direction: column;
+    margin-bottom: 10px;
+    gap: 10px;
+  
+    label {
+      margin-bottom: 5px;
+    }
+  
+    select {
+      padding: 10px;
+      border-radius: 5px;
+      border: 1px solid #ccc;
+      outline: none;
+    }
+  }
+  
+  /* Nút thêm thể loại */
+  .btnaddtl {
+    width: 100%;
+    padding: 10px;
+    border: none;
+    border-radius: 5px;
+    background-color: #616161;
+    color: white;
+    cursor: pointer;
+    transition: background-color 0.2s ease;
+  
+    &:hover {
+      background-color: #4f4f4f;
+    }
+  }
+  
+  /* Nhóm chứa nút (nếu cần canh giữa, thêm justify-content) */
+  .button-group {
+    margin-top: 10px;
+    display: flex;
+    gap: 10px;
+    /* Ví dụ:
+    justify-content: center;
+    */
+  }
+  
