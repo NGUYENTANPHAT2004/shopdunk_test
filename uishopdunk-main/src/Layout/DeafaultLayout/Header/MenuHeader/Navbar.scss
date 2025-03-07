@@ -1,163 +1,235 @@
 /* Navbar.scss */
-/* Phần bao cho toàn bộ .navbar */
 .navbar {
   position: relative;
-  background-color: #6f6f6f; /* Màu nền chính cho navbar */
+  background-color: #6f6f6f;
   color: #fff;
   font-family: Arial, sans-serif;
+  z-index: 1000;
 
   .navbar-container {
     max-width: 1200px;
     margin: 0 auto;
     display: flex;
     align-items: center;
-    justify-content: space-between; /* Logo / nút menu / etc */
-    padding: 5px 10px;
+    justify-content: space-between;
+    padding: 0 15px;
     position: relative;
   }
 
-  /* Menu chính */
+  .logo-container {
+    .navbar-logo {
+      height: 50px;
+      margin: 5px 0;
+    }
+  }
+
+  /* Menu toggle button for mobile */
+  .menu-toggle {
+    display: none;
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 10px;
+    
+    .hamburger {
+      display: block;
+      width: 25px;
+      height: 3px;
+      background-color: #fff;
+      position: relative;
+      transition: all 0.3s ease;
+      
+      &:before, &:after {
+        content: '';
+        position: absolute;
+        width: 100%;
+        height: 100%;
+        background-color: #fff;
+        transition: all 0.3s ease;
+      }
+      
+      &:before {
+        top: -8px;
+      }
+      
+      &:after {
+        top: 8px;
+      }
+      
+      &.open {
+        background-color: transparent;
+        
+        &:before {
+          transform: rotate(45deg);
+          top: 0;
+        }
+        
+        &:after {
+          transform: rotate(-45deg);
+          top: 0;
+        }
+      }
+    }
+  }
+
+  /* Main menu */
   .menu {
-    list-style: none;
     display: flex;
-    align-items: center;
+    list-style: none;
     margin: 0;
     padding: 0;
-
-    /* Khi mở menu ở mobile => menu-open class */
-    &.menu-open {
-      /* Tùy layout mobile, ví dụ:
-         display: block; 
-         position: absolute; 
-         top: 50px; etc. 
-         Hoặc 
-         display: flex; flex-direction: column;
-      */
+    
+    /* Logo for mobile menu */
+    .menu-logo {
+      display: none;
+      
+      .menu-logo-img {
+        height: 40px;
+        margin: 10px auto;
+      }
     }
-
-    /* Từng mục menu cấp 1 */
-    .menu-item {
+    
+    /* First level menu items */
+    & > .menu-item {
       position: relative;
-      margin: 0 7px;
-
-      a {
-        text-decoration: none;
+      margin: 0 5px;
+      
+      a, .menu-title {
+        display: block;
+        padding: 15px 10px;
         color: #fff;
+        text-decoration: none;
         font-size: 15px;
-        padding: 8px 10px;
-        display: inline-block;
-        &:hover {
-          text-decoration: underline;
-        }
+        cursor: pointer;
+        transition: background-color 0.2s ease;
       }
-
-      /* Danh mục sản phẩm hay các item có submenu */
-      &.has-submenu {
-        /* Submenu (ul) bên trong */
-        .submenu {
-          display: none;
-          position: absolute;
-          top: 100%; /* Căn ngay dưới item cha */
-          left: 0;   /* Hoặc left: 0 => submenu mở thẳng dưới li cha */
-          background-color: #6f6f6f;
-          list-style: none;
-          margin: 0;
-          padding: 0;
-          min-width: 160px;
-          z-index: 9999;
-
-          /* Từng li con trong submenu */
-          li {
-            border-bottom: 1px solid transparent;
-            a {
-              display: block;
-              padding: 6px 10px;
-              white-space: nowrap; 
-              &:hover {
-                background-color: #be8c45;
-              }
-            }
-          }
-
-          /* Sub-submenu (cấp tiếp theo) => CategoryItem đệ quy */
-          .submenu {
-            /* Mặc định ẩn, position: absolute
-               Muốn hiển thị ngang -> left: 100%; top: 0; 
-               Muốn hiển thị thả xuống -> left: 0; top: 100%;
-            */
-            top: 0;
-            left: 100%;
-          }
-        }
-
-        /* Hover vào li cha -> hiển thị submenu */
-        &:hover {
-          .submenu {
-            display: block;
+      
+      &:hover > a,
+      &:hover > .menu-title {
+        background-color: #be8c45;
+      }
+      
+      /* First level submenu position */
+      &.has-submenu > .submenu {
+        position: absolute;
+        top: 100%;
+        left: 0;
+      }
+    }
+    
+    /* All submenu styles */
+    .submenu {
+      display: none;
+      position: absolute;
+      background-color: #6f6f6f;
+      min-width: 200px;
+      box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+      list-style: none;
+      margin: 0;
+      padding: 0;
+      z-index: 9999;
+      
+      li {
+        width: 100%;
+        
+        a {
+          padding: 10px 15px;
+          display: block;
+          white-space: nowrap;
+          color: #fff;
+          text-decoration: none;
+          transition: background-color 0.2s ease;
+          
+          &:hover {
+            background-color: #be8c45;
           }
         }
-
-        /* Nếu dùng state isOpen, .submenu-active => hiển thị
-           .submenu-open => hiển thị submenu 
-           (để hỗ trợ click thay vì hover) */
-        &.submenu-active {
-          .submenu {
-            display: block;
-          }
+        
+        &.has-submenu > .submenu {
+          top: 0;
+          left: 100%;
         }
       }
     }
-
-    /* Logo ẩn / hiện tùy ý */
-    .menu-logo1 {
-      .menu-logo2 {
-        height: 50px;
-      }
+    
+    .menu-item.has-submenu:hover > .submenu {
+      display: block;
     }
   }
 }
 
-/* Responsive cho mobile (tùy ý)
-   Ở max-width: 768px, bạn thay đổi layout menu */
+/* Responsive styles for mobile */
 @media (max-width: 768px) {
-  .navbar-container {
-    /* ...Nếu muốn nút toggle hiển thị... */
-  }
-
-  .menu {
-    display: none; /* Ẩn khi chưa mở */
-    flex-direction: column;
-    width: 100%;
-    background-color: #6f6f6f;
-
-    &.menu-open {
-      display: flex; 
-      position: absolute;
-      top: 60px; /* Tuỳ chiều cao thanh navbar */
-      left: 0;
-      right: 0;
+  .navbar {
+    .navbar-container {
+      flex-wrap: wrap;
     }
-
-    .menu-item {
+    
+    .logo-container {
+      flex: 1;
+    }
+    
+    .menu-toggle {
+      display: block;
+    }
+    
+    .menu {
+      display: none;
+      flex-direction: column;
       width: 100%;
-      border-bottom: 1px solid #fff;
-      margin: 0;
-
-      a {
-        width: 100%;
+      background-color: #6f6f6f;
+      
+      &.menu-open {
+        display: flex;
+        position: absolute;
+        top: 60px;
+        left: 0;
+        right: 0;
+        z-index: 1000;
       }
-
-      /* Submenu có thể hiển thị dạng accordion 
-         thay vì hover. Lúc này thay :hover bằng logic isOpen. */
-      &.has-submenu {
+      
+      .menu-logo {
+        display: block;
+        text-align: center;
+      }
+      
+      & > .menu-item {
+        width: 100%;
+        margin: 0;
+        border-bottom: 1px solid rgba(255,255,255,0.1);
+        
+        a, .menu-title {
+          width: 100%;
+          padding: 12px 15px;
+        }
+      }
+      
+      /* Mobile submenu styling */
+      .menu-item.has-submenu {
         .submenu {
-          position: static; 
-          background-color: inherit;
-          border-top: none;
-          /* v.v. */
+          position: static;
+          width: 100%;
+          box-shadow: none;
+          background-color: rgba(0,0,0,0.1);
+          display: none;
+          
           li {
-            border-bottom: 1px solid #eee;
+            padding-left: 15px;
+            
+            a {
+              padding: 10px 15px;
+            }
           }
+        }
+        
+        /* In mobile, show submenu only when explicitly active */
+        &.submenu-active > .submenu {
+          display: block;
+        }
+        
+        /* In mobile, don't show on hover alone */
+        &:hover > .submenu {
+          display: none;
         }
       }
     }

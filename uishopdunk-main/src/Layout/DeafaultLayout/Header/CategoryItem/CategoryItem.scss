@@ -1,69 +1,69 @@
-/* CategoryItem.scss hoặc gộp vào Navbar.scss */
+/* CategoryItem.scss */
 
-/* Màu nền chung của menu (cha) */
-.menu {
-    background-color: #6f6f6f;
-    
-    .menu-item {
-      position: relative;
-      a {
-        display: block;     /* Giúp hover toàn vùng */
-        padding: 8px 12px;
-        color: #fff;
-        text-decoration: none;
-        transition: background-color 0.2s ease;
-      }
+/* Styles for submenu items */
+.menu-item {
+  position: relative;
   
-      /* Khi hover vào link cấp 1, đổi màu nền */
-      &:hover > a {
-        background-color: #be8c45;
+  a {
+    display: block;
+    padding: 8px 12px;
+    color: #fff;
+    text-decoration: none;
+    transition: background-color 0.2s ease;
+    white-space: nowrap;
+  }
+
+  /* Hover effect for all menu items */
+  &:hover > a {
+    background-color: #be8c45;
+    text-decoration: none;
+  }
+
+  /* Styles specific to items with submenus */
+  &.has-submenu {
+    /* Default hide submenu */
+    .submenu {
+      display: none;
+      position: absolute;
+      top: 0;
+      left: 100%;
+      min-width: 200px;
+      background-color: #6f6f6f;
+      list-style: none;
+      margin: 0;
+      padding: 0;
+      z-index: 9999;
+      box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+      
+      /* First level submenu position */
+      &:first-child {
+        top: 100%;
+        left: 0;
       }
-  
-      &.has-submenu {
-        /* Ẩn submenu mặc định */
-        .submenu {
-          display: none;
-          position: absolute;
-          top: calc(100% + 5px);
-          left: 0;
-          min-width: 150px;
-          background-color: #6f6f6f;
-          list-style: none;
-          margin: 0;
-          padding: 0;
-          z-index: 9999;
+      
+      /* Ensure items stack properly */
+      li {
+        width: 100%;
+        
+        a {
+          padding: 8px 15px;
+          display: block;
           
-          li {
-            a {
-              /* Menu con có thể nhỏ hơn, hoặc giống style cha */
-              padding: 6px 12px;
-              white-space: nowrap;
-              color: #fff;
-              &:hover {
-                background-color: #be8c45;
-              }
-            }
+          &:hover {
+            background-color: #be8c45;
           }
-  
-          /* Submenu cấp tiếp theo, hiển thị ngang hoặc dọc tùy thích */
-          .submenu {
-            /* Nếu muốn submenu con hiển thị ngang,
-               left: 100%; top: 0;
-               nếu muốn thả xuống thì left: 0; top: 100%; */
-            left: 100%;
-            top: 0;
-            background-color: #6f6f6f;
-          }
-        }
-  
-        /* Hover hoặc dùng class .submenu-active để mở submenu */
-        &:hover .submenu {
-          display: block;
-        }
-        &.submenu-active .submenu {
-          display: block;
         }
       }
     }
+
+    /* Show submenu on hover */
+    &:hover > .submenu {
+      display: block;
+    }
+    
+    /* Show submenu when active class is present */
+    &.submenu-active > .submenu {
+      display: block;
+    }
   }
-  
+}

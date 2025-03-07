@@ -2,17 +2,34 @@ import React, { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import "./Navbar.scss";
 import Header from "../Header";
-import CategoryItem from "../CategoryItem/CategoryItem"; // Import component đệ quy
+import CategoryItem from "../CategoryItem/CategoryItem";
 
 const Navbar = () => {
   const [categories, setCategories] = useState([]);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [isMobile, setIsMobile] = useState(window.innerWidth <= 768);
+
+  // Check for mobile view on resize
+  useEffect(() => {
+    const handleResize = () => {
+      setIsMobile(window.innerWidth <= 768);
+    };
+    
+    window.addEventListener('resize', handleResize);
+    return () => {
+      window.removeEventListener('resize', handleResize);
+    };
+  }, []);
 
   useEffect(() => {
     const fetchCategories = async () => {
       try {
         const response = await fetch("http://localhost:3005/listcate");
         const data = await response.json();
+        
+        // Log the structure to understand the data format
+        console.log("Category data structure:", data);
+        
         setCategories(data);
       } catch (error) {
         console.error("Lỗi khi gọi API:", error);
@@ -21,21 +38,51 @@ const Navbar = () => {
     fetchCategories();
   }, []);
 
+  // Toggle for mobile menu
+  const toggleMenu = () => {
+    setMenuOpen(!menuOpen);
+  };
+
+  // Mobile submenu toggle handler
+  const toggleSubmenu = (e, categoryId) => {
+    if (isMobile) {
+      e.preventDefault();
+      const submenuEl = e.currentTarget.querySelector('.submenu');
+      if (submenuEl) {
+        e.currentTarget.classList.toggle('submenu-active');
+      }
+    }
+  };
+
   return (
     <nav className="navbar">
       <div className="navbar-container">
-        {/* ... Logo, menu-toggle, v.v ... */}
+        {/* Logo for desktop */}
+        <div className="logo-container">
+          <Link to="/">
+            <img src="/logo.png" alt="Logo" className="navbar-logo" />
+          </Link>
+        </div>
+        
+        {/* Mobile menu toggle button */}
+        {isMobile && (
+          <button className="menu-toggle" onClick={toggleMenu}>
+            <span className={`hamburger ${menuOpen ? 'open' : ''}`}></span>
+          </button>
+        )}
 
         <ul className={`menu ${menuOpen ? "menu-open" : ""}`}>
-          {/* Logo ở menu mobile */}
-          <li className="menu-logo1">
-            <Link to="/">
-              <img src="/logo.png" alt="Logo" className="menu-logo2" />
-            </Link>
-          </li>
+          {/* Logo for mobile menu */}
+          {isMobile && (
+            <li className="menu-logo">
+              <Link to="/">
+                <img src="/logo.png" alt="Logo" className="menu-logo-img" />
+              </Link>
+            </li>
+          )}
 
-          {/* Mục "Danh mục sản phẩm" với submenu đệ quy */}
-          <li className="menu-item has-submenu">
+          {/* Product Categories with recursive submenu */}
+          <li className="menu-item has-submenu" onClick={(e) => isMobile && toggleSubmenu(e)}>
             <span className="menu-title">Danh mục sản phẩm</span>
             <ul className="submenu">
               {categories.map((cat) => (
@@ -44,7 +91,7 @@ const Navbar = () => {
             </ul>
           </li>
 
-          {/* Các mục khác */}
+          {/* Other menu items */}
           <li className="menu-item" onClick={() => setMenuOpen(false)}>
             <Link to="/">Trang chủ</Link>
           </li>
@@ -54,8 +101,8 @@ const Navbar = () => {
           <li className="menu-item" onClick={() => setMenuOpen(false)}>
             <Link to="/">Sản phẩm</Link>
           </li>
-          <li className="menu-item has-submenu">
-            Dịch vụ
+          <li className="menu-item has-submenu" onClick={(e) => isMobile && toggleSubmenu(e)}>
+            <span className="menu-title">Dịch vụ</span>
             <ul className="submenu">
               <li>
                 <Link to="/chinh-sach-van-chuyen">Chính sách vận chuyển</Link>
@@ -69,10 +116,10 @@ const Navbar = () => {
           <li className="menu-item" onClick={() => setMenuOpen(false)}>
             <Link to="/lien-he">Liên hệ</Link>
           </li>
-
-          {/* ... Header */}
-          <Header />
         </ul>
+        
+        {/* Header with search and cart - moved outside of menu */}
+        <Header />
       </div>
     </nav>
   );
