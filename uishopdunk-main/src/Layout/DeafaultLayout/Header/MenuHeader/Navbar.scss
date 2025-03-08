@@ -5,9 +5,17 @@
   color: #fff;
   font-family: Arial, sans-serif;
   z-index: 1000;
+  -webkit-overflow-scrolling: touch; // Cuộn mượt trên mobile
+    scrollbar-width: none; // Ẩn thanh cuộn Firefox
+
+    // Ẩn thanh cuộn Chrome/Safari
+    &::-webkit-scrollbar {
+      display: none;
+    }
+
 
   .navbar-container {
-    max-width: 1200px;
+    max-width: 1300px;
     margin: 0 auto;
     display: flex;
     align-items: center;
@@ -76,9 +84,18 @@
   .menu {
     display: flex;
     list-style: none;
+    flex-wrap: nowrap; // Thêm dòng này
     margin: 0;
     padding: 0;
-    
+    align-items: center;
+    -webkit-overflow-scrolling: touch; // Cuộn mượt trên mobile
+    scrollbar-width: none; // Ẩn thanh cuộn Firefox
+
+    // Ẩn thanh cuộn Chrome/Safari
+    &::-webkit-scrollbar {
+      display: none;
+    }
+
     /* Logo for mobile menu */
     .menu-logo {
       display: none;
@@ -92,13 +109,15 @@
     /* First level menu items */
     & > .menu-item {
       position: relative;
-      margin: 0 5px;
+      margin: 0 10px; // 🔥 Ngăn co lại khi thiếu không gian
+      white-space: nowrap;
       
       a, .menu-title {
-        display: block;
+        display: flex;
         padding: 15px 10px;
         color: #fff;
         text-decoration: none;
+        align-items: center;
         font-size: 15px;
         cursor: pointer;
         transition: background-color 0.2s ease;

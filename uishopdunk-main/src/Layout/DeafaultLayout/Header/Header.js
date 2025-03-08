@@ -3,12 +3,13 @@ import './Header.scss'
 import { useNavigate } from 'react-router-dom'
 import { FaSearch } from 'react-icons/fa'
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
-import { faBagShopping } from '@fortawesome/free-solid-svg-icons'
+import { faBagShopping, faUser } from '@fortawesome/free-solid-svg-icons'
+import { Link } from "react-router-dom"
 
 const Header = () => {
   const [searchKeyword, setSearchKeyword] = useState('')
   const [itemCount, setItemCount] = useState(0)
-
+  const [isUserHovered, setIsUserHovered] = useState(false)
   const updateCartCount = () => {
     const cart = localStorage.getItem('cart')
     setItemCount(cart ? JSON.parse(cart).length : 0)
@@ -39,6 +40,7 @@ useEffect(() => {
       handleSearch()
     }
   }
+  // ... Giữ nguyên các hàm useEffect và xử lý giỏ hàng ...
 
   return (
     <div className='header-container'>
@@ -46,6 +48,7 @@ useEffect(() => {
         <FontAwesomeIcon icon={faBagShopping} className='cart-icon' />
         {itemCount > 0 && <span className='cart-badge'>{itemCount}</span>}
       </div>
+      
       <div className='header-right'>
         <input
           type='text'
@@ -56,10 +59,23 @@ useEffect(() => {
           onKeyPress={handleKeyPress}
         />
         <button className='search-button' onClick={handleSearch}>
-          <FaSearch
-            style={{ color: '#fff', fontSize: '20px', display: 'inline-block' }}
-          />
+          <FaSearch style={{ color: '#fff', fontSize: '20px' }} />
         </button>
+      </div>
+
+      <div 
+        className='user-container'
+        onMouseEnter={() => setIsUserHovered(true)}
+        onMouseLeave={() => setIsUserHovered(false)}
+      >
+        <FontAwesomeIcon icon={faUser} className='user-icon' />
+        
+        {isUserHovered && (
+          <div className='auth-dropdown'>
+            <Link to="/dang-nhap" className="auth-link">Đăng nhập</Link>
+            <Link to="/dang-ky" className="auth-link">Đăng ký</Link>
+          </div>
+        )}
       </div>
     </div>
   )

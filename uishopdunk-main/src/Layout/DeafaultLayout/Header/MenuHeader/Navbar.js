@@ -10,16 +10,16 @@ const Navbar = () => {
   const [isMobile, setIsMobile] = useState(window.innerWidth <= 768);
 
   // Check for mobile view on resize
-  useEffect(() => {
-    const handleResize = () => {
-      setIsMobile(window.innerWidth <= 768);
-    };
+  // useEffect(() => {
+  //   const handleResize = () => {
+  //     setIsMobile(window.innerWidth <= 768);
+  //   };
     
-    window.addEventListener('resize', handleResize);
-    return () => {
-      window.removeEventListener('resize', handleResize);
-    };
-  }, []);
+  //   window.addEventListener('resize', handleResize);
+  //   return () => {
+  //     window.removeEventListener('resize', handleResize);
+  //   };
+  // }, []);
 
   useEffect(() => {
     const fetchCategories = async () => {
@@ -65,21 +65,16 @@ const Navbar = () => {
         </div>
         
         {/* Mobile menu toggle button */}
-        {isMobile && (
+        
           <button className="menu-toggle" onClick={toggleMenu}>
             <span className={`hamburger ${menuOpen ? 'open' : ''}`}></span>
           </button>
-        )}
+      
 
         <ul className={`menu ${menuOpen ? "menu-open" : ""}`}>
           {/* Logo for mobile menu */}
-          {isMobile && (
-            <li className="menu-logo">
-              <Link to="/">
-                <img src="/logo.png" alt="Logo" className="menu-logo-img" />
-              </Link>
-            </li>
-          )}
+          
+    
 
           {/* Product Categories with recursive submenu */}
           <li className="menu-item has-submenu" onClick={(e) => isMobile && toggleSubmenu(e)}>

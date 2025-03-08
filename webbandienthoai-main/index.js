@@ -15,6 +15,7 @@ const dungluongroutes = require('./routes/DungLuongRoutes')
 const categoryrouter = require('./routes/CategoryRoutes.js')
 const blogroutes = require('./routes/BlogRoutes')
 const mausacriengroutes = require('./routes/MauSacRiengRoutes')
+const authroutes = require("./routes/Authroutes.js")
 const uri =
   'mongodb://localhost:27017/datn'
 
@@ -52,7 +53,7 @@ app.use('/', categoryrouter)
 // app.use('/', phantramroutes)
 app.use('/', blogroutes)
 app.use('/',mausacriengroutes)
-
+app.use('/',authroutes)
 app.listen(3005, () => {
   console.log('Server is running on port 3005')
   console.log(__dirname)
