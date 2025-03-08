@@ -56,14 +56,54 @@
       }
     }
 
-    /* Show submenu on hover */
-    &:hover > .submenu {
-      display: block;
+    /* Desktop view: Show submenu on hover */
+    @media (min-width: 769px) {
+      &:hover > .submenu {
+        display: block;
+      }
     }
     
-    /* Show submenu when active class is present */
-    &.submenu-active > .submenu {
-      display: block;
+    /* Mobile view: Show submenu when active class is present */
+    @media (max-width: 768px) {
+      > a:after {
+        content: '+';
+        margin-left: 5px;
+      }
+      
+      &.submenu-active {
+        > .submenu {
+          display: block;
+          position: static;
+          box-shadow: none;
+          background-color: rgba(0,0,0,0.1);
+          padding-left: 15px;
+        }
+        
+        > a:after {
+          content: '-';
+        }
+      }
+      
+      &:hover > .submenu {
+        display: none;
+      }
+    }
+  }
+}
+
+/* Mobile-specific adjustments */
+@media (max-width: 768px) {
+  .menu-item {
+    &.has-submenu {
+      .submenu {
+        width: 100%;
+        
+        li {
+          a {
+            padding-left: 25px;
+          }
+        }
+      }
     }
   }
 }

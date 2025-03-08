@@ -5,29 +5,42 @@
   color: #fff;
   font-family: Arial, sans-serif;
   z-index: 1000;
-  -webkit-overflow-scrolling: touch; // Cuộn mượt trên mobile
-    scrollbar-width: none; // Ẩn thanh cuộn Firefox
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
 
-    // Ẩn thanh cuộn Chrome/Safari
-    &::-webkit-scrollbar {
-      display: none;
-    }
-
+  &::-webkit-scrollbar {
+    display: none;
+  }
 
   .navbar-container {
     max-width: 1300px;
     margin: 0 auto;
     display: flex;
     align-items: center;
+    flex-wrap: wrap;
     justify-content: space-between;
     padding: 0 15px;
     position: relative;
   }
 
   .logo-container {
+    flex: 0 0 auto;
+    
     .navbar-logo {
       height: 50px;
       margin: 5px 0;
+    }
+  }
+
+  .header-wrapper {
+    flex: 1;
+    display: flex;
+    justify-content: flex-end;
+    order: 2;
+    
+    @media (max-width: 768px) {
+      order: 1;
+      flex: 0 0 auto;
     }
   }
 
@@ -38,6 +51,7 @@
     border: none;
     cursor: pointer;
     padding: 10px;
+    z-index: 100;
     
     .hamburger {
       display: block;
@@ -84,32 +98,22 @@
   .menu {
     display: flex;
     list-style: none;
-    flex-wrap: nowrap; // Thêm dòng này
+    flex-wrap: nowrap;
     margin: 0;
     padding: 0;
     align-items: center;
-    -webkit-overflow-scrolling: touch; // Cuộn mượt trên mobile
-    scrollbar-width: none; // Ẩn thanh cuộn Firefox
+    order: 1;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
 
-    // Ẩn thanh cuộn Chrome/Safari
     &::-webkit-scrollbar {
       display: none;
-    }
-
-    /* Logo for mobile menu */
-    .menu-logo {
-      display: none;
-      
-      .menu-logo-img {
-        height: 40px;
-        margin: 10px auto;
-      }
     }
     
     /* First level menu items */
     & > .menu-item {
       position: relative;
-      margin: 0 10px; // 🔥 Ngăn co lại khi thiếu không gian
+      margin: 0 10px;
       white-space: nowrap;
       
       a, .menu-title {
@@ -171,8 +175,11 @@
       }
     }
     
-    .menu-item.has-submenu:hover > .submenu {
-      display: block;
+    /* Desktop hover behavior */
+    @media (min-width: 769px) {
+      .menu-item.has-submenu:hover > .submenu {
+        display: block;
+      }
     }
   }
 }
@@ -181,7 +188,7 @@
 @media (max-width: 768px) {
   .navbar {
     .navbar-container {
-      flex-wrap: wrap;
+      padding: 10px 15px;
     }
     
     .logo-container {
@@ -190,6 +197,7 @@
     
     .menu-toggle {
       display: block;
+      order: 2;
     }
     
     .menu {
@@ -197,19 +205,16 @@
       flex-direction: column;
       width: 100%;
       background-color: #6f6f6f;
+      order: 3;
       
       &.menu-open {
         display: flex;
         position: absolute;
-        top: 60px;
+        top: 100%;
         left: 0;
         right: 0;
         z-index: 1000;
-      }
-      
-      .menu-logo {
-        display: block;
-        text-align: center;
+        box-shadow: 0 5px 5px rgba(0,0,0,0.2);
       }
       
       & > .menu-item {
@@ -220,6 +225,13 @@
         a, .menu-title {
           width: 100%;
           padding: 12px 15px;
+          justify-content: space-between;
+          
+          &:after {
+            content: '+';
+            font-size: 18px;
+            margin-left: 5px;
+          }
         }
       }
       
@@ -242,8 +254,14 @@
         }
         
         /* In mobile, show submenu only when explicitly active */
-        &.submenu-active > .submenu {
-          display: block;
+        &.submenu-active {
+          > .submenu {
+            display: block;
+          }
+          
+          > .menu-title:after {
+            content: '-';
+          }
         }
         
         /* In mobile, don't show on hover alone */

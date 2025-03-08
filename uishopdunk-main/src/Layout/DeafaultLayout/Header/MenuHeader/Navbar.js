@@ -10,26 +10,25 @@ const Navbar = () => {
   const [isMobile, setIsMobile] = useState(window.innerWidth <= 768);
 
   // Check for mobile view on resize
-  // useEffect(() => {
-  //   const handleResize = () => {
-  //     setIsMobile(window.innerWidth <= 768);
-  //   };
+  useEffect(() => {
+    const handleResize = () => {
+      setIsMobile(window.innerWidth <= 768);
+      if (window.innerWidth > 768) {
+        setMenuOpen(false); // Close menu when resizing to desktop
+      }
+    };
     
-  //   window.addEventListener('resize', handleResize);
-  //   return () => {
-  //     window.removeEventListener('resize', handleResize);
-  //   };
-  // }, []);
+    window.addEventListener('resize', handleResize);
+    return () => {
+      window.removeEventListener('resize', handleResize);
+    };
+  }, []);
 
   useEffect(() => {
     const fetchCategories = async () => {
       try {
         const response = await fetch("http://localhost:3005/listcate");
         const data = await response.json();
-        
-        // Log the structure to understand the data format
-        console.log("Category data structure:", data);
-        
         setCategories(data);
       } catch (error) {
         console.error("Lỗi khi gọi API:", error);
@@ -49,6 +48,13 @@ const Navbar = () => {
       e.preventDefault();
       const submenuEl = e.currentTarget.querySelector('.submenu');
       if (submenuEl) {
+        // Close other open submenus first
+        const activeSubmenus = document.querySelectorAll('.menu-item.submenu-active');
+        activeSubmenus.forEach(item => {
+          if (item !== e.currentTarget) {
+            item.classList.remove('submenu-active');
+          }
+        });
         e.currentTarget.classList.toggle('submenu-active');
       }
     }
@@ -65,19 +71,19 @@ const Navbar = () => {
         </div>
         
         {/* Mobile menu toggle button */}
-        
-          <button className="menu-toggle" onClick={toggleMenu}>
-            <span className={`hamburger ${menuOpen ? 'open' : ''}`}></span>
-          </button>
-      
+        <button className="menu-toggle" onClick={toggleMenu}>
+          <span className={`hamburger ${menuOpen ? 'open' : ''}`}></span>
+        </button>
 
+        {/* Header component with search and icons */}
+        <div className="header-wrapper">
+          <Header />
+        </div>
+
+        {/* Navigation menu */}
         <ul className={`menu ${menuOpen ? "menu-open" : ""}`}>
-          {/* Logo for mobile menu */}
-          
-    
-
           {/* Product Categories with recursive submenu */}
-          <li className="menu-item has-submenu" onClick={(e) => isMobile && toggleSubmenu(e)}>
+          <li className="menu-item has-submenu" onClick={(e) => toggleSubmenu(e)}>
             <span className="menu-title">Danh mục sản phẩm</span>
             <ul className="submenu">
               {categories.map((cat) => (
@@ -96,7 +102,7 @@ const Navbar = () => {
           <li className="menu-item" onClick={() => setMenuOpen(false)}>
             <Link to="/">Sản phẩm</Link>
           </li>
-          <li className="menu-item has-submenu" onClick={(e) => isMobile && toggleSubmenu(e)}>
+          <li className="menu-item has-submenu" onClick={(e) => toggleSubmenu(e)}>
             <span className="menu-title">Dịch vụ</span>
             <ul className="submenu">
               <li>
@@ -105,16 +111,12 @@ const Navbar = () => {
               <li>
                 <Link to="/huong-dan-thanh-toan">Hướng dẫn thanh toán</Link>
               </li>
-              {/* ... */}
             </ul>
           </li>
           <li className="menu-item" onClick={() => setMenuOpen(false)}>
             <Link to="/lien-he">Liên hệ</Link>
           </li>
         </ul>
-        
-        {/* Header with search and cart - moved outside of menu */}
-        <Header />
       </div>
     </nav>
   );
