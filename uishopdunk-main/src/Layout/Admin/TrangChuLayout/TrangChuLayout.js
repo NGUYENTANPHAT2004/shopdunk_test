@@ -3,8 +3,9 @@ import { SideBar } from './SideBar'
 import { useSearchParams } from 'react-router-dom'
 import { TheLoaiLayoutAdmin } from '../TheLoaiLayout'
 import { BlogLayout } from '../BlogLayout'
-import {  DanhmucLayout} from '../Danhmuclayout'
+import { DanhmucLayout} from '../Danhmuclayout'
 import { MaGiamGiaLayout } from '../MaGiamGiaLayout'
+import { DanhGiaAdminLayout } from '../DanhGiaAdminLayout'
 function TrangChuLayout () {
   const [searchParams] = useSearchParams()
   const tabFromUrl = searchParams.get('tab') || 'Trang chủ'
@@ -16,6 +17,7 @@ function TrangChuLayout () {
         {tabFromUrl === 'Sản Phẩm' && <TheLoaiLayoutAdmin />}
         {tabFromUrl === 'Blog' && <BlogLayout />}
         {tabFromUrl === 'Danh Mục' && <DanhmucLayout />}
+        {tabFromUrl === 'Đánh giá' && <DanhGiaAdminLayout />}
         {tabFromUrl === 'Mã Giảm Giá' && <MaGiamGiaLayout />}
       </div>
     </div>
