@@ -5,7 +5,7 @@ const userSchema = new db.mongoose.Schema({
   phone: { type: String },
   email: { type: String },
   password: { type: String, required: true },
-  role: { type: String, enum: ['admin', 'user'], default: 'admin' },
+  role: { type: String, enum: ['admin', 'user'], default: 'user' },
   date: { type: String }
 })
 

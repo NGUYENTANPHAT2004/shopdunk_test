@@ -16,7 +16,11 @@ const dungluongroutes = require('./routes/DungLuongRoutes')
 const categoryrouter = require('./routes/CategoryRoutes.js')
 const blogroutes = require('./routes/BlogRoutes')
 const mausacriengroutes = require('./routes/MauSacRiengRoutes')
+
 const danhgiaroutes = require('./routes/DanhGiaRoutes')
+
+const authroutes = require("./routes/Authroutes.js")
+
 const uri =
   'mongodb://localhost:27017/datn'
 
@@ -28,7 +32,7 @@ const mongoStoreOptions = {
 const cors = require('cors')
 
 app.use(cors())
-
+console.log("Local changes & Remote changes");
 app.use(
   session({
     secret: 'adscascd8saa8sdv87ds78v6dsv87asvdasv8',
@@ -51,8 +55,11 @@ app.use('/', loaisanphamroutes)
 app.use('/', dungluongroutes)
 app.use('/', categoryrouter)
 app.use('/', blogroutes)
-app.use('/',mausacriengroutes)
+app.use('/', mausacriengroutes)
 app.use('/', danhgiaroutes)
+
+
+app.use('/', authroutes)
 
 app.listen(3005, () => {
   console.log('Server is running on port 3005')
