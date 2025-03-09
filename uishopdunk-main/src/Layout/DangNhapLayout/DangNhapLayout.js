@@ -2,61 +2,82 @@ import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
 import './DangNhapLayout.scss'
 import { useState } from 'react'
 import { faEye, faEyeSlash } from '@fortawesome/free-solid-svg-icons'
-import {ToastContainer, toast } from 'react-toastify'
+import { ToastContainer, toast } from 'react-toastify'
 import 'react-toastify/dist/ReactToastify.css'
+import { GoogleLogin, GoogleOAuthProvider } from '@react-oauth/google'
+import { useUserContext } from '../../context/Usercontext'
+import FacebookLogin from "react-facebook-login"
 
-function DagNhapLayout () {
-  const [ispassword, setispassword] = useState(true)
-  const [password, setpassword] = useState('')
-  const [username, setusername] = useState('')
+function DangNhap() {
+  const [showPassword, setShowPassword] = useState(false)
+  const { loginWithSocial } = useUserContext()
+  const [formData, setFormData] = useState({
+    username: '',
+    password: ''
+  })
 
   const validate = () => {
+    const { username, password } = formData
     let isValid = true
-    if (!password) {
-      toast.error('bạn chưa nhập mật khẩu', {
-        position: 'top-right',
-        autoClose: 2000 // Ẩn sau 2 giây
-      })
-      isValid = false
-    }
-    if (!username) {
-      toast.error('bạn chưa nhập tài khoản', {
-        position: 'top-right',
-        autoClose: 2000 // Ẩn sau 2 giây
-      })
+
+    if (!username.trim()) {
+      toast.error('Vui lòng nhập tên đăng nhập', { position: 'top-right', autoClose: 2000 })
       isValid = false
     }
 
+    if (!password.trim()) {
+      toast.error('Vui lòng nhập mật khẩu', { position: 'top-right', autoClose: 2000 })
+      isValid = false
+    }
     return isValid
   }
-
-  const handleLogin = async () => {
-    try {
-      if (validate()) {
-        const response = await fetch('http://localhost:3005/login', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({
-            username,
-            password
-          })
-        })
-        const data = await response.json()
-        if (data.message) {
-          toast.error(data.message, {
-            position: 'top-right',
-            autoClose: 2000 // Ẩn sau 2 giây
-          })
-        } else {
-          localStorage.setItem('data', data)
-          window.location.href = '/admin?tab=Trang chủ'
-        }
-      }
-    } catch (error) {
-      console.log(error)
+  
+  const handleFacebookResponse = (response) => {
+    if (response.accessToken) {
+      loginWithSocial('facebook', response.accessToken);
     }
+  };
+
+  // Xử lý đăng nhập Google
+  const handleGoogleSuccess = (credentialResponse) => {
+    if (credentialResponse.credential) {
+      loginWithSocial('google', credentialResponse.credential);
+    }
+  };
+  
+  const handleRegister = async () => {
+    try {
+      if (!validate()) return
+
+      const response = await fetch('http://localhost:3005/register', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(formData)
+      })
+
+      const data = await response.json()
+
+      if (!response.ok) {
+        throw new Error(data.message || 'dang nhap that bai')
+      }
+
+      toast.success('Đăng nhap thành công!', { position: 'top-right', autoClose: 2000 })
+      setTimeout(() => {
+        window.location.href = '/login'
+      }, 2500)
+
+    } catch (error) {
+      toast.error(error.message, { position: 'top-right', autoClose: 2000 })
+    }
+  }
+
+  const handleInputChange = (e) => {
+    setFormData({
+      ...formData,
+      [e.target.name]: e.target.value
+    })
   }
 
   return (
@@ -64,50 +85,69 @@ function DagNhapLayout () {
       <ToastContainer />
       <div className='login_main'>
         <div className='login_left'>
-          <video autoPlay={true} muted loop playsInline>
+          <video autoPlay muted loop playsInline>
             <source src='/video.mp4' type='video/mp4' />
             Trình duyệt của bạn không hỗ trợ video.
           </video>
         </div>
+        
         <div className='login_right'>
           <div className='login_logo'>
-            <img src='/logo2.png' alt='' />
-            <h2>WELCOME BACK!</h2>
+            <img src='/logo2.png' alt='logo' />
+            <h2>ĐĂNG NHẬP TÀI KHOẢN</h2>
           </div>
+
           <div className='login_input'>
-            <label htmlFor=''>Tài khoản</label>
+            <label>Tài khoản</label>
             <div className='divinput_login'>
               <input
                 type='text'
-                placeholder='Nhập tài khoản'
-                value={username}
-                onChange={e => {
-                  setusername(e.target.value)
-                }}
+                name='username'
+                placeholder='Nhập tên đăng nhập'
+                value={formData.username}
+                onChange={handleInputChange}
                 autoComplete='off'
               />
             </div>
           </div>
+
           <div className='login_input'>
-            <label htmlFor=''>Mật khẩu</label>
+            <label>Mật khẩu</label>
             <div className='divinput_login'>
               <input
-                type={ispassword ? 'password' : 'text'}
+                type={showPassword ? 'text' : 'password'}
+                name='password'
                 placeholder='Nhập mật khẩu'
-                value={password}
-                onChange={e => {
-                  setpassword(e.target.value)
-                }}
+                value={formData.password}
+                onChange={handleInputChange}
                 autoComplete='new-password'
               />
               <FontAwesomeIcon
-                icon={ispassword ? faEyeSlash : faEye}
-                onClick={() => setispassword(!ispassword)}
+                icon={showPassword ? faEyeSlash : faEye}
+                onClick={() => setShowPassword(!showPassword)}
               />
             </div>
           </div>
           <div className='login_button'>
-            <button onClick={handleLogin}>Đăng nhập</button>
+            <button onClick={handleRegister}>Đăng Ký</button>
+          </div>
+          <div className="social-login">
+            <FacebookLogin
+              appId="1851667402259732"
+              autoLoad={false}
+              fields="name,email"
+              callback={handleFacebookResponse}
+              cssClass="facebook-btn"
+              textButton="Đăng nhập với Facebook"
+            />
+            
+            <GoogleOAuthProvider clientId="YOUR_GOOGLE_CLIENT_ID">
+              <GoogleLogin
+                onSuccess={handleGoogleSuccess}
+                onError={() => console.log('Google Login Failed')}
+                useOneTap
+              />
+            </GoogleOAuthProvider>
           </div>
         </div>
       </div>
@@ -115,4 +155,4 @@ function DagNhapLayout () {
   )
 }
 
-export default DagNhapLayout
+export default DangNhap

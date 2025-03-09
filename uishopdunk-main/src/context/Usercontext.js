@@ -1,18 +1,16 @@
 import React, { createContext, useContext, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 
 const UserContext = createContext(null);
 
 export const UserContextProvider = ({ children }) => {
-  const navigate = useNavigate();
-
+  const [user, setUser] = useState(null);
   const login = async (loginData) => {
     try {
       const { data: responseData } = await axios.post('http://localhost:3000/login', loginData);
       localStorage.setItem('user', JSON.stringify(responseData));
+      setUser(responseData);
       alert("Đăng nhập thành công");
-      navigate("/");
     } catch (error) {
       alert("Tài khoản hoặc mật khẩu không đúng");
       console.error('Login error:', error);
@@ -23,7 +21,6 @@ export const UserContextProvider = ({ children }) => {
     try {
       await axios.post('http://localhost:3000/register', registerData);
       alert("Đăng ký thành công");
-      navigate("/login");
     } catch (error) {
       alert("Tên tài khoản hoặc mật khẩu đã tồn tại");
       console.error('Registration error:', error);
@@ -43,15 +40,23 @@ export const UserContextProvider = ({ children }) => {
   const logout = () => {
     if (localStorage.getItem('user')) {
       localStorage.removeItem('user');
+      setUser(null);
       alert("Đăng xuất thành công");
-      navigate("/login");
     } else {
       alert("Bạn chưa đăng nhập");
     }
   };
+  const loginWithSocial = async (provider, token) => {
+    try {
+      const { data } = await axios.post(`http://localhost:3000/auth/${provider}`, { token });
+      localStorage.setItem('user', JSON.stringify(data));
+    } catch (error) {
+      alert(`Đăng nhập với ${provider} thất bại`);
+    }
+  };
 
   return (
-    <UserContext.Provider value={{ login, register, getUser, logout }}>
+    <UserContext.Provider value={{ login, register, getUser, logout,loginWithSocial }}>
       {children}
     </UserContext.Provider>
   );

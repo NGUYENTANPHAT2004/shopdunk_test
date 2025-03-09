@@ -15,6 +15,8 @@ import GioiThieu from '../Layout/DeafaultLayout/GioiThieu/GioiThieu'
 import TimKiemLayout from '../Layout/TimKiemLayout/TiemKiemLayout'
 import { AdminLayout } from '../Layout/Admin/TrangChuLayout'
 import { DangNhapLayout } from '../Layout/Admin/DangNhapLayout'
+import DangKiLayout from '../Layout/DangKiLayout/DangKiLayout'
+import { DangNhap } from '../Layout/DangNhapLayout'
 
 const publicRoutes = [
   { path: '/', component: TrangChuLayout },
@@ -33,6 +35,8 @@ const publicRoutes = [
   { path: '/gioi-thieu', component: GioiThieu },
   { path: '/admin', component: AdminLayout, layout: null },
   { path: '/login-admin', component: DangNhapLayout, layout: null },
+  { path: '/login', component: DangNhap, layout: null },
+  { path: '/register', component: DangKiLayout, layout: null },
   { path: '/search/:keyword', component: TimKiemLayout }
 ]
 const privateRoutes = []

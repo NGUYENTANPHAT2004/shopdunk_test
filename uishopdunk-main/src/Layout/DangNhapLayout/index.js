@@ -1,1 +1,1 @@
-export { default as DangNhapLayout } from './DangNhapLayout'
+export { default as DangNhap } from './DangNhapLayout'
