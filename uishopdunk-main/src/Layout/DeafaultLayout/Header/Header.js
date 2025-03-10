@@ -5,13 +5,14 @@ import { FaSearch } from 'react-icons/fa'
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
 import { faBagShopping, faUser } from '@fortawesome/free-solid-svg-icons'
 import { Link } from "react-router-dom"
-
+import { useUserContext } from '../../../context/Usercontext'
 const Header = () => {
   const [searchKeyword, setSearchKeyword] = useState('')
   const [itemCount, setItemCount] = useState(0)
   const [isUserHovered, setIsUserHovered] = useState(false)
   const [isSearchExpanded, setIsSearchExpanded] = useState(false)
-  
+  const {getUser} = useUserContext()
+  console.log(getUser);
   const updateCartCount = () => {
     const cart = localStorage.getItem('cart')
     setItemCount(cart ? JSON.parse(cart).length : 0)
@@ -82,8 +83,8 @@ const Header = () => {
         
         {isUserHovered && (
           <div className='auth-dropdown'>
-            <Link to="/dang-nhap" className="auth-link">Đăng nhập</Link>
-            <Link to="/dang-ky" className="auth-link">Đăng ký</Link>
+            <Link to="/login" className="auth-link">Đăng nhập</Link>
+            <Link to="/register" className="auth-link">Đăng ký</Link>
           </div>
         )}
       </div>

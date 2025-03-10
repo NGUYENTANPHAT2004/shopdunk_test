@@ -8,6 +8,7 @@ function App() {
     <Router>
       <div className="App">
         <Routes>
+
           {publicRoutes.map((route, index) => {
             let Layout = DefaultLayout;
             const Page = route.component;

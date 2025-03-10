@@ -10,7 +10,7 @@ import FacebookLogin from "react-facebook-login"
 
 function DangNhap() {
   const [showPassword, setShowPassword] = useState(false)
-  const { loginWithSocial } = useUserContext()
+  const { loginWithSocial, login } = useUserContext()
   const [formData, setFormData] = useState({
     username: '',
     password: ''
@@ -31,10 +31,13 @@ function DangNhap() {
     }
     return isValid
   }
-  
+
   const handleFacebookResponse = (response) => {
     if (response.accessToken) {
+      console.log("Facebook login response:", response); // For debugging
       loginWithSocial('facebook', response.accessToken);
+    } else {
+      console.error("Facebook login failed:", response);
     }
   };
 
@@ -44,29 +47,12 @@ function DangNhap() {
       loginWithSocial('google', credentialResponse.credential);
     }
   };
-  
+
   const handleRegister = async () => {
     try {
       if (!validate()) return
 
-      const response = await fetch('http://localhost:3005/register', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(formData)
-      })
-
-      const data = await response.json()
-
-      if (!response.ok) {
-        throw new Error(data.message || 'dang nhap that bai')
-      }
-
-      toast.success('Đăng nhap thành công!', { position: 'top-right', autoClose: 2000 })
-      setTimeout(() => {
-        window.location.href = '/login'
-      }, 2500)
+      login(formData)
 
     } catch (error) {
       toast.error(error.message, { position: 'top-right', autoClose: 2000 })
@@ -90,7 +76,7 @@ function DangNhap() {
             Trình duyệt của bạn không hỗ trợ video.
           </video>
         </div>
-        
+
         <div className='login_right'>
           <div className='login_logo'>
             <img src='/logo2.png' alt='logo' />
@@ -136,16 +122,24 @@ function DangNhap() {
               appId="1851667402259732"
               autoLoad={false}
               fields="name,email"
+              scope="public_profile"
               callback={handleFacebookResponse}
               cssClass="facebook-btn"
               textButton="Đăng nhập với Facebook"
             />
-            
-            <GoogleOAuthProvider clientId="YOUR_GOOGLE_CLIENT_ID">
+
+
+            <GoogleOAuthProvider clientId="625355579712-siv3ab624075ufh4uatn695jqe80m5fc.apps.googleusercontent.com">
               <GoogleLogin
                 onSuccess={handleGoogleSuccess}
-                onError={() => console.log('Google Login Failed')}
+                onError={(error) => {
+                  console.error("Google Login Failed:", error);
+                  alert("Đăng nhập với Google thất bại");
+                }}
                 useOneTap
+                theme="filled_blue"
+                text="signin_with"
+                shape="rectangular"
               />
             </GoogleOAuthProvider>
           </div>

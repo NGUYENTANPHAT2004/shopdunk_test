@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { faEye, faEyeSlash } from '@fortawesome/free-solid-svg-icons'
 import { ToastContainer, toast } from 'react-toastify'
 import 'react-toastify/dist/ReactToastify.css'
+import { useUserContext } from '../../context/Usercontext'
 
 function DangKiLayout() {
   const [showPassword, setShowPassword] = useState(false)
@@ -13,7 +14,7 @@ function DangKiLayout() {
     email: '',
     phone: ''
   })
-
+  const {register} = useUserContext();
   const validate = () => {
     const { username, password, email, phone } = formData
     let isValid = true
@@ -44,26 +45,7 @@ function DangKiLayout() {
   const handleRegister = async () => {
     try {
       if (!validate()) return
-
-      const response = await fetch('http://localhost:3005/register', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(formData)
-      })
-
-      const data = await response.json()
-
-      if (!response.ok) {
-        throw new Error(data.message || 'Đăng ký thất bại')
-      }
-
-      toast.success('Đăng ký thành công!', { position: 'top-right', autoClose: 2000 })
-      setTimeout(() => {
-        window.location.href = '/login'
-      }, 2500)
-
+      register(formData)
     } catch (error) {
       toast.error(error.message, { position: 'top-right', autoClose: 2000 })
     }

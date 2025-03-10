@@ -18,9 +18,10 @@ const blogroutes = require('./routes/BlogRoutes')
 const mausacriengroutes = require('./routes/MauSacRiengRoutes')
 
 const danhgiaroutes = require('./routes/DanhGiaRoutes')
-
+require('dotenv').config();
 const authroutes = require("./routes/Authroutes.js")
-
+const jwtSecret = process.env.JWT_SECRET // Thêm fallback key
+console.log(jwtSecret)
 const uri =
   'mongodb://localhost:27017/datn'
 
@@ -30,6 +31,7 @@ const mongoStoreOptions = {
   collection: 'sessions'
 }
 const cors = require('cors')
+const { log } = require('console')
 
 app.use(cors())
 console.log("Local changes & Remote changes");
