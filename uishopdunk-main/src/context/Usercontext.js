@@ -6,6 +6,9 @@ const UserContext = createContext(null);
 
 export const UserContextProvider = ({ children }) => {
   const [user, setUser] = useState(null);
+
+  // 🔹 Khi ứng dụng load lần đầu, lấy user từ localStorage
+  
   const login = async (loginData) => {
     try {
       const { data: responseData } = await axios.post('http://localhost:3005/login_auth', loginData);
@@ -78,18 +81,25 @@ export const UserContextProvider = ({ children }) => {
 
   const getUser = () => {
     try {
-      const user = localStorage.getItem('user');
-      return user ? JSON.parse(user).user.username : null;
+      const user = localStorage.getItem("user");
+      if (!user) return null; // Nếu không có dữ liệu, trả về null
+  
+      const parsedUser = JSON.parse(user);
+  
+      // Kiểm tra username có tồn tại trong `parsedUser` hay không
+      return parsedUser?.user?.username || parsedUser?.username || null;
     } catch (error) {
-      console.error('Error parsing user data:', error);
+      console.error("Error parsing user data:", error);
       return null;
     }
   };
+  
 
   const logout = () => {
     if (localStorage.getItem('user')) {
       localStorage.removeItem('user');
       setUser(null);
+      window.dispatchEvent(new Event("userLogout"));
       alert("Đăng xuất thành công");
     } else {
       alert("Bạn chưa đăng nhập");
@@ -98,8 +108,14 @@ export const UserContextProvider = ({ children }) => {
   const loginWithSocial = async (provider, token) => {
     try {
       const { data } = await axios.post(`http://localhost:3005/auth/${provider}`, { token });
-      alert("đăng nhập thành công")
       localStorage.setItem('user', JSON.stringify(data));
+      toast.success("Đăng nhập thành công! Đang chuyển hướng...", {
+        position: "top-right",
+        autoClose: 2000
+      });
+      setTimeout(() => {
+        window.location.href = "/";
+      }, 2500);
     } catch (error) {
       alert(`Đăng nhập với ${provider} thất bại`);
     }
