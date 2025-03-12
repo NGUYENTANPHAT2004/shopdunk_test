@@ -1,4 +1,3 @@
-/* Navbar.scss */
 .navbar {
   position: relative;
   background-color: #6f6f6f;
@@ -29,6 +28,10 @@
     .navbar-logo {
       height: 50px;
       margin: 5px 0;
+      
+      @media (max-width: 480px) {
+        height: 40px;
+      }
     }
   }
 
@@ -91,6 +94,11 @@
           top: 0;
         }
       }
+    }
+    
+    @media (max-width: 768px) {
+      display: block;
+      order: 2;
     }
   }
 
@@ -188,16 +196,12 @@
 @media (max-width: 768px) {
   .navbar {
     .navbar-container {
-      padding: 10px 15px;
+      padding: 5px 10px;
+      flex-wrap: wrap;
     }
     
     .logo-container {
       flex: 1;
-    }
-    
-    .menu-toggle {
-      display: block;
-      order: 2;
     }
     
     .menu {
@@ -206,6 +210,8 @@
       width: 100%;
       background-color: #6f6f6f;
       order: 3;
+      max-height: calc(100vh - 60px);
+      overflow-y: auto;
       
       &.menu-open {
         display: flex;
@@ -233,6 +239,11 @@
             margin-left: 5px;
           }
         }
+        
+        &.submenu-active > a:after,
+        &.submenu-active > .menu-title:after {
+          content: '-';
+        }
       }
       
       /* Mobile submenu styling */
@@ -258,15 +269,33 @@
           > .submenu {
             display: block;
           }
-          
-          > .menu-title:after {
-            content: '-';
-          }
         }
         
         /* In mobile, don't show on hover alone */
         &:hover > .submenu {
           display: none;
+        }
+      }
+    }
+  }
+}
+
+/* Responsive improvements for very small screens */
+@media (max-width: 480px) {
+  .navbar {
+    .logo-container .navbar-logo {
+      height: 40px;
+    }
+    
+    .header-wrapper {
+      flex: 0 0 auto;
+    }
+    
+    .menu {
+      & > .menu-item {
+        a, .menu-title {
+          padding: 10px 15px;
+          font-size: 14px;
         }
       }
     }

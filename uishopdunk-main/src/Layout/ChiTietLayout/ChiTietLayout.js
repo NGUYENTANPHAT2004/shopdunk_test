@@ -1,6 +1,6 @@
 /* eslint-disable react-hooks/exhaustive-deps */
 import React, { useEffect, useState } from 'react'
-import { useParams } from 'react-router-dom'
+import { useParams, useNavigate } from 'react-router-dom'
 import './ChiTietLayout.scss'
 
 import ListBlog from '../../components/ListBlog/ListBlog'
@@ -14,6 +14,7 @@ import 'slick-carousel/slick/slick-theme.css'
 
 const ChiTietLayout = () => {
   const { tieude, loaisp } = useParams()
+  const navigate = useNavigate()
   const [product, setProduct] = useState(null)
 
   const [isLoading, setIsLoading] = useState(true)
@@ -21,32 +22,33 @@ const ChiTietLayout = () => {
   const [dungluong1, setdungluong1] = useState([])
   const [mausac1, setmausac1] = useState([])
   const [annhmausac, setanhmausac] = useState([])
-  const [pricemausac,setpricemausac] = useState(0)
+  const [pricemausac, setpricemausac] = useState(0)
+  const [khuyenmai, setkhuyenmai] = useState(0)
+  const [giagoc, setgiagoc] = useState(0)
   const [idmausac, setidmausac] = useState('')
   const [idsanpham, setidsanpham] = useState('')
   const [iddungluong, setiddungluong] = useState('')
 
   const [imgsanpham, setimgsanpham] = useState('')
-
-
+  const [namesanpham, setnamesanpham] = useState('')
 
   const settings = {
-    dots: true, // Hiển thị chấm điều hướng
-    infinite: true, // Chạy lặp vô tận
-    speed: 500, // Tốc độ chuyển slide
-    slidesToShow: 5, // Hiển thị 3 ảnh trên cùng 1 hàng
-    slidesToScroll: 1, // Cuộn từng ảnh một
-    autoplay: true, // Tự động chạy
+    dots: true, 
+    infinite: true, 
+    speed: 500, 
+    slidesToShow: 5, 
+    slidesToScroll: 1, 
+    autoplay: true, 
     autoplaySpeed: 3000,
     responsive: [
       {
-        breakpoint: 1024, // Khi màn hình nhỏ hơn 1024px thì hiển thị 2 ảnh
+        breakpoint: 1024, 
         settings: {
           slidesToShow: 2
         }
       },
       {
-        breakpoint: 768, // Khi màn hình nhỏ hơn 768px thì hiển thị 1 ảnh
+        breakpoint: 768, 
         settings: {
           slidesToShow: 1
         }
@@ -62,11 +64,13 @@ const ChiTietLayout = () => {
         setmausac1(dungluong[0].mausac[0].name)
         setidmausac(dungluong[0].mausac[0]._id)
         setpricemausac(dungluong[0].mausac[0].price)
+        setkhuyenmai(dungluong[0].mausac[0].khuyenmai)
+        setgiagoc(dungluong[0].mausac[0].giagoc)
       }
     }
   }, [dungluong])
 
-  const handleChangeDungLuong = (id,name) => {
+  const handleChangeDungLuong = (id, name) => {
     setiddungluong(id)
     setdungluong1(name)
 
@@ -78,13 +82,16 @@ const ChiTietLayout = () => {
     if (mauHienTai) {
       setidmausac(mauHienTai._id)
       setpricemausac(mauHienTai.price)
+      setkhuyenmai(mauHienTai.khuyenmai)
+      setgiagoc(mauHienTai.giagoc)
     } else if (dungLuongMoi.mausac.length > 0) {
       setmausac1(dungLuongMoi.mausac[0].name)
       setidmausac(dungLuongMoi.mausac[0]._id)
       setpricemausac(dungLuongMoi.mausac[0].price)
+      setkhuyenmai(dungLuongMoi.mausac[0].khuyenmai)
+      setgiagoc(dungLuongMoi.mausac[0].giagoc)
     }
   }
-
 
   const fetchdungluong = async () => {
     try {
@@ -110,6 +117,7 @@ const ChiTietLayout = () => {
       if (response.ok) {
         setProduct(data)
         setidsanpham(data._id)
+        setnamesanpham(data.name)
         setimgsanpham(data.image)
       } else {
         console.error('Không tìm thấy sản phẩm')
@@ -153,40 +161,59 @@ const ChiTietLayout = () => {
   }
 
   const handleBuyNow = () => {
-  if (!dungluong1 || !mausac1) {
-    alert('Vui lòng chọn dung lượng và màu sắc!')
-    return
+    if (!dungluong1) {
+      alert('Vui lòng chọn dung lượng!')
+      return
+    }
+
+    if (!mausac1) {
+      alert('Vui lòng chọn màu sắc!')
+      return
+    }
+
+    const dungLuongHienTai = dungluong.find(dl => dl.name === dungluong1)
+    const validColors = dungLuongHienTai
+      ? dungLuongHienTai.mausac.map(mau => mau.name)
+      : []
+
+    if (!validColors.includes(mausac1)) {
+      alert('Màu sắc không hợp lệ với dung lượng đã chọn!')
+      return
+    }
+
+    if (!pricemausac) {
+      alert('Vui lòng chọn giá phù hợp với màu sắc!')
+      return
+    }
+
+    const newItem = {
+      idsanpham,
+      namesanpham,
+      imgsanpham,
+      iddungluong,
+      dungluong: dungluong1,
+      mausac: mausac1,
+      pricemausac
+    }
+
+    let cart = JSON.parse(localStorage.getItem('cart')) || []
+
+    const isExist = cart.some(
+      item =>
+        item.idsanpham === idsanpham &&
+        item.dungluong === dungluong1 &&
+        item.mausac === mausac1
+    )
+
+    if (!isExist) {
+      cart.push(newItem)
+      localStorage.setItem('cart', JSON.stringify(cart))
+      navigate('/cart')
+    } else {
+      alert('Sản phẩm này đã có trong giỏ hàng!')
+    }
+    window.dispatchEvent(new Event('cartUpdated'))
   }
-
-  const newItem = {
-    idsanpham,
-    imgsanpham,
-    iddungluong,
-    dungluong: dungluong1,
-    mausac: mausac1,
-    pricemausac
-  }
-
-  let cart = JSON.parse(localStorage.getItem('cart')) || []
-
-  const isExist = cart.some(
-    item =>
-      item.idmay === idsanpham &&
-      item.dungluong === dungluong1 &&
-      item.mausac === mausac1
-  )
-
-  if (!isExist) {
-    cart.push(newItem)
-    localStorage.setItem('cart', JSON.stringify(cart))
-    alert('Sản phẩm đã được thêm vào giỏ hàng!')
-  } else {
-    alert('Sản phẩm này đã có trong giỏ hàng!')
-  }
-  window.dispatchEvent(new Event('cartUpdated'))
-
-}
-
 
   return (
     <div className='container-chitiet'>
@@ -209,7 +236,7 @@ const ChiTietLayout = () => {
             <Slider {...settings}>
               {annhmausac.map((anh, index) => (
                 <div className='banner_item' key={index}>
-                  <img src={`${anh}`} alt='Banner 1' width={24} height={100} />
+                  <img src={`${anh}`} alt='Banner 1' className='anhchay-img' />
                 </div>
               ))}
             </Slider>
@@ -233,9 +260,13 @@ const ChiTietLayout = () => {
             </div>
             <div className='chitietprice'>
               <span className='current-price'>
-                {pricemausac.toLocaleString()}đ
+                {pricemausac ? pricemausac.toLocaleString() : 0}đ
               </span>
-              <span className='old-price'>50.000.000đ</span>{' '}
+              {khuyenmai === 0 ? (
+                <div></div>
+              ) : (
+                <span className='old-price'>{giagoc.toLocaleString()}đ</span>
+              )}
             </div>
             <div class='note_VAT'>(Đã bao gồm VAT)</div>
 
@@ -252,7 +283,9 @@ const ChiTietLayout = () => {
                             ? 'dungluong_item dungluong_item_active'
                             : 'dungluong_item'
                         }
-                        onClick={() => handleChangeDungLuong(item._id,item.name)}
+                        onClick={() =>
+                          handleChangeDungLuong(item._id, item.name)
+                        }
                       >
                         <span>{item.name}</span>
                       </div>
@@ -280,6 +313,8 @@ const ChiTietLayout = () => {
                                 setmausac1(mau.name)
                                 setidmausac(mau._id)
                                 setpricemausac(mau.price)
+                                setkhuyenmai(mau.khuyenmai)
+                                setgiagoc(mau.giagoc)
                               }}
                             >
                               <div
@@ -411,7 +446,9 @@ const ChiTietLayout = () => {
               </p>
             </div>
           </div>
-          <div className='divbtn_muagay' onClick={handleBuyNow}>MUA NGAY</div>
+          <div className='divbtn_muagay' onClick={handleBuyNow}>
+            MUA NGAY
+          </div>
           <div className='short-des'>
             <p className='pchitiet lh-2'>
               <span style={{ color: '#000000' }}>

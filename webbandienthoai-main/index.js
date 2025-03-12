@@ -16,8 +16,9 @@ const dungluongroutes = require('./routes/DungLuongRoutes')
 const categoryrouter = require('./routes/CategoryRoutes.js')
 const blogroutes = require('./routes/BlogRoutes')
 const mausacriengroutes = require('./routes/MauSacRiengRoutes')
-
+const magiamgiaroutes = require('./routes/MaGiamGiaRoutes')
 const danhgiaroutes = require('./routes/DanhGiaRoutes')
+const hoadonrouter = require('./routes/HoaDonRoutes')
 require('dotenv').config();
 const authroutes = require("./routes/Authroutes.js")
 const jwtSecret = process.env.JWT_SECRET // Thêm fallback key
@@ -59,10 +60,9 @@ app.use('/', categoryrouter)
 app.use('/', blogroutes)
 app.use('/', mausacriengroutes)
 app.use('/', danhgiaroutes)
-
-
+app.use('/', magiamgiaroutes)
 app.use('/', authroutes)
-
+app.use('/', hoadonrouter)
 app.listen(3005, () => {
   console.log('Server is running on port 3005')
   console.log(__dirname)

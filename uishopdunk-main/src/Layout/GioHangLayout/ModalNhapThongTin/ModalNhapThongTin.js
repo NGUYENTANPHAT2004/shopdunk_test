@@ -1,16 +1,23 @@
 import { Modal } from '../../../components/Modal'
 import './ModalNhapThongTin.scss'
 import { useState } from 'react'
-function ModalNhapThongTin ({ isOpen, onClose, amount, product }) {
-  const [name, setname] = useState('')
-  const [phone, setphone] = useState('')
-  const [diachi, setdiachi] = useState('')
-  const [email, setemail] = useState('')
+function ModalNhapThongTin ({
+  isOpen,
+  onClose,
+  amount,
+  sanphams,
+  name,
+  phone,
+  sex,
+  giaotannoi,
+  address,
+  ghichu,
+  magiamgia
+}) {
   const [bankCode, setBankCode] = useState('')
-console.log(amount)
   const handlethanhtoan = async () => {
     try {
-      const response = await fetch('http://localhost:8080/create_payment_url', {
+      const response = await fetch('http://localhost:3005/create_payment_url', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
@@ -18,19 +25,22 @@ console.log(amount)
         body: JSON.stringify({
           name,
           phone,
-          diachi,
-          email,
+          sex,
+          giaotannoi,
+          address,
+          ghichu,
+          magiamgia,
           bankCode,
           amount,
-          product,
+          sanphams,
           language:'vn'
         })
       })
       const data = await response.json()
-      if (response.ok) {
-        window.location.href = data
+      if (data.message) {
+        alert(data.message)
       } else {
-        alert('Đã xảy ra lỗi. Vui lòng thử lại!')
+        window.location.href = data
       }
     } catch (error) {
       console.log(error)
@@ -40,35 +50,6 @@ console.log(amount)
   return (
     <Modal isOpen={isOpen} onClose={onClose}>
       <div className='bodythanhtoan'>
-        <h4>Thanh toán</h4>
-        <input
-          type='text'
-          placeholder='Nhập họ và tên'
-          value={name}
-          onChange={e => setname(e.target.value)}
-          className='inputthanhtoan'
-        />
-        <input
-          type='text'
-          placeholder='Nhập số điện thoại'
-          value={phone}
-          onChange={e => setphone(e.target.value)}
-          className='inputthanhtoan'
-        />
-        <input
-          type='text'
-          placeholder='Nhập email'
-          value={email}
-          onChange={e => setemail(e.target.value)}
-          className='inputthanhtoan'
-        />
-        <input
-          type='text'
-          placeholder='Nhập địa chỉ'
-          value={diachi}
-          onChange={e => setdiachi(e.target.value)}
-          className='inputthanhtoan'
-        />
         <div className='bankcode-select'>
           <label>Mã ngân hàng</label>
           <div className='manganhang'>
@@ -107,7 +88,9 @@ console.log(amount)
             <label htmlFor='intcard'>Thanh toán qua thẻ quốc tế</label>
           </div>
         </div>
-        <button onClick={handlethanhtoan}>Thanh toán</button>
+        <button className='btndathang' onClick={handlethanhtoan}>
+          Thanh toán
+        </button>
       </div>
     </Modal>
   )

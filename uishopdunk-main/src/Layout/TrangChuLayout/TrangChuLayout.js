@@ -8,10 +8,15 @@ import ThanhDinhHuong from '../../components/ThanhDinhHuong/ThanhDinhHuong'
 import { Helmet } from 'react-helmet'
 import ProductCard from '../../components/ProductItem/ProductCard'
 import ListBlog from '../../components/ListBlog/ListBlog'
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
+import { faSearch } from '@fortawesome/free-solid-svg-icons'
+import { useNavigate } from 'react-router-dom'
 function TrangChuLayout () {
   const [data, setdata] = useState([])
   const [isLoading, setIsLoading] = useState(true)
+  const [keyword, setkeyword] = useState('')
   const location = useLocation()
+  const navigate = useNavigate()
 
   const fetchdata = async () => {
     try {
@@ -44,6 +49,9 @@ function TrangChuLayout () {
 
     return slug.charAt(0).toUpperCase() + slug.slice(1)
   }
+  const handleSearch = () => {
+    navigate(`/search-sanpham/${keyword}`)
+  }
   return (
     <div>
       <Helmet>
@@ -56,13 +64,31 @@ function TrangChuLayout () {
             <ThanhDinhHuong breadcrumbs={[{ label: 'Trang Chủ', link: '/' }]} />
           )}
           <Carousel />
+          <div className='search_sanpham'>
+            <label htmlFor=''>Tìm kiếm sản phẩm</label>
+            <div className='div_input_search'>
+              <input
+                type='text'
+                placeholder='Nhập từ khóa'
+                value={keyword}
+                onChange={e => setkeyword(e.target.value)}
+              />
+              <button className='btn_search_sanpham' onClick={handleSearch}>
+                <FontAwesomeIcon icon={faSearch} />
+              </button>
+            </div>
+          </div>
           {data.map(item => (
-            <div key={item.name}>
+            <div key={item.name} className='div_sanpham'>
               <div className='namesp'>{item.name}</div>
 
               <div className='divsp'>
                 {item.sanpham.slice(0, 4).map(sanpham => (
-                  <ProductCard key={sanpham.name} sanpham={sanpham} nametheloai={item.namekhongdau} />
+                  <ProductCard
+                    key={sanpham.name}
+                    sanpham={sanpham}
+                    nametheloai={item.namekhongdau}
+                  />
                 ))}
               </div>
 

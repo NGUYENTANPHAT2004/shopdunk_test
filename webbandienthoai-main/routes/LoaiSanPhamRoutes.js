@@ -25,7 +25,8 @@ router.post('/postloaisp', async (req, res) => {
       hang,
       congsac,
       thongtin,
-      category
+      category,
+      khuyenmai
     } = req.body
     const namekhongdau1 = unicode(name)
     const namekhongdau = removeSpecialChars(namekhongdau1)
@@ -45,7 +46,8 @@ router.post('/postloaisp', async (req, res) => {
       congsac,
       thongtin,
       namekhongdau,
-      category: category
+      category: category,
+      khuyenmai
     })
     cate.theloai.push(tensp._id);
     await cate.save();
@@ -71,7 +73,8 @@ router.post('/putloaisp/:id', async (req, res) => {
       hang,
       congsac,
       thongtin,
-      category // ID Category (mới) do FE gửi lên
+      category,
+      khuyenmai // ID Category (mới) do FE gửi lên
     } = req.body;
 
     // 1. Tìm LoạiSP cũ
@@ -154,7 +157,8 @@ router.post('/putloaisp/:id', async (req, res) => {
     loaiSpOld.congsac = congsac || '';
     loaiSpOld.thongtin = thongtin || '';
     loaiSpOld.namekhongdau = namekhongdau;
-    loaiSpOld.category = newCategoryId; // Lưu category (hoặc null) vào LoạiSP
+    loaiSpOld.category = newCategoryId;
+    loaiSpOld.khuyenmai=khuyenmai || "";// Lưu category (hoặc null) vào LoạiSP
 
     await loaiSpOld.save();
 
@@ -293,7 +297,8 @@ router.get('/theloaiadmin', async (req, res) => {
           camera: tl.camera,
           pinsac: tl.pinsac,
           hang: tl.hang,
-          congsac: tl.congsac
+          congsac: tl.congsac,
+          khuyenmai: tl.khuyenmai
         }
       })
     )

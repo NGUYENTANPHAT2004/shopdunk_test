@@ -136,6 +136,8 @@ function TheLoaiLayout () {
             <th>Ram</th>
             <th>Dung lượng</th>
             <th>Hãng</th>
+            <th>Khuyến mãi</th>
+            
           </tr>
         </thead>
         <tbody>
@@ -153,6 +155,7 @@ function TheLoaiLayout () {
               <td>{item.ram}</td>
               <td>{item.dungluong}</td>
               <td>{item.hang}</td>
+              <td>{item.khuyenmai}</td>
             </tr>
           ))}
         </tbody>

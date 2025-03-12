@@ -1,0 +1,127 @@
+.doanhthu-container {
+    margin: 20px auto;
+    padding: 20px;
+    background: #f9f9f9;
+    border-radius: 8px;
+    box-shadow: 0px 4px 10px rgba(0, 0, 0, 0.1);
+    height:85vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+
+/* Tiêu đề */
+.doanhthu-title {
+    text-align: center;
+    font-size: 24px;
+    font-weight: bold;
+    margin-bottom: 20px;
+    color: #333;
+}
+
+/* Bộ lọc ngày */
+.doanhthu-filter {
+    display: flex;
+    justify-content: center;
+    gap: 12px;
+    margin-bottom: 20px;
+}
+
+.doanhthu-input {
+    padding: 10px;
+    border: 2px solid #ccc;
+    border-radius: 6px;
+    font-size: 14px;
+    outline: none;
+    transition: border 0.3s;
+}
+
+.doanhthu-input:focus {
+    border: 2px solid #007bff;
+}
+
+.doanhthu-button {
+    padding: 10px 15px;
+    background: #007bff;
+    color: white;
+    border: none;
+    cursor: pointer;
+    border-radius: 6px;
+    font-size: 14px;
+    transition: background 0.3s;
+}
+
+.doanhthu-button:hover {
+    background: #0056b3;
+}
+
+/* Bảng doanh thu */
+.doanhthu-table-wrapper {
+    width: 100%;
+    max-width: 900px;
+    overflow-x: auto;
+    margin-bottom: 20px;
+}
+
+.doanhthu-table {
+    width: 100%;
+    border-collapse: collapse;
+    background: white;
+    border-radius: 8px;
+    overflow: hidden;
+}
+
+.doanhthu-header {
+    background: #007bff;
+    color: white;
+    padding: 12px;
+    text-align: center;
+    font-size: 14px;
+    border-bottom: 2px solid #ddd;
+}
+
+.doanhthu-cell {
+    border-bottom: 1px solid #ddd;
+    padding: 10px;
+    text-align: center;
+    font-size: 14px;
+}
+
+.doanhthu-no-data {
+    text-align: center;
+    padding: 15px;
+    color: gray;
+}
+
+/* Biểu đồ doanh thu */
+.doanhthu-chart-wrapper {
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    background: #fff;
+    border-radius: 10px;
+    box-shadow: 0px 3px 10px rgba(0, 0, 0, 0.1);
+    padding: 20px;
+}
+
+.doanhthu-chart-title {
+    text-align: center;
+    font-size: 20px;
+    margin-bottom: 15px;
+    font-weight: bold;
+    color: #333;
+}
+
+/* Định dạng cho biểu đồ */
+.recharts-cartesian-grid line {
+    stroke: #ddd !important;
+}
+
+.recharts-bar-rectangle {
+    transition: fill 0.3s;
+}
+
+.recharts-bar-rectangle:hover {
+    fill: #0056b3 !important;
+}

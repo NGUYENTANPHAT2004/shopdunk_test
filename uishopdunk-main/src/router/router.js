@@ -17,6 +17,7 @@ import { AdminLayout } from '../Layout/Admin/TrangChuLayout'
 import { DangNhapLayout } from '../Layout/Admin/DangNhapLayout'
 import DangKiLayout from '../Layout/DangKiLayout/DangKiLayout'
 import { DangNhap } from '../Layout/DangNhapLayout'
+import { TimKiemSanPhamLayout } from '../Layout/TimKiemSanPhamLayout'
 
 const publicRoutes = [
   { path: '/', component: TrangChuLayout },
@@ -37,7 +38,8 @@ const publicRoutes = [
   { path: '/login-admin', component: DangNhapLayout, layout: null },
   { path: '/login', component: DangNhap, layout: null },
   { path: '/register', component: DangKiLayout, layout: null },
-  { path: '/search/:keyword', component: TimKiemLayout }
+  { path: '/search/:keyword', component: TimKiemLayout },
+  { path: '/search-sanpham/:keyword', component: TimKiemSanPhamLayout },
 ]
 const privateRoutes = []
 export { publicRoutes, privateRoutes }

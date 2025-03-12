@@ -2,6 +2,7 @@ import React, { createContext, useContext, useState } from 'react';
 import axios from 'axios';
 import { ToastContainer, toast } from 'react-toastify'
 import 'react-toastify/dist/ReactToastify.css'
+import Swal from "sweetalert2";
 const UserContext = createContext(null);
 
 export const UserContextProvider = ({ children }) => {
@@ -97,18 +98,39 @@ export const UserContextProvider = ({ children }) => {
 
   const logout = () => {
     if (localStorage.getItem('user')) {
-      localStorage.removeItem('user');
-      setUser(null);
-      window.dispatchEvent(new Event("userLogout"));
-      alert("Đăng xuất thành công");
+      Swal.fire({
+        title: "Bạn có chắc chắn muốn đăng xuất?",
+        icon: "warning",
+        showCancelButton: true,
+        confirmButtonColor: "#3085d6",
+        cancelButtonColor: "#d33",
+        confirmButtonText: "Đăng xuất",
+        cancelButtonText: "Hủy"
+      }).then((result) => {
+        if (result.isConfirmed) {
+          localStorage.removeItem("user");
+          setUser(null);
+          window.dispatchEvent(new Event("userLogout"));
+    
+          toast.success("Đăng xuất thành công!", {
+            position: "top-right",
+            autoClose: 2000
+          });
+        }
+      });
     } else {
-      alert("Bạn chưa đăng nhập");
+      toast.info("Bạn chưa đăng nhập" ,{
+        position: "top-right",
+        autoClose: 2000
+      });
     }
   };
   const loginWithSocial = async (provider, token) => {
     try {
       const { data } = await axios.post(`http://localhost:3005/auth/${provider}`, { token });
-      localStorage.setItem('user', JSON.stringify(data));
+      if(data){
+        localStorage.setItem('user', JSON.stringify(data));
+      }
       toast.success("Đăng nhập thành công! Đang chuyển hướng...", {
         position: "top-right",
         autoClose: 2000
@@ -117,7 +139,10 @@ export const UserContextProvider = ({ children }) => {
         window.location.href = "/";
       }, 2500);
     } catch (error) {
-      alert(`Đăng nhập với ${provider} thất bại`);
+      toast.error(`Đăng nhập với ${provider} thất bại`, {
+        position: "top-right",
+        autoClose: 2000
+      });
     }
   };
 

@@ -16,6 +16,7 @@ function AddTheLoai ({ isOpen, onClose, fetchdata }) {
   const [thongtin, sethongtin] = useState('')
   const [categories, setCategories] = useState([])
   const [selectedCategory, setSelectedCategory] = useState('')
+  const [khuyenmai, setkhuyenmai] = useState(0)
   useEffect(() => {
     const fetchCategories = async () => {
       try {
@@ -67,7 +68,8 @@ function AddTheLoai ({ isOpen, onClose, fetchdata }) {
           hang,
           congsac,
           thongtin,
-          category: selectedCategory
+          category: selectedCategory,
+          khuyenmai
         })
       })
       if (response.ok) {
@@ -143,6 +145,12 @@ function AddTheLoai ({ isOpen, onClose, fetchdata }) {
               value={hang}
               onChange={e => sethang(e.target.value)}
               placeholder='Nhập hàng'
+            />
+            <input
+              type='number'
+              value={khuyenmai}
+              onChange={e => setkhuyenmai(e.target.value)}
+              placeholder='Nhập khuyến mãi (%)'
             />
           </div>
         </div>

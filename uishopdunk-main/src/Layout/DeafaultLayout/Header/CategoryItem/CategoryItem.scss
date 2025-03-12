@@ -1,16 +1,25 @@
-/* CategoryItem.scss */
-
-/* Styles for submenu items */
 .menu-item {
   position: relative;
   
   a {
-    display: block;
+    display: flex;
+    justify-content: space-between;
     padding: 8px 12px;
     color: #fff;
     text-decoration: none;
     transition: background-color 0.2s ease;
     white-space: nowrap;
+    
+    .submenu-toggle {
+      display: none;
+      margin-left: 5px;
+    }
+    
+    @media (max-width: 768px) {
+      .submenu-toggle {
+        display: inline-block;
+      }
+    }
   }
 
   /* Hover effect for all menu items */
@@ -47,7 +56,8 @@
         
         a {
           padding: 8px 15px;
-          display: block;
+          display: flex;
+          width: 100%;
           
           &:hover {
             background-color: #be8c45;
@@ -66,8 +76,7 @@
     /* Mobile view: Show submenu when active class is present */
     @media (max-width: 768px) {
       > a:after {
-        content: '+';
-        margin-left: 5px;
+        content: '';
       }
       
       &.submenu-active {
@@ -77,11 +86,17 @@
           box-shadow: none;
           background-color: rgba(0,0,0,0.1);
           padding-left: 15px;
+          width: 100%;
         }
-        
-        > a:after {
-          content: '-';
-        }
+      }
+      
+      .submenu-open {
+        display: block;
+        position: static;
+        width: 100%;
+        box-shadow: none;
+        background-color: rgba(0,0,0,0.1);
+        padding-left: 15px;
       }
       
       &:hover > .submenu {

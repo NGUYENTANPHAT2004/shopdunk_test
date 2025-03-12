@@ -1,6 +1,6 @@
 const express = require('express')
 const router = express.Router()
-const DungLuong = require('../models/DungLuongModel.js')
+const DungLuong = require('../models/DungLuongModel')
 const LoaiSP = require('../models/LoaiSanPham')
 const MauSac = require('../models/MauSacModel')
 
@@ -79,7 +79,12 @@ router.get('/dungluongmay/:namekhongdau', async (req, res) => {
             return {
               _id: mausac1._id,
               name: mausac1.name,
-              price: mausac1.price,
+              price:
+                loaisp.khuyenmai === 0
+                  ? mausac1.price
+                  : mausac1.price - (mausac1.price * loaisp.khuyenmai) / 100,
+              giagoc: mausac1.price,
+              khuyenmai: loaisp.khuyenmai,
               images: mausac1.image
             }
           })
@@ -97,7 +102,7 @@ router.get('/dungluongmay/:namekhongdau', async (req, res) => {
     res.status(500).json({ message: `Đã xảy ra lỗi: ${error}` })
   }
 })
-router.get('/getmausacgh/:iddungluong',async(req,res)=>{
+router.get('/getmausacgh/:iddungluong', async (req, res) => {
   try {
     const iddungluong = req.params.iddungluong
     const dungluong = await DungLuong.dungluong.findById(iddungluong)

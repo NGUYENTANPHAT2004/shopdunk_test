@@ -15,6 +15,7 @@ export function CapNhatTheLoai({ isOpen, onClose, idtheloai, fetchdata }) {
   const [hang, setHang] = useState('');
   const [congsac, setCongsac] = useState('');
   const [thongtin, setThongtin] = useState('');
+  const [khuyenmai, setkhuyenmai] = useState(0)
 
   // Thêm state cho category
   const [category, setCategory] = useState('');
@@ -68,6 +69,7 @@ export function CapNhatTheLoai({ isOpen, onClose, idtheloai, fetchdata }) {
         setHang(data.hang || '');
         setCongsac(data.congsac || '');
         setThongtin(data.thongtin || '');
+        setkhuyenmai(data.khuyenmai)
         // Lấy id category hiện tại của LoạiSP
         if (data.category) {
           setCategory(data.category);
@@ -105,7 +107,8 @@ export function CapNhatTheLoai({ isOpen, onClose, idtheloai, fetchdata }) {
           hang,
           congsac,
           thongtin,
-          category, // Gửi kèm ID category
+          category,
+          khuyenmai // Gửi kèm ID category
         }),
       });
 
@@ -187,6 +190,12 @@ export function CapNhatTheLoai({ isOpen, onClose, idtheloai, fetchdata }) {
               value={hang}
               onChange={(e) => setHang(e.target.value)}
               placeholder="Nhập hàng"
+            />
+            <input
+              type='number'
+              value={khuyenmai}
+              onChange={e => setkhuyenmai(e.target.value)}
+              placeholder='Nhập khuyến mãi (%)'
             />
           </div>
         </div>

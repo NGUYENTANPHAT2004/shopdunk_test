@@ -1,4 +1,3 @@
-// CategoryItem.jsx
 import React, { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import './CategoryItem.scss'; 
@@ -13,6 +12,9 @@ const CategoryItem = ({ category }) => {
   useEffect(() => {
     const handleResize = () => {
       setIsMobile(window.innerWidth <= 768);
+      if (window.innerWidth > 768) {
+        setIsOpen(false); // Reset state when switching to desktop
+      }
     };
     
     window.addEventListener('resize', handleResize);
@@ -46,13 +48,14 @@ const CategoryItem = ({ category }) => {
       <Link 
         to={"/san-pham/" + category.namekhongdau} 
         className="menu-link"
-        onClick={(e) => (hasChildren || hasTheLoai) && isMobile ? toggleSubmenu(e) : null}
+        onClick={(e) => (hasChildren || hasTheLoai) && toggleSubmenu(e)}
       >
         {category.name}
+        {(hasChildren || hasTheLoai) && isMobile && <span className="submenu-toggle">{isOpen ? '-' : '+'}</span>}
       </Link>
       
       {(hasChildren || hasTheLoai) && (
-        <ul className={isOpen ? "submenu submenu-open" : "submenu"}>
+        <ul className={`submenu ${isOpen ? "submenu-open" : ""}`}>
           {hasChildren && category.children.map((child) => (
             <CategoryItem key={child._id} category={child} />
           ))}

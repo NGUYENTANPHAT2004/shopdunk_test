@@ -4,6 +4,7 @@ import { FaEdit, FaPlus } from 'react-icons/fa'
 import {FaTrashCan } from 'react-icons/fa6'
 import { AddMaGiamGia } from './AddMaGiamGia'
 import { UpdateMaGiamGia } from './UpdateMaGiamGia'
+import { XoaMaGiamGia } from './XoaMaGiamGia'
 
 function MaGiamGiaLayout () {
   const [data, setData] = useState([])
@@ -134,13 +135,13 @@ function MaGiamGiaLayout () {
       />
 
 
-      {/* <XoaTheLoai
+      <XoaMaGiamGia
         isOpen={isOpenXoaTL}
         onClose={() => setisOpenXoaTL(false)}
-        idtheloai={selectedIds}
+        idmagiamgia={selectedIds}
         fetchdata={fetchdata}
         setSelectedIds={setSelectedIds}
-      /> */}
+      />
       <UpdateMaGiamGia
         isOpen={isOpenCapNhat}
         onClose={() => setisOpenCapNhat(false)}
