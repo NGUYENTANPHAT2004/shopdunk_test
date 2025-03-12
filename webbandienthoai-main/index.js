@@ -24,7 +24,7 @@ const authroutes = require("./routes/Authroutes.js")
 const jwtSecret = process.env.JWT_SECRET // Thêm fallback key
 console.log(jwtSecret)
 const uri =
-  'mongodb://localhost:27017/datn'
+  'mongorestore --uri "mongodb+srv://phat1z:phatdz17052004@ez88-cluster.mongodb.net/datn" backup/'
 
 const mongoStoreOptions = {
   mongooseConnection: db.mongoose.connection,
