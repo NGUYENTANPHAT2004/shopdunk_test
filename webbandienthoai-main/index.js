@@ -19,12 +19,10 @@ const mausacriengroutes = require('./routes/MauSacRiengRoutes')
 const magiamgiaroutes = require('./routes/MaGiamGiaRoutes')
 const danhgiaroutes = require('./routes/DanhGiaRoutes')
 const hoadonrouter = require('./routes/HoaDonRoutes')
-require('dotenv').config();
+const stockrouter = require('./routes/stockrouter')
 const authroutes = require("./routes/Authroutes.js")
-const jwtSecret = process.env.JWT_SECRET // Thêm fallback key
-console.log(jwtSecret)
 const uri =
-  'mongodb://localhost:27017/datn'
+  'mongodb+srv://baongocxink03:KD3qvAqFfpKC1uzX@cluster0.aocmw.mongodb.net/webbandienthoai?retryWrites=true&w=majority'
 
 const mongoStoreOptions = {
   mongooseConnection: db.mongoose.connection,
@@ -32,8 +30,7 @@ const mongoStoreOptions = {
   collection: 'sessions'
 }
 const cors = require('cors')
-const { log } = require('console')
-
+app.use(express.json());
 app.use(cors())
 console.log("Local changes & Remote changes");
 app.use(
@@ -63,6 +60,7 @@ app.use('/', danhgiaroutes)
 app.use('/', magiamgiaroutes)
 app.use('/', authroutes)
 app.use('/', hoadonrouter)
+app.use('/', stockrouter)
 app.listen(3005, () => {
   console.log('Server is running on port 3005')
   console.log(__dirname)
