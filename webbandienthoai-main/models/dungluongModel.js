@@ -5,6 +5,5 @@ const dungluongSchema = new db.mongoose.Schema({
   mausac: [{ type: db.mongoose.Schema.Types.ObjectId, ref: 'mausac' }],
   idloaisp: { type: db.mongoose.Schema.Types.ObjectId, ref: 'loaisp' }
 })
-
 const dungluong = db.mongoose.model('dungluong', dungluongSchema)
 module.exports = { dungluong }

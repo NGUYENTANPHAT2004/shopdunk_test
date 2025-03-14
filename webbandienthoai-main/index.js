@@ -21,12 +21,8 @@ const danhgiaroutes = require('./routes/DanhGiaRoutes')
 const hoadonrouter = require('./routes/HoaDonRoutes')
 const stockrouter = require('./routes/stockrouter')
 const authroutes = require("./routes/Authroutes.js")
-const uri =
-<<<<<<< HEAD
-  'mongodb+srv://baongocxink03:KD3qvAqFfpKC1uzX@cluster0.aocmw.mongodb.net/webbandienthoai?retryWrites=true&w=majority'
-=======
-  'mongorestore --uri "mongodb+srv://phat1z:phatdz17052004@ez88-cluster.mongodb.net/datn" backup/'
->>>>>>> 0415ec1816f80c46ab52cd38fd80cff4ac70c7e9
+const uri ='mongodb+srv://baongocxink03:KD3qvAqFfpKC1uzX@cluster0.aocmw.mongodb.net/webbandienthoai?retryWrites=true&w=majority'
+
 
 const mongoStoreOptions = {
   mongooseConnection: db.mongoose.connection,
