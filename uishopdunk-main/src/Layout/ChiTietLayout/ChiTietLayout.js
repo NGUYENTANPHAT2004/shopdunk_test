@@ -1,3 +1,4 @@
+/* eslint-disable react-hooks/rules-of-hooks */
 /* eslint-disable react-hooks/exhaustive-deps */
 import React, { useEffect, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
@@ -16,11 +17,11 @@ const ChiTietLayout = () => {
   const { tieude, loaisp } = useParams()
   const navigate = useNavigate()
   const [product, setProduct] = useState(null)
-
+  const [quantity, setQuantity] = useState(null)
   const [isLoading, setIsLoading] = useState(true)
   const [dungluong, setdungluong] = useState([])
-  const [dungluong1, setdungluong1] = useState([])
-  const [mausac1, setmausac1] = useState([])
+  const [dungluong1, setdungluong1] = useState('')
+  const [mausac1, setmausac1] = useState('')
   const [annhmausac, setanhmausac] = useState([])
   const [pricemausac, setpricemausac] = useState(0)
   const [khuyenmai, setkhuyenmai] = useState(0)
@@ -56,6 +57,35 @@ const ChiTietLayout = () => {
     ]
   }
 
+  // Fetch stock level from API
+  const fetchStock = async () => {
+    // Only fetch stock if we have all required IDs
+    if (!idsanpham || !iddungluong || !idmausac) {
+      setQuantity(null);
+      return;
+    }
+
+    try {
+      const response = await fetch(`http://localhost:3005/stock/${idsanpham}/${iddungluong}/${idmausac}`);
+      
+      if (response.ok) {
+        const data = await response.json();
+        if (data.unlimitedStock) {
+          setQuantity('Không giới hạn');
+        } else {
+          setQuantity(data.stock);
+        }
+      } else {
+        console.error('Không thể lấy thông tin tồn kho');
+        setQuantity(0);
+      }
+    } catch (error) {
+      console.error('Lỗi khi lấy tồn kho:', error);
+      setQuantity(0);
+    }
+  };
+
+  // Set initial selection when dungluong data loads
   useEffect(() => {
     if (dungluong.length > 0) {
       setdungluong1(dungluong[0].name)
@@ -69,6 +99,11 @@ const ChiTietLayout = () => {
       }
     }
   }, [dungluong])
+
+  // Fetch stock whenever selected product, capacity or color changes
+  useEffect(() => {
+    fetchStock();
+  }, [idsanpham, iddungluong, idmausac]);
 
   const handleChangeDungLuong = (id, name) => {
     setiddungluong(id)
@@ -131,6 +166,8 @@ const ChiTietLayout = () => {
 
   const fetchanhmausac = async () => {
     try {
+      if (!idmausac) return;
+      
       const response = await fetch(
         `http://localhost:3005/getanhmausac/${idmausac}`
       )
@@ -186,6 +223,12 @@ const ChiTietLayout = () => {
       return
     }
 
+    // Check stock availability
+    if (quantity === 0 || quantity === '0' || quantity === 'Hết hàng') {
+      alert('Sản phẩm đã hết hàng!')
+      return
+    }
+
     const newItem = {
       idsanpham,
       namesanpham,
@@ -215,8 +258,25 @@ const ChiTietLayout = () => {
     window.dispatchEvent(new Event('cartUpdated'))
   }
 
+  // Function to display stock status with appropriate styling
+  const renderStockStatus = () => {
+    if (quantity === null) {
+      return <span className="loading-stock">Đang tải...</span>;
+    } else if (quantity === 0 || quantity === '0' || quantity === 'Hết hàng') {
+      return <span className="out-of-stock">Hết hàng</span>;
+    } else if (quantity < 5 && quantity !== 'Không giới hạn') {
+      return <span className="low-stock">Sắp hết hàng (Còn {quantity})</span>;
+    } else {
+      return <span className="in-stock">Còn hàng</span>;
+    }
+  };
+
   return (
     <div className='container-chitiet'>
+      <div className='stock-status'>
+        Tình trạng: <strong>{renderStockStatus()}</strong>
+      </div>
+      
       <Helmet>
         <title>{product.name} - Shopdunk</title>
       </Helmet>
@@ -268,63 +328,59 @@ const ChiTietLayout = () => {
                 <span className='old-price'>{giagoc.toLocaleString()}đ</span>
               )}
             </div>
-            <div class='note_VAT'>(Đã bao gồm VAT)</div>
-
+            <div className='note_VAT'>(Đã bao gồm VAT)</div>
+             
             <div className='mausac_dungluong'>
-              <div class='note_tieude'>Dung lượng:</div>
+              <div className='note_tieude'>Dung lượng:</div>
 
               <div className='dungluong_chitiet'>
                 {dungluong.map((item, index) => (
-                  <>
-                    <div className='dungluong_container' key={index}>
-                      <div
-                        className={
-                          dungluong1 === item.name
-                            ? 'dungluong_item dungluong_item_active'
-                            : 'dungluong_item'
-                        }
-                        onClick={() =>
-                          handleChangeDungLuong(item._id, item.name)
-                        }
-                      >
-                        <span>{item.name}</span>
-                      </div>
+                  <div className='dungluong_container' key={index}>
+                    <div
+                      className={
+                        dungluong1 === item.name
+                          ? 'dungluong_item dungluong_item_active'
+                          : 'dungluong_item'
+                      }
+                      onClick={() =>
+                        handleChangeDungLuong(item._id, item.name)
+                      }
+                    >
+                      <span>{item.name}</span>
                     </div>
-                  </>
+                  </div>
                 ))}
               </div>
-              <div class='note_tieude'>Màu sắc:</div>
-
+              <div className='note_tieude'>Màu sắc:</div>
+              
               <div className='mausac_chitiet'>
                 {dungluong.map((item, index) => (
-                  <>
-                    <div className='dungluong_container' key={index}>
-                      <div className='mausac_container'>
-                        {dungluong1 === item.name &&
-                          item.mausac.map((mau, row) => (
+                  <div className='dungluong_container' key={index}>
+                    <div className='mausac_container'>
+                      {dungluong1 === item.name &&
+                        item.mausac.map((mau, row) => (
+                          <div
+                            className={
+                              mausac1 === mau.name
+                                ? `border_mausac border_mausac1`
+                                : `border_mausac`
+                            }
+                            key={row}
+                            onClick={() => {
+                              setmausac1(mau.name)
+                              setidmausac(mau._id)
+                              setpricemausac(mau.price)
+                              setkhuyenmai(mau.khuyenmai)
+                              setgiagoc(mau.giagoc)
+                            }}
+                          >
                             <div
-                              className={
-                                mausac1 === mau.name
-                                  ? `border_mausac border_mausac1`
-                                  : `border_mausac`
-                              }
-                              key={row}
-                              onClick={() => {
-                                setmausac1(mau.name)
-                                setidmausac(mau._id)
-                                setpricemausac(mau.price)
-                                setkhuyenmai(mau.khuyenmai)
-                                setgiagoc(mau.giagoc)
-                              }}
-                            >
-                              <div
-                                style={{ backgroundColor: `${mau.name}` }}
-                              ></div>
-                            </div>
-                          ))}
-                      </div>
+                              style={{ backgroundColor: `${mau.name}` }}
+                            ></div>
+                          </div>
+                        ))}
                     </div>
-                  </>
+                  </div>
                 ))}
               </div>
             </div>
@@ -337,26 +393,26 @@ const ChiTietLayout = () => {
             <div className='short-description'>
               <div className='short-description-header'>
                 <span>
-                  ( Khuyến mãi dự kiến áp dụng{' '}
-                  <strong>đến 23h59 | 28/2/2025</strong>&nbsp;)
+                  ( Khuyến mãi dự kiến áp dụng{' '}
+                  <strong>đến 23h59 | 28/2/2025</strong>&nbsp;)
                 </span>
               </div>
               <hr />
               <div style={{ display: 'flex' }}>
                 <div className='short-description-content'>
                   <div className='event_price'>
-                    Ưu đãi mùa yêu Valentine 10/2 - 17/2 giảm thêm
+                    Ưu đãi mùa yêu Valentine 10/2 - 17/2 giảm thêm
                   </div>
                   <div className='event_value'>100,000 ₫</div>
                   <div>
-                    Áp dụng màu Ultramarine (Xanh Lưu Ly). Được áp dụng cùng
-                    ZaloPay. Không áp dụng cùng CTKM khác.
+                    Áp dụng màu Ultramarine (Xanh Lưu Ly). Được áp dụng cùng
+                    ZaloPay. Không áp dụng cùng CTKM khác.
                   </div>
                 </div>
               </div>
               <hr />
               <p className='pchitiet'>
-                <strong className='pstrong'>I. Ưu đãi thanh toán&nbsp;</strong>
+                <strong className='pstrong'>I. Ưu đãi thanh toán&nbsp;</strong>
               </p>
               <p className='pchitiet lh-2'>
                 <span style={{ color: '#000000' }}>
@@ -364,7 +420,7 @@ const ChiTietLayout = () => {
                   Hỗ trợ trả góp
                   <strong> 0% </strong>
                   lãi suất, 0 phụ phí
-                  <span style={{ color: '#007edb' }}> (xem chi tiết)</span>
+                  <span style={{ color: '#007edb' }}> (xem chi tiết)</span>
                 </span>
               </p>
               <p className='pchitiet lh-2'>
@@ -392,7 +448,7 @@ const ChiTietLayout = () => {
               <p className='pchitiet lh-2'>
                 <span style={{ color: '#000000' }}>
                   <img src='/tichxanh.jpe' alt='' width={16} height={17} />
-                  <strong> Ốp chính hãng Apple iPhone 16 series </strong>
+                  <strong> Ốp chính hãng Apple iPhone 16 series </strong>
                   giảm
                   <strong> 100.000đ </strong>
                 </span>
@@ -400,16 +456,16 @@ const ChiTietLayout = () => {
               <p className='pchitiet lh-2'>
                 <span style={{ color: '#000000' }}>
                   <img src='/tichxanh.jpe' alt='' width={16} height={17} />
-                  <strong> Sản phẩm Apple, phụ kiên </strong>
+                  <strong> Sản phẩm Apple, phụ kiên </strong>
                   giảm đên
                   <strong> 80% </strong>
-                  <span style={{ color: '#007edb' }}>(xem chi tiết)</span>
+                  <span style={{ color: '#007edb' }}>(xem chi tiết)</span>
                 </span>
               </p>
               <p className='pchitiet lh-2'>
                 <span style={{ color: '#000000' }}>
                   <img src='/tichxanh.jpe' alt='' width={16} height={17} />
-                  Mua combo phụ kiện
+                  Mua combo phụ kiện
                   <strong> Non Apple </strong>
                   giảm đến
                   <strong> 200.000đ </strong>
@@ -420,12 +476,12 @@ const ChiTietLayout = () => {
                   <img src='/tichxanh.jpe' alt='' width={16} height={17} />
                   Giảm đến
                   <strong> 20% </strong>
-                  khi mua các gói bảo hành
-                  <span style={{ color: '#007edb' }}> (xem chi tiết)</span>
+                  khi mua các gói bảo hành
+                  <span style={{ color: '#007edb' }}> (xem chi tiết)</span>
                 </span>
               </p>
               <p className='pchitiet'>
-                <strong className='pstrong'>III. Ưu đãi khác &nbsp;</strong>
+                <strong className='pstrong'>III. Ưu đãi khác &nbsp;</strong>
               </p>
               <p className='pchitiet lh-2'>
                 <span style={{ color: '#000000' }}>
@@ -433,7 +489,7 @@ const ChiTietLayout = () => {
                   Duy nhất tại ShopDunk, hỗ trợ mở thẻ tín dụng Sacombank hạn
                   mức lên tới
                   <strong> 25 triệu </strong>
-                  dành cho HS-SV
+                  dành cho HS-SV
                 </span>
               </p>
               <p className='pchitiet lh-2'>
@@ -441,13 +497,16 @@ const ChiTietLayout = () => {
                   <img src='/tichxanh.jpe' alt='' width={16} height={17} />
                   Trợ giá lên đời đến
                   <strong> 20% </strong>
-                  <span style={{ color: '#007edb' }}>(xem chi tiết)</span>
+                  <span style={{ color: '#007edb' }}>(xem chi tiết)</span>
                 </span>
               </p>
             </div>
           </div>
-          <div className='divbtn_muagay' onClick={handleBuyNow}>
-            MUA NGAY
+          <div 
+            className={`divbtn_muagay ${quantity === 0 || quantity === '0' || quantity === 'Hết hàng' ? 'disabled' : ''}`} 
+            onClick={handleBuyNow}
+          >
+            {quantity === 0 || quantity === '0' || quantity === 'Hết hàng' ? 'HẾT HÀNG' : 'MUA NGAY'}
           </div>
           <div className='short-des'>
             <p className='pchitiet lh-2'>
@@ -470,7 +529,7 @@ const ChiTietLayout = () => {
                 />
                 <span>
                   {' '}
-                  Miễn phí 1 đổi 1 trong 30 ngày đầu tiên (nếu có lỗi do NSX)
+                  Miễn phí 1 đổi 1 trong 30 ngày đầu tiên (nếu có lỗi do NSX)
                 </span>
               </span>
             </p>
@@ -481,7 +540,7 @@ const ChiTietLayout = () => {
                   className='icontichxanh'
                 />
                 <span> Bảo hành chính hãng 1 năm</span>
-                <span style={{ color: '#007edb' }}> (chi tiết)</span>
+                <span style={{ color: '#007edb' }}> (chi tiết)</span>
               </span>
             </p>
             <p className='pchitiet lh-2'>
@@ -491,7 +550,7 @@ const ChiTietLayout = () => {
                   className='icontichxanh'
                 />
                 <span> Giao hàng nhanh toàn quốc</span>
-                <span style={{ color: '#007edb' }}> (chi tiết)</span>
+                <span style={{ color: '#007edb' }}> (chi tiết)</span>
               </span>
             </p>
             <p className='pchitiet lh-2'>
@@ -501,7 +560,7 @@ const ChiTietLayout = () => {
                   className='icontichxanh'
                 />
                 <span> Tax Refund For Foreingers</span>
-                <span style={{ color: '#007edb' }}> (chi tiết)</span>
+                <span style={{ color: '#007edb' }}> (chi tiết)</span>
               </span>
             </p>
           </div>
@@ -510,58 +569,6 @@ const ChiTietLayout = () => {
       <div className='category-sidebar'>
         <ListBlog />
       </div>
-
-      {/* <div className='chitiet-footer'>
-        <div className='footer-icons'>
-          <div className='icon-item'>
-            <CiDeliveryTruck
-              style={{
-                color: '#823905',
-                fontSize: '35px',
-                display: 'inline-block'
-              }}
-            />
-            <p>MIỄN PHÍ VẬN CHUYỂN</p>
-          </div>
-          <div className='icon-item'>
-            <TfiReload
-              style={{
-                color: '#823905',
-                fontSize: '35px',
-                display: 'inline-block'
-              }}
-            />
-            <p>NHẬN ĐỔI TRẢ HÀNG</p>
-          </div>
-          <div className='icon-item'>
-            <AiOutlineDollar
-              style={{
-                color: '#823905',
-                fontSize: '35px',
-                display: 'inline-block'
-              }}
-            />
-            <p>GIÁ BÁN TỐT NHẤT</p>
-          </div>
-          <div className='icon-item'>
-            <FiLifeBuoy
-              style={{
-                color: '#823905',
-                fontSize: '35px',
-                display: 'inline-block'
-              }}
-            />
-            <p>BẢO HÀNH TRỌN ĐỜI</p>
-          </div>
-        </div>
-        <div className='footer-image'>
-          <img
-            src='https://dogovinhdinh.vn/wp-content/uploads/2020/10/banner.jpg'
-            alt='Logo'
-            className='img-footer'
-          />
-        </div>
-      </div> */}
     </div>
   )
 }

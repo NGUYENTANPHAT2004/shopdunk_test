@@ -6,7 +6,7 @@ import { CapNhatTonKho } from './UpdateTonKho/CapNhatTonKho';
 function TonKhoLayout() {
   const [products, setProducts] = useState([]);
   const [filteredProducts, setFilteredProducts] = useState([]);
-  const [selectedIds, setSelectedIds] = useState([]);
+  const [selectedId, setSelectedId] = useState(null); // Changed to single selection model
   const [selectAll, setSelectAll] = useState(false);
   const [isOpenCapNhat, setIsOpenCapNhat] = useState(false);
 
@@ -21,6 +21,8 @@ function TonKhoLayout() {
   
   // State để lưu sản phẩm được làm phẳng để hiển thị
   const [flattenedProducts, setFlattenedProducts] = useState([]);
+  // State để lưu thông tin variant được chọn
+  const [selectedVariant, setSelectedVariant] = useState(null);
 
   // Fetch tất cả sản phẩm tồn kho
   const fetchProducts = async () => {
@@ -53,7 +55,7 @@ function TonKhoLayout() {
             mauSacName: ms.name,
             quantity: ms.quantity,
             price: ms.price,
-            uniqueId: `${product._id}-${dl._id}-${ms._id}` // ID duy nhất cho mỗi biến thể
+            uniqueId: `${product._id}-${dl._id}-${ms._id}`
           };
         });
       });
@@ -61,30 +63,33 @@ function TonKhoLayout() {
     
     setFlattenedProducts(flattened);
     setFilteredProducts(flattened);
+    
+    // Reset selected item if it doesn't exist in the new data
+    if (selectedId) {
+      const stillExists = flattened.some(item => item.uniqueId === selectedId);
+      if (!stillExists) {
+        setSelectedId(null);
+        setSelectedVariant(null);
+      }
+    }
   };
 
   useEffect(() => {
     fetchProducts();
   }, []);
 
-  // Xử lý chọn tất cả
-  const handleSelectAll = () => {
-    if (selectAll) {
-      setSelectedIds([]);
+  // Xử lý chọn/bỏ chọn một item
+  const handleSelectItem = (uniqueId) => {
+    if (selectedId === uniqueId) {
+      // Nếu đã chọn, bỏ chọn
+      setSelectedId(null);
+      setSelectedVariant(null);
     } else {
-      // Chỉ lấy productId không trùng lặp
-      const uniqueProductIds = [...new Set(flattenedProducts.map(item => item.productId))];
-      setSelectedIds(uniqueProductIds);
+      // Ngược lại, chọn mới
+      setSelectedId(uniqueId);
+      const variant = flattenedProducts.find(item => item.uniqueId === uniqueId);
+      setSelectedVariant(variant);
     }
-    setSelectAll(!selectAll);
-  };
-
-  const handleSelectItem = (productId) => {
-    setSelectedIds(prevSelected =>
-      prevSelected.includes(productId) 
-        ? prevSelected.filter(id => id !== productId) 
-        : [...prevSelected, productId]
-    );
   };
 
   // Bộ lọc sản phẩm
@@ -118,7 +123,11 @@ function TonKhoLayout() {
   // Danh sách tất cả các dung lượng và màu sắc không trùng lặp
   const allDungLuong = [...new Set(flattenedProducts.map(item => item.dungLuongName))];
   const allMauSac = [...new Set(flattenedProducts.map(item => item.mauSacName))];
-
+  const handleFilterLowStock = () => {
+    let filtered = flattenedProducts.filter(item => item.quantity < 5);
+    setFilteredProducts(filtered);
+    setCurrentPage(1);
+  };
   return (
     <div className="theloai_container">
       <div className="nav_chucnang">
@@ -140,14 +149,14 @@ function TonKhoLayout() {
             <option key={index} value={ms}>{ms}</option>
           ))}
         </select>
-        
+        <button className="low-stock-filter" onClick={handleFilterLowStock}>
+          Lọc hàng tồn thấp
+        </button>
         <button
           className="btnthemtheloai"
           onClick={() => {
-            if (selectedIds.length === 0) {
-              alert('Chọn một sản phẩm để cập nhật');
-            } else if (selectedIds.length > 1) {
-              alert('Chỉ được chọn một sản phẩm để cập nhật kho');
+            if (!selectedId) {
+              alert('Chọn một biến thể sản phẩm để cập nhật');
             } else {
               setIsOpenCapNhat(true);
             }
@@ -160,9 +169,7 @@ function TonKhoLayout() {
       <table className="tablenhap">
         <thead>
           <tr>
-            <th>
-              <input type="checkbox" checked={selectAll} onChange={handleSelectAll} />
-            </th>
+            <th>Chọn</th>
             <th>STT</th>
             <th>Tên sản phẩm</th>
             <th>Dung lượng</th>
@@ -172,12 +179,15 @@ function TonKhoLayout() {
         </thead>
         <tbody>
           {displayedProducts.map((item, index) => (
-            <tr key={item.uniqueId}>
+            <tr 
+              key={item.uniqueId}
+              className={selectedId === item.uniqueId ? "selected-row" : ""}
+            >
               <td>
                 <input
-                  type="checkbox"
-                  checked={selectedIds.includes(item.productId)}
-                  onChange={() => handleSelectItem(item.productId)}
+                  type="radio"
+                  checked={selectedId === item.uniqueId}
+                  onChange={() => handleSelectItem(item.uniqueId)}
                 />
               </td>
               <td>{(currentPage - 1) * itemsPerPage + index + 1}</td>
@@ -205,12 +215,17 @@ function TonKhoLayout() {
         </button>
       </div>
 
-      <CapNhatTonKho
-        isOpen={isOpenCapNhat}
-        onClose={() => setIsOpenCapNhat(false)}
-        fetchdata={fetchProducts}
-        selectedProductId={selectedIds[0]}
-      />
+      {selectedVariant && (
+        <CapNhatTonKho
+          isOpen={isOpenCapNhat}
+          onClose={() => setIsOpenCapNhat(false)}
+          fetchdata={fetchProducts}
+          selectedProductId={selectedVariant.productId}
+          selectedDungLuongId={selectedVariant.dungLuongId}
+          selectedMauSacId={selectedVariant.mauSacId}
+          selectedVariant={selectedVariant}
+        />
+      )}
     </div>
   );
 }
