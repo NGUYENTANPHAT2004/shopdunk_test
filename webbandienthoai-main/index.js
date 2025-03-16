@@ -10,8 +10,6 @@ const userroutes = require('./routes/UserRouter')
 const sanphamroutes = require('./routes/SanPhamRoutes')
 const loaisanphamroutes = require('./routes/LoaiSanPhamRoutes')
 const dungluongroutes = require('./routes/DungLuongRoutes')
-// const mausacroutes = require('./routes/MauSacRoutes')
-// const phantramroutes = require('./routes/PhanTramRoutes')
 const categoryrouter = require('./routes/CategoryRoutes.js')
 const blogroutes = require('./routes/BlogRoutes')
 const mausacriengroutes = require('./routes/MauSacRiengRoutes')
@@ -24,7 +22,6 @@ const adminnotifi = require('./socket/adminnotifi')
 const http = require("http")
 const { initSocket } = require('./config/socket');
 const cors = require('cors')
- // Import module http
 const uri ='mongodb+srv://baongocxink03:KD3qvAqFfpKC1uzX@cluster0.aocmw.mongodb.net/webbandienthoai?retryWrites=true&w=majority'
 
 
@@ -35,10 +32,11 @@ const mongoStoreOptions = {
 }
 const app = express()
 const server = http.createServer(app)
-const io = initSocket(server);
-app.use(express.json());
+const io = initSocket(server)
+
+app.use(express.json())
 app.use(cors())
-console.log("Local changes & Remote changes");
+console.log("Local changes & Remote changes")
 app.use(
   session({
     secret: 'adscascd8saa8sdv87ds78v6dsv87asvdasv8',
@@ -66,11 +64,13 @@ app.use('/', authroutes)
 app.use('/', hoadonrouter)
 app.use('/', stockrouter)
 
-
-//socket
+// Setup socket handlers
 adminnotifi(io)
-app.listen(3005, () => {
+
+// Use server.listen instead of app.listen
+server.listen(3005, () => {
   console.log('Server is running on port 3005')
   console.log(__dirname)
 })
-module.exports = { io, app, server };
+
+module.exports = { io, app, server }

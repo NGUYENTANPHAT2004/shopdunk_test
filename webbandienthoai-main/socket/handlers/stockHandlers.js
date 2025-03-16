@@ -8,14 +8,42 @@ const handleCheckStock = async (socket) => {
   try {
     console.log("📢 Admin đang kiểm tra tồn kho...");
     
-    const lowStockProducts = await ProductSizeStock.find({ quantity: { $lt: 5 } });
+    // Use the lowStockThreshold from the model instead of hardcoding 5
+    const lowStockProducts = await ProductSizeStock.find({
+      unlimitedStock: false,
+      quantity: { $lte: 5 }
+    }).populate([
+      { path: 'productId', select: 'tensp' },
+      { path: 'dungluongId', select: 'dungluong' },
+      { path: 'mausacId', select: 'mausac' }
+    ]);
     
-    if (lowStockProducts && lowStockProducts.length > 0) {
+    // Format the products for better display in the frontend
+    const formattedProducts = lowStockProducts.map(product => ({
+      id: product._id,
+      name: product.productId ? product.productId.tensp : 'Unknown Product',
+      sku: product.sku,
+      quantity: product.quantity,
+      capacity: product.dungluongId ? product.dungluongId.dungluong : 'N/A',
+      color: product.mausacId ? product.mausacId.mausac : 'N/A',
+      threshold: product.lowStockThreshold || 5
+    }));
+    
+    if (formattedProducts && formattedProducts.length > 0) {
       socket.emit("lowStockAlert", {
         message: "Thông báo cần cập nhật số lượng tồn kho",
-        products: lowStockProducts
+        products: formattedProducts,
+        count: formattedProducts.length
       });
-      console.log(`Sent low stock alert: ${lowStockProducts.length} products need restocking`);
+      console.log(`Sent low stock alert: ${formattedProducts.length} products need restocking`);
+      
+      // Update notification status for these products
+      await Promise.all(lowStockProducts.map(product => {
+        if (!product.notificationSent) {
+          return product.markNotificationSent();
+        }
+        return Promise.resolve();
+      }));
     } else {
       socket.emit("stockStatus", {
         message: "Tất cả sản phẩm đều có đủ hàng tồn kho",

@@ -79,38 +79,38 @@ export const registerStockListeners = (onLowStock, onStockStatus, onStockError) 
  * @param {Function} onNewOrder - Callback for new order notifications
  * @param {Function} onStatusChange - Callback for order status changes
  */
-export const registerOrderListeners = (onNewOrder, onStatusChange) => {
-  if (!socket) {
-    initializeSocket();
-  }
+// export const registerOrderListeners = (onNewOrder, onStatusChange) => {
+//   if (!socket) {
+//     initializeSocket();
+//   }
   
-  socket.on('newOrderNotification', onNewOrder);
-  socket.on('orderStatusChanged', onStatusChange);
+//   socket.on('newOrderNotification', onNewOrder);
+//   socket.on('orderStatusChanged', onStatusChange);
   
-  return () => {
-    socket.off('newOrderNotification', onNewOrder);
-    socket.off('orderStatusChanged', onStatusChange);
-  };
-};
+//   return () => {
+//     socket.off('newOrderNotification', onNewOrder);
+//     socket.off('orderStatusChanged', onStatusChange);
+//   };
+// };
 
-/**
- * Register product update listeners
- * @param {Function} onPriceChange - Callback for price changes
- * @param {Function} onNewProduct - Callback for new products
- */
-export const registerProductListeners = (onPriceChange, onNewProduct) => {
-  if (!socket) {
-    initializeSocket();
-  }
+// /**
+//  * Register product update listeners
+//  * @param {Function} onPriceChange - Callback for price changes
+//  * @param {Function} onNewProduct - Callback for new products
+//  */
+// export const registerProductListeners = (onPriceChange, onNewProduct) => {
+//   if (!socket) {
+//     initializeSocket();
+//   }
   
-  socket.on('productPriceChanged', onPriceChange);
-  socket.on('newProductAdded', onNewProduct);
+//   socket.on('productPriceChanged', onPriceChange);
+//   socket.on('newProductAdded', onNewProduct);
   
-  return () => {
-    socket.off('productPriceChanged', onPriceChange);
-    socket.off('newProductAdded', onNewProduct);
-  };
-};
+//   return () => {
+//     socket.off('productPriceChanged', onPriceChange);
+//     socket.off('newProductAdded', onNewProduct);
+//   };
+// };
 
 /**
  * Check current inventory levels

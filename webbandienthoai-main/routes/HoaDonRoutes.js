@@ -5,7 +5,8 @@ const moment = require('moment')
 const MaGiamGia = require('../models/MaGiamGiaModel')
 const SanPham = require('../models/chitietSpModel')
 const DungLuong = require('../models/DungLuongModel')
-const momenttimezone = require('moment-timezone')
+const momenttimezone = require('moment-timezone');
+const { ProductSizeStock } = require('../models/ProductSizeStockmodel')
 
 function sortObject (obj) {
   let sorted = {}
@@ -178,8 +179,38 @@ router.post('/create_payment_url', async (req, res) => {
       mausac
     })
     tongtien += price * soluong
+    
+    // Giảm số lượng tồn kho
+    try {
+      // Tìm sản phẩm trong kho theo productId, dungluongId và mausacId
+      const stockItem = await ProductSizeStock.findOne({
+        productId: idsp,
+        dungluongId: dungluong,
+        mausacId: mausac
+      });
+      
+      if (stockItem) {
+        // Nếu sản phẩm không có tồn kho không giới hạn
+        if (!stockItem.unlimitedStock) {
+          // Kiểm tra xem còn đủ hàng không
+          if (stockItem.quantity < soluong) {
+            return res.status(400).json({ 
+              message: `Sản phẩm không đủ số lượng trong kho. Hiện chỉ còn ${stockItem.quantity} sản phẩm.` 
+            });
+          }
+          
+          // Cập nhật số lượng tồn kho
+          stockItem.quantity -= soluong;
+          await stockItem.save();
+        }
+      } else {
+        console.log(`Không tìm thấy thông tin tồn kho cho sản phẩm: ${idsp}, dungluong: ${dungluong}, mausac: ${mausac}`);
+      }
+    } catch (error) {
+      console.error('Lỗi khi cập nhật tồn kho:', error);
+      return res.status(500).json({ message: 'Lỗi khi cập nhật tồn kho' });
+    }
   }
-
   hoadon.tongtien = tongtien
 
   if (magiamgia) {
