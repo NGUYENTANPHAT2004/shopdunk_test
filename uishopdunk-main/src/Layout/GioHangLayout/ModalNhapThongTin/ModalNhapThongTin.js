@@ -19,7 +19,7 @@ function ModalNhapThongTin ({
   const [loading, setLoading] = useState(false)
   const [stockError, setStockError] = useState(null)
   const [isStockChecked, setIsStockChecked] = useState(false)
-
+   
   // Check stock availability when modal opens
   useEffect(() => {
     if (isOpen && sanphams && sanphams.length > 0) {
@@ -36,9 +36,9 @@ function ModalNhapThongTin ({
     try {
       // Check stock for each product in the cart
       for (const item of sanphams) {
-        const response = await fetch(`http://localhost:3005/stock/${item.idsp}/${item.dungluong}/${item.mausac}`)
-        const stockInfo = await response.json()
-
+        console.log(item.idmausac)
+        const response = await fetch(`http://localhost:3005/stock/${item.idsp}/${item.dungluong}/${item.idmausac}`)
+        const stockInfo = await response.json()   
         // If product has limited stock and quantity exceeds available stock
         if (!stockInfo.unlimitedStock && stockInfo.stock !== 'Không giới hạn' && stockInfo.stock < item.soluong) {
           setStockError({

@@ -7,7 +7,7 @@ const { ProductSizeStock } = require('../../models/ProductSizeStockmodel');
 const handleCheckStock = async (socket) => {
   try {
     console.log("📢 Admin đang kiểm tra tồn kho...");
-    
+
     // Use the lowStockThreshold from the model instead of hardcoding 5
     const lowStockProducts = await ProductSizeStock.find({
       unlimitedStock: false,
@@ -17,7 +17,7 @@ const handleCheckStock = async (socket) => {
       { path: 'dungluongId', select: 'dungluong' },
       { path: 'mausacId', select: 'mausac' }
     ]);
-    
+
     // Format the products for better display in the frontend
     const formattedProducts = lowStockProducts.map(product => ({
       id: product._id,
@@ -28,7 +28,7 @@ const handleCheckStock = async (socket) => {
       color: product.mausacId ? product.mausacId.mausac : 'N/A',
       threshold: product.lowStockThreshold || 5
     }));
-    
+
     if (formattedProducts && formattedProducts.length > 0) {
       socket.emit("lowStockAlert", {
         message: "Thông báo cần cập nhật số lượng tồn kho",
@@ -36,14 +36,13 @@ const handleCheckStock = async (socket) => {
         count: formattedProducts.length
       });
       console.log(`Sent low stock alert: ${formattedProducts.length} products need restocking`);
-      
+
       // Update notification status for these products
-      await Promise.all(lowStockProducts.map(product => {
-        if (!product.notificationSent) {
-          return product.markNotificationSent();
-        }
-        return Promise.resolve();
-      }));
+      // This directly updates the database without requiring a method on the model
+      await ProductSizeStock.updateMany(
+        { _id: { $in: lowStockProducts.map(product => product._id) } },
+        { $set: { notificationSent: true, lastNotificationDate: new Date() } }
+      );
     } else {
       socket.emit("stockStatus", {
         message: "Tất cả sản phẩm đều có đủ hàng tồn kho",
@@ -53,9 +52,9 @@ const handleCheckStock = async (socket) => {
     }
   } catch (error) {
     console.error("Error fetching stock:", error);
-    socket.emit("stockError", { 
-      message: "Lỗi khi kiểm tra tồn kho", 
-      error: error.message 
+    socket.emit("stockError", {
+      message: "Lỗi khi kiểm tra tồn kho",
+      error: error.message
     });
   }
 };

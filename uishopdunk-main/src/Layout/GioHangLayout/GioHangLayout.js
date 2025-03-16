@@ -18,7 +18,7 @@ function GioHangLayout () {
   const [magiamgia, setmagiamgia] = useState('')
   const [isOpenModaltt, setisOpenModaltt] = useState(false)
   const [sanphams, setsanphams] = useState([])
-
+  
   useEffect(() => {
     const cartData = JSON.parse(localStorage.getItem('cart')) || []
     setCart(cartData)
@@ -94,11 +94,11 @@ function GioHangLayout () {
     0
   )
 
-  const changeColor = (index, selectedColor, newPrice) => {
+  const changeColor = (index, selectedColor, newPrice,colorId) => {
     const newCart = [...cart]
     newCart[index].mausac = selectedColor
     newCart[index].pricemausac = newPrice
-
+    newCart[index].idmausac = colorId
     setCart(newCart)
     localStorage.setItem('cart', JSON.stringify(newCart))
   }
@@ -109,11 +109,11 @@ function GioHangLayout () {
       soluong: item.soluong,
       price: item.pricemausac,
       dungluong: item.iddungluong,
-      mausac: item.mausac
+      mausac: item.mausac,
+      idmausac : item.mausacId,
     }))
     setsanphams(formattedSanphams)
   }, [cart])
-
   const handelOpenModalTT = () => {
     if (!name) {
       alert('Vui lòng nhập họ tên')
@@ -160,7 +160,7 @@ function GioHangLayout () {
                               }
                               key={row}
                               onClick={() =>
-                                changeColor(index, mausac.name, mausac.price)
+                                changeColor(index, mausac.name, mausac.price,mausac._id)
                               }
                             >
                               <div

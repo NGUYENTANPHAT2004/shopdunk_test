@@ -2,6 +2,12 @@ import { useState, useEffect } from 'react';
 import './TonKhoLayout.scss';
 import { FaEdit } from 'react-icons/fa';
 import { CapNhatTonKho } from './UpdateTonKho/CapNhatTonKho';
+import { 
+  initializeSocket, 
+  registerStockListeners, 
+  checkStock 
+} from '../../../untils/socketUtils';
+import { toast,ToastContainer } from 'react-toastify'
 
 function TonKhoLayout() {
   const [products, setProducts] = useState([]);
@@ -9,7 +15,55 @@ function TonKhoLayout() {
   const [selectedId, setSelectedId] = useState(null); // Changed to single selection model
   const [selectAll, setSelectAll] = useState(false);
   const [isOpenCapNhat, setIsOpenCapNhat] = useState(false);
-
+   useEffect(() => {
+     // Initialize socket
+     initializeSocket();
+ 
+     // Register stock alert listeners
+     const unregisterListeners = registerStockListeners(
+       // onLowStock
+       (data) => {
+         console.log('Received low stock alert:', data);
+ 
+         // Hiển thị thông báo
+         if (data.products && data.products.length > 0) {
+           toast.warning(`Cảnh báo: Có ${data.products.length} sản phẩm có số lượng tồn kho thấp (<5)!`, {//+
+             position: "top-right",//+
+             autoClose: 5000,//+
+             hideProgressBar: false,//+
+             closeOnClick: true,//+
+             pauseOnHover: true,//+
+             draggable: true//+
+           });//+
+         }
+       },
+       // onStockStatus
+       (data) => {
+         console.log('Stock status:', data);
+       },
+       // onStockError
+       (error) => {
+         console.error('Stock check error:', error);
+         alert(`Lỗi khi kiểm tra tồn kho: ${error.message}`);//-
+         toast.error(`Lỗi khi kiểm tra tồn kho: ${error.message}`, {//+
+           position: "top-right",//+
+           autoClose: 5000,//+
+           hideProgressBar: false,//+
+           closeOnClick: true,//+
+           pauseOnHover: true,//+
+           draggable: true//+
+         });//+
+       }
+     );
+ 
+     // Check stock levels immediately
+     checkStock();
+ 
+     // Clean up listeners when component unmounts
+     return () => {
+       unregisterListeners();
+     };
+   }, []);
   // State phân trang
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10; // Số sản phẩm trên mỗi trang
