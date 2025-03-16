@@ -372,6 +372,7 @@ const ChiTietLayout = () => {
                               setpricemausac(mau.price)
                               setkhuyenmai(mau.khuyenmai)
                               setgiagoc(mau.giagoc)
+                              fetchStock();
                             }}
                           >
                             <div

@@ -170,7 +170,7 @@ router.post('/create_payment_url', async (req, res) => {
   let tongtien = 0
 
   for (const sanpham of sanphams) {
-    const { idsp, soluong, dungluong, mausac, price } = sanpham
+    const { idsp, soluong, dungluong, idmausac, price,mausac } = sanpham
     hoadon.sanpham.push({
       idsp,
       soluong,
@@ -186,7 +186,7 @@ router.post('/create_payment_url', async (req, res) => {
       const stockItem = await ProductSizeStock.findOne({
         productId: idsp,
         dungluongId: dungluong,
-        mausacId: mausac
+        mausacId: idmausac
       });
       
       if (stockItem) {

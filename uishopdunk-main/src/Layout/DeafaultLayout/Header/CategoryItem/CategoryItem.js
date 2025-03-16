@@ -7,7 +7,6 @@ const CategoryItem = ({ category }) => {
   const [isMobile, setIsMobile] = useState(window.innerWidth <= 768);
   
   const hasChildren = category.children && category.children.length > 0;
-  const hasTheLoai = category.theloai && category.theloai.length > 0;
   
   useEffect(() => {
     const handleResize = () => {
@@ -41,34 +40,23 @@ const CategoryItem = ({ category }) => {
   
   return (
     <li 
-      className={`menu-item ${hasChildren || hasTheLoai ? "has-submenu" : ""} ${isOpen ? "submenu-active" : ""}`} 
+      className={`menu-item ${hasChildren  ? "has-submenu" : ""} ${isOpen ? "submenu-active" : ""}`} 
       onMouseEnter={handleMouseEnter} 
       onMouseLeave={handleMouseLeave}
     >
       <Link 
         to={"/san-pham/" + category.namekhongdau} 
         className="menu-link"
-        onClick={(e) => (hasChildren || hasTheLoai) && toggleSubmenu(e)}
+        onClick={(e) => (hasChildren ) && toggleSubmenu(e)}
       >
         {category.name}
-        {(hasChildren || hasTheLoai) && isMobile && <span className="submenu-toggle">{isOpen ? '-' : '+'}</span>}
+        {(hasChildren ) && isMobile && <span className="submenu-toggle">{isOpen ? '-' : '+'}</span>}
       </Link>
       
-      {(hasChildren || hasTheLoai) && (
+      {(hasChildren) && (
         <ul className={`submenu ${isOpen ? "submenu-open" : ""}`}>
           {hasChildren && category.children.map((child) => (
             <CategoryItem key={child._id} category={child} />
-          ))}
-          
-          {hasTheLoai && category.theloai.map((tl) => (
-            <li key={tl._id}>
-              <Link 
-                to={"/san-pham/" + tl.namekhongdau} 
-                className="submenu-item"
-              >
-                {tl.name}
-              </Link>
-            </li>
           ))}
         </ul>
       )}
