@@ -18,29 +18,46 @@ function GioHangLayout () {
   const [magiamgia, setmagiamgia] = useState('')
   const [isOpenModaltt, setisOpenModaltt] = useState(false)
   const [sanphams, setsanphams] = useState([])
-  
+
+  // Gộp quá trình khởi tạo cart và gọi API thành 1 useEffect
   useEffect(() => {
     const cartData = JSON.parse(localStorage.getItem('cart')) || []
-    setCart(cartData)
+    if (cartData.length > 0) {
+      callAPIsForEachObject(cartData)
+    } else {
+      setCart([])
+    }
   }, [])
 
-  const callAPIsForEachObject = async cart => {
+  const callAPIsForEachObject = async cartData => {
     try {
       const updatedData = await Promise.all(
-        cart.map(async item => {
+        cartData.map(async item => {
           try {
             const response = await fetch(
               `http://localhost:3005/getmausacgh/${item.iddungluong}`
             )
             if (!response.ok)
               throw new Error(`Lỗi khi gọi API với ${item.iddungluong}`)
-
             const data = await response.json()
 
-            return {
-              ...item,
-              soluong: 1,
-              mangmausac: data.length > 0 ? data : []
+            // Nếu có dữ liệu màu, đặt mặc định cho sản phẩm
+            if (data.length > 0) {
+              return {
+                ...item,
+                soluong: item.soluong ? item.soluong : 1,
+                mangmausac: data,
+                // Nếu sản phẩm chưa có màu được chọn, lấy mặc định là phần tử đầu tiên
+                mausac: item.mausac ? item.mausac : data[0].name,
+                pricemausac: item.pricemausac ? item.pricemausac : data[0].price,
+                idmausac: item.idmausac ? item.idmausac : data[0]._id
+              }
+            } else {
+              return {
+                ...item,
+                soluong: 1,
+                mangmausac: []
+              }
             }
           } catch (error) {
             console.error('Lỗi khi gọi API:', error)
@@ -52,7 +69,6 @@ function GioHangLayout () {
           }
         })
       )
-
       setCart(updatedData)
       localStorage.setItem('cart', JSON.stringify(updatedData))
     } catch (error) {
@@ -60,30 +76,33 @@ function GioHangLayout () {
     }
   }
 
-  useEffect(() => {
-    const cartData = JSON.parse(localStorage.getItem('cart')) || []
-    setCart(cartData)
-    if (cartData.length > 0) {
-      callAPIsForEachObject(cartData)
-    }
-  }, [])
+ // Khi user nhấn nút tăng số lượng:
+const increaseQuantity = async (index) => {
+  const newCart = [...cart];
+  const product = newCart[index];
 
-  const increaseQuantity = index => {
-    const newCart = [...cart]
-    newCart[index].soluong += 1
-    setCart(newCart)
-    localStorage.setItem('cart', JSON.stringify(newCart))
+  // Gọi API check stock cho product.idsanpham, product.iddungluong, product.idmausac
+  const response = await fetch(`http://localhost:3005/stock/${product.idsanpham}/${product.iddungluong}/${product.idmausac}`);
+  const data = await response.json();
+
+  // Nếu còn hàng, tăng
+  if (data.stock > product.soluong) {
+    newCart[index].soluong += 1;
+    setCart(newCart);
+    localStorage.setItem('cart', JSON.stringify(newCart));
+  } else {
+    alert('Không đủ hàng');
   }
+};
+
 
   const decreaseQuantity = index => {
     const newCart = [...cart]
-
     if (newCart[index].soluong > 1) {
       newCart[index].soluong -= 1
     } else {
       newCart.splice(index, 1)
     }
-
     setCart(newCart)
     localStorage.setItem('cart', JSON.stringify(newCart))
     window.dispatchEvent(new Event('cartUpdated'))
@@ -94,11 +113,18 @@ function GioHangLayout () {
     0
   )
 
-  const changeColor = (index, selectedColor, newPrice,colorId) => {
-    const newCart = [...cart]
-    newCart[index].mausac = selectedColor
-    newCart[index].pricemausac = newPrice
-    newCart[index].idmausac = colorId
+  const changeColor = (index, selectedColor, newPrice, colorId) => {
+    const newCart = cart.map((item, i) => {
+      if (i === index) {
+        return {
+          ...item,
+          mausac: selectedColor,
+          pricemausac: newPrice,
+          idmausac: colorId
+        }
+      }
+      return item
+    })
     setCart(newCart)
     localStorage.setItem('cart', JSON.stringify(newCart))
   }
@@ -110,16 +136,16 @@ function GioHangLayout () {
       price: item.pricemausac,
       dungluong: item.iddungluong,
       mausac: item.mausac,
-      idmausac : item.mausacId,
+      idmausac: item.idmausac
     }))
     setsanphams(formattedSanphams)
   }, [cart])
+
   const handelOpenModalTT = () => {
     if (!name) {
       alert('Vui lòng nhập họ tên')
       return
     }
-
     if (!phone) {
       alert('Vui lòng nhập số điện thoại')
       return
@@ -130,6 +156,7 @@ function GioHangLayout () {
     }
     setisOpenModaltt(true)
   }
+
   return (
     <div className='giohang_container'>
       {cart.length > 0 ? (
@@ -160,7 +187,7 @@ function GioHangLayout () {
                               }
                               key={row}
                               onClick={() =>
-                                changeColor(index, mausac.name, mausac.price,mausac._id)
+                                changeColor(index, mausac.name, mausac.price, mausac._id)
                               }
                             >
                               <div

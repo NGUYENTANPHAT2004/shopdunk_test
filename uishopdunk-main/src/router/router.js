@@ -23,7 +23,7 @@ const publicRoutes = [
   { path: '/', component: TrangChuLayout },
   { path: '/cart', component: GioHangLayout },
   { path: '/thanhcong', component: PaySuccess },
-  { path: '/san-pham/:slug', component: TheLoaiLayout },
+  { path: '/san-pham/:slugcate/:slug', component: TheLoaiLayout },
   { path: '/chitietsanpham/:loaisp/:tieude', component: ChiTietLayout },
   { path: '/chitietblog/:tieude', component: ChiTietBlog },
   { path: '/lien-he', component: LienHe },
