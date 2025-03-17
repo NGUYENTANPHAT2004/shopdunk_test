@@ -13,18 +13,24 @@ import { faArrowLeft, faArrowRight } from '@fortawesome/free-solid-svg-icons';
 const DanhMucLayout = () => {
   const { slug } = useParams();
   const [categoryDetail, setCategoryDetail] = useState(null);
-  const [selectedTheLoai, setSelectedTheLoai] = useState(null); // Slug của thể loại được chọn
-  const [productDetails, setProductDetails] = useState(null);
-  const [loading, setLoading] = useState(false);
+  const [allProducts, setAllProducts] = useState([]);
+  const [displayProducts, setDisplayProducts] = useState([]);
+  const [selectedTheLoai, setSelectedTheLoai] = useState('all');
+  const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(1);
   const [limit] = useState(8);
   const [totalPages, setTotalPages] = useState(1);
   const [sortOrder, setSortOrder] = useState('asc');
+  const [allTheLoai, setAllTheLoai] = useState([]);
 
-  // Lấy thông tin danh mục theo slug từ URL
+  // State to track parent category info
+  const [parentCategory, setParentCategory] = useState(null);
+
+  // Fetch category detail by slug
   useEffect(() => {
     const fetchCategoryDetail = async () => {
       try {
+        setLoading(true);
         const response = await fetch(`http://localhost:3005/categoryitem/${slug}`);
         if (!response.ok) {
           throw new Error("Danh mục không tồn tại");
@@ -32,73 +38,191 @@ const DanhMucLayout = () => {
         const data = await response.json();
         console.log("Dữ liệu danh mục:", data);
         setCategoryDetail(data);
-        // Nếu danh mục có nhiều thể loại, đặt thể loại mặc định là thể loại đầu tiên
-        if (data.theloai && data.theloai.length > 0) {
-          setSelectedTheLoai(data.theloai[0].namekhongdau);
-        } else {
-          // Nếu không có thể loại, fallback về slug của danh mục
-          setSelectedTheLoai(slug);
+        
+        // If category has a parent, fetch parent details
+        if (data.parent) {
+          try {
+            const parentResponse = await fetch(`http://localhost:3005/categoryitem/${data.parent}`);
+            if (parentResponse.ok) {
+              const parentData = await parentResponse.json();
+              setParentCategory(parentData);
+            }
+          } catch (error) {
+            console.error("Lỗi khi tải danh mục cha:", error);
+          }
         }
+        
+        // Extract all theloai from the category
+        const theLoaiList = extractAllTheLoai(data);
+        setAllTheLoai(theLoaiList);
+        
+        // Fetch products from all the theloai
+        await fetchAllProducts(theLoaiList);
       } catch (error) {
         console.error("Lỗi khi tải danh mục:", error);
+        setLoading(false);
       }
     };
     fetchCategoryDetail();
   }, [slug]);
 
-  // Khi selectedTheLoai thay đổi, gọi API lấy sản phẩm cho thể loại đó
-  useEffect(() => {
-    const fetchProducts = async () => {
-      if (!selectedTheLoai) return;
-      try {
-        setLoading(true);
-        const response = await fetch(
-          `http://localhost:3005/san-pham-pt/${selectedTheLoai}?page=${page}&limit=${limit}&sort=${sortOrder}`
-        );
-        if (!response.ok) {
-          throw new Error("Không tìm thấy sản phẩm");
-        }
-        const data = await response.json();
-        setProductDetails(data);
-        setTotalPages(data.pagination?.totalPages || 1);
-      } catch (error) {
-        console.error("Lỗi khi tải sản phẩm:", error);
-        setProductDetails({
-          sanpham: [],
-          pagination: { totalPages: 1, currentPage: 1 }
-        });
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchProducts();
-  }, [selectedTheLoai, page, sortOrder, limit]);
+  // Extract all theloai from category and its children recursively
+  const extractAllTheLoai = (category) => {
+    let result = [];
+    
+    // Add theloai from current category
+    if (category.theloai && category.theloai.length > 0) {
+      result = [...category.theloai];
+    }
+    
+    // Add theloai from children recursively
+    if (category.children && category.children.length > 0) {
+      category.children.forEach(child => {
+        const childTheLoai = extractAllTheLoai(child);
+        result = [...result, ...childTheLoai];
+      });
+    }
+    
+    // Remove duplicates by ID
+    return result.filter((theLoai, index, self) => 
+      index === self.findIndex(t => t._id === theLoai._id)
+    );
+  };
 
-  // Reset trang khi thể loại thay đổi
-  useEffect(() => {
-    setPage(1);
-  }, [selectedTheLoai]);
+  // Fetch products from all theloai
+  const fetchAllProducts = async (theLoaiList) => {
+    try {
+      // Create an array of promises for parallel fetching
+      const productPromises = theLoaiList.map(theLoai => 
+        fetch(`http://localhost:3005/san-pham-pt/${theLoai.namekhongdau}?limit=100`)
+          .then(response => {
+            if (!response.ok) {
+              throw new Error(`Error fetching products for ${theLoai.name}`);
+            }
+            return response.json();
+          })
+          .then(data => ({
+            theLoai: theLoai.name,
+            theLoaiSlug: theLoai.namekhongdau,
+            products: data.sanpham || []
+          }))
+          .catch(error => {
+            console.error(error);
+            return { theLoai: theLoai.name, theLoaiSlug: theLoai.namekhongdau, products: [] };
+          })
+      );
+      
+      // Wait for all requests to complete
+      const results = await Promise.all(productPromises);
+      
+      // Combine all products with their theloai info
+      let allProductsData = [];
+      results.forEach(result => {
+        const productsWithTheLoai = result.products.map(product => ({
+          ...product,
+          theLoaiName: result.theLoai,
+          theLoaiSlug: result.theLoaiSlug
+        }));
+        allProductsData = [...allProductsData, ...productsWithTheLoai];
+      });
+      
+      // Remove duplicate products (by ID)
+      const uniqueProducts = allProductsData.filter((product, index, self) =>
+        index === self.findIndex(p => p._id === product._id)
+      );
+      
+      setAllProducts(uniqueProducts);
+      applyFiltersAndPagination(uniqueProducts, 'all', sortOrder, page, limit);
+      setLoading(false);
+    } catch (error) {
+      console.error("Lỗi khi tải tất cả sản phẩm:", error);
+      setLoading(false);
+    }
+  };
 
-  if (loading || !categoryDetail || !productDetails) return <Loading />;
+  // Apply filters and pagination to the products
+  const applyFiltersAndPagination = (products, theLoai, sort, currentPage, itemsPerPage) => {
+    // Filter by theloai if not 'all'
+    let filteredProducts = products;
+    if (theLoai !== 'all') {
+      filteredProducts = products.filter(product => product.theLoaiSlug === theLoai);
+    }
+    
+    // Sort products
+    const sortedProducts = [...filteredProducts].sort((a, b) => {
+      return sort === 'asc' ? a.price - b.price : b.price - a.price;
+    });
+    
+    // Calculate pagination
+    const total = sortedProducts.length;
+    const totalPageCount = Math.ceil(total / itemsPerPage);
+    const startIndex = (currentPage - 1) * itemsPerPage;
+    const endIndex = startIndex + itemsPerPage;
+    const paginatedProducts = sortedProducts.slice(startIndex, endIndex);
+    
+    setDisplayProducts(paginatedProducts);
+    setTotalPages(totalPageCount > 0 ? totalPageCount : 1);
+  };
+
+  // Handle category/theloai change
+  useEffect(() => {
+    if (allProducts.length > 0) {
+      setPage(1); // Reset to first page when changing category
+      applyFiltersAndPagination(allProducts, selectedTheLoai, sortOrder, 1, limit);
+    }
+  }, [selectedTheLoai, sortOrder]);
+
+  // Handle page change
+  useEffect(() => {
+    if (allProducts.length > 0) {
+      applyFiltersAndPagination(allProducts, selectedTheLoai, sortOrder, page, limit);
+    }
+  }, [page]);
+
+  if (loading) return <Loading />;
+
+  // Build breadcrumbs with parent categories
+  const buildBreadcrumbs = () => {
+    const breadcrumbs = [{ label: "Trang Chủ", link: "/" }];
+    
+    // If we have parent category info, add it to breadcrumbs
+    if (parentCategory) {
+      breadcrumbs.push({ 
+        label: parentCategory.name, 
+        link: `/danh-muc/${parentCategory.namekhongdau}` 
+      });
+    }
+    
+    // Add current category
+    breadcrumbs.push({ 
+      label: categoryDetail?.name || "Danh mục", 
+      link: `/danh-muc/${slug}` 
+    });
+    
+    return breadcrumbs;
+  };
+  
+  const breadcrumbs = buildBreadcrumbs();
 
   return (
     <div className="theloailayout-container">
       <Helmet>
-        <title>{categoryDetail.name} - Shopdunk</title>
-        <meta name="description" content={categoryDetail.name} />
+        <title>{categoryDetail?.name || "Danh mục"} - Shopdunk</title>
+        <meta name="description" content={categoryDetail?.name} />
       </Helmet>
 
-      <ThanhDinhHuong
-        breadcrumbs={[
-          { label: "Trang Chủ", link: "/" },
-          { label: categoryDetail.name, link: `/san-pham/${slug}` }
-        ]}
-      />
+      <ThanhDinhHuong breadcrumbs={breadcrumbs} />
 
-      {/* Hiển thị danh sách thể loại nếu có */}
-      {categoryDetail.theloai && categoryDetail.theloai.length > 0 && (
+      {/* Thể loại tabs */}
+      {allTheLoai.length > 0 && (
         <div className="theloai-tabs">
-          {categoryDetail.theloai.map(theLoai => (
+          <button
+            onClick={() => setSelectedTheLoai('all')}
+            className={selectedTheLoai === 'all' ? 'active' : ''}
+          >
+            Tất cả
+          </button>
+          {allTheLoai.map(theLoai => (
             <button
               key={theLoai._id}
               onClick={() => setSelectedTheLoai(theLoai.namekhongdau)}
@@ -110,13 +234,10 @@ const DanhMucLayout = () => {
         </div>
       )}
 
-      {/* Dropdown sắp xếp */}
+      {/* Sort dropdown */}
       <div className="filter-dropdown">
         <select
-          onChange={e => {
-            setSortOrder(e.target.value);
-            setPage(1);
-          }}
+          onChange={e => setSortOrder(e.target.value)}
           value={sortOrder}
           className="custom-select"
         >
@@ -125,24 +246,24 @@ const DanhMucLayout = () => {
         </select>
       </div>
 
-      {/* Danh sách sản phẩm */}
+      {/* Product list */}
       <div className="theloaisp">
-        {productDetails.sanpham && productDetails.sanpham.length > 0 ? (
-          productDetails.sanpham.map(sanpham => (
+        {displayProducts.length > 0 ? (
+          displayProducts.map(product => (
             <ProductCard
-              key={sanpham._id}
-              sanpham={sanpham}
+              key={product._id}
+              sanpham={product}
               setLoading={setLoading}
-              nametheloai={categoryDetail.namekhongdau || slug}
+              nametheloai={product.theLoaiSlug}
             />
           ))
         ) : (
-          <div className="no-products">Không có sản phẩm nào trong thể loại này</div>
+          <div className="no-products">Không có sản phẩm nào trong danh mục này</div>
         )}
       </div>
 
-      {/* Phân trang */}
-      {productDetails.pagination && productDetails.sanpham && productDetails.sanpham.length > 0 && (
+      {/* Pagination */}
+      {displayProducts.length > 0 && (
         <div className="pagination">
           <button disabled={page === 1} onClick={() => setPage(page - 1)}>
             <FontAwesomeIcon icon={faArrowLeft} />

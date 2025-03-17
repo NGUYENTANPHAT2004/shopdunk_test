@@ -134,3 +134,20 @@
     grid-template-columns: repeat(2, 1fr);
   }
 }
+.theloai-tabs button{
+  padding: 5px 5px;
+  background-color: #f8f8f8;
+  border-radius: 5px;
+  transition: all 0.3s ease;
+  font-weight: bold;
+  color: #333;
+}
+.theloai-tabs{
+  display: flex;
+  flex-wrap: wrap;
+  list-style: none; 
+  padding: 0;
+  margin: 0;
+  gap: 10px; 
+  margin: 15px 0;
+}

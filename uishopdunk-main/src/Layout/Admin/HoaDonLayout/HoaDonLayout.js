@@ -51,6 +51,28 @@ function HoaDonLayout () {
 
   const handleStatusChange = async (id, value) => {
     try {
+      // Find the current order
+      const currentOrder = data.find(item => item._id === id);
+      
+      // Prevent changing status of canceled orders
+      if (currentOrder.trangthai === 'Hủy Đơn Hàng' && value !== 'Hủy Đơn Hàng') {
+        alert('Không thể thay đổi trạng thái của đơn hàng đã hủy');
+        return;
+      }
+      
+      // Prevent canceling delivered orders
+      if (value === 'Hủy Đơn Hàng' && currentOrder.trangthai === 'Đã nhận') {
+        alert('Không thể hủy đơn hàng đã giao thành công');
+        return;
+      }
+      
+      // Confirm before canceling an order
+      if (value === 'Hủy Đơn Hàng') {
+        if (!window.confirm('Bạn có chắc chắn muốn hủy đơn hàng này không?')) {
+          return;
+        }
+      }
+  
       const response = await fetch(`http://localhost:3005/settrangthai/${id}`, {
         method: 'POST',
         headers: {
@@ -60,12 +82,16 @@ function HoaDonLayout () {
           trangthai: value
         })
       })
-
+  
       if (response.ok) {
         fetchdata()
+      } else {
+        const errorData = await response.json();
+        alert(errorData.message || 'Có lỗi xảy ra khi cập nhật trạng thái');
       }
     } catch (error) {
       console.error(error)
+      alert('Có lỗi xảy ra khi cập nhật trạng thái');
     }
   }
 
@@ -162,6 +188,7 @@ function HoaDonLayout () {
                   <option value='Đang xử lý'>🕒 Đang xử lý</option>
                   <option value='Đang vận chuyển'>🚚 Đang vận chuyển</option>
                   <option value='Đã nhận'>✅ Đã nhận</option>
+                  <option value='Hủy Đơn Hàng'>❌ Hủy đơn hàng</option>
                 </select>
               </td>
             </tr>

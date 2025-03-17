@@ -4,7 +4,7 @@ import './GioHangLayout.scss'
 import { useState, useEffect } from 'react'
 import { ModalNhapThongTin } from './ModalNhapThongTin'
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
-import { faCartShopping } from '@fortawesome/free-solid-svg-icons'
+import { faCartShopping, faCircleExclamation, faCheckCircle } from '@fortawesome/free-solid-svg-icons'
 
 function GioHangLayout () {
   const [cart, setCart] = useState([])
@@ -18,6 +18,75 @@ function GioHangLayout () {
   const [magiamgia, setmagiamgia] = useState('')
   const [isOpenModaltt, setisOpenModaltt] = useState(false)
   const [sanphams, setsanphams] = useState([])
+  
+  // Validation states
+  const [nameError, setNameError] = useState('')
+  const [phoneError, setPhoneError] = useState('')
+  const [addressError, setAddressError] = useState('')
+
+  // Validation functions
+  // Name validation status
+  const [nameValid, setNameValid] = useState(false)
+  const [phoneValid, setPhoneValid] = useState(false)
+  const [addressValid, setAddressValid] = useState(false)
+  
+  const validateName = (value) => {
+    setname(value)
+    if (!value.trim()) {
+      setNameError('Vui lòng nhập họ tên')
+      setNameValid(false)
+      return false
+    } else if (value.trim().length < 2) {
+      setNameError('Họ tên phải có ít nhất 2 ký tự')
+      setNameValid(false)
+      return false
+    } else if (!/^[a-zA-ZÀÁÂÃÈÉÊÌÍÒÓÔÕÙÚĂĐĨŨƠàáâãèéêìíòóôõùúăđĩũơƯĂẠẢẤẦẨẪẬẮẰẲẴẶẸẺẼỀỀỂẾưăạảấầẩẫậắằẳẵặẹẻẽềềểếỄỆỈỊỌỎỐỒỔỖỘỚỜỞỠỢỤỦỨỪễệỉịọỏốồổỗộớờởỡợụủứừỬỮỰỲỴÝỶỸửữựỳỵỷỹ\s]+$/.test(value)) {
+      setNameError('Họ tên chỉ được chứa chữ cái và khoảng trắng')
+      setNameValid(false)
+      return false
+    } else {
+      setNameError('')
+      setNameValid(true)
+      return true
+    }
+  }
+
+  const validatePhone = (value) => {
+    setphone(value)
+    // Vietnamese phone number regex pattern
+    const phoneRegex = /(84|0[3|5|7|8|9])+([0-9]{8})\b/
+    
+    if (!value.trim()) {
+      setPhoneError('Vui lòng nhập số điện thoại')
+      setPhoneValid(false)
+      return false
+    } else if (!phoneRegex.test(value)) {
+      setPhoneError('Số điện thoại không hợp lệ')
+      setPhoneValid(false)
+      return false
+    } else {
+      setPhoneError('')
+      setPhoneValid(true)
+      return true
+    }
+  }
+
+  const validateAddress = (value) => {
+    setaddress(value)
+    if (!value.trim()) {
+      setAddressError('Vui lòng nhập địa chỉ')
+      setAddressValid(false)
+      return false
+    } else if (value.trim().length < 5) {
+      setAddressError('Địa chỉ phải có ít nhất 5 ký tự')
+      setAddressValid(false)
+      return false
+    } else {
+      setAddressError('')
+      setAddressValid(true)
+      return true
+    }
+  }
 
   // Gộp quá trình khởi tạo cart và gọi API thành 1 useEffect
   useEffect(() => {
@@ -141,20 +210,18 @@ const increaseQuantity = async (index) => {
     setsanphams(formattedSanphams)
   }, [cart])
 
+  const validateAllFields = () => {
+    const isNameValid = validateName(name);
+    const isPhoneValid = validatePhone(phone);
+    const isAddressValid = validateAddress(address);
+    
+    return isNameValid && isPhoneValid && isAddressValid;
+  }
+
   const handelOpenModalTT = () => {
-    if (!name) {
-      alert('Vui lòng nhập họ tên')
-      return
+    if (validateAllFields()) {
+      setisOpenModaltt(true)
     }
-    if (!phone) {
-      alert('Vui lòng nhập số điện thoại')
-      return
-    }
-    if (!address) {
-      alert('Vui lòng nhập địa chỉ')
-      return
-    }
-    setisOpenModaltt(true)
   }
 
   return (
@@ -252,26 +319,43 @@ const increaseQuantity = async (index) => {
                 <label htmlFor=''>Chị</label>
               </div>
             </div>
-            <div className='giohang_thongtin_input'>
-              <div className='div_thongtin_input'>
+            <div className={`giohang_thongtin_input ${nameValid ? 'valid-input' : ''}`}>
+              <div className={`div_thongtin_input ${nameError ? 'error' : ''}`}>
                 <input
                   type='text'
                   className='input_giohang'
                   placeholder='Họ và tên'
                   value={name}
-                  onChange={e => setname(e.target.value)}
+                  onChange={(e) => validateName(e.target.value)}
+                  onBlur={(e) => validateName(e.target.value)}
                 />
+                {nameValid && (
+                  <span className="valid-icon">
+                    <FontAwesomeIcon icon={faCheckCircle} />
+                  </span>
+                )}
               </div>
-              <div className='div_thongtin_input'>
+            </div>
+            {nameError && <div className='error_message'><FontAwesomeIcon icon={faCircleExclamation} /> {nameError}</div>}
+            
+            <div className={`giohang_thongtin_input ${phoneValid ? 'valid-input' : ''}`}>
+              <div className={`div_thongtin_input ${phoneError ? 'error' : ''}`}>
                 <input
                   type='text'
                   className='input_giohang'
                   placeholder='Số điện thoại'
                   value={phone}
-                  onChange={e => setphone(e.target.value)}
+                  onChange={(e) => validatePhone(e.target.value)}
+                  onBlur={(e) => validatePhone(e.target.value)}
                 />
+                {phoneValid && (
+                  <span className="valid-icon">
+                    <FontAwesomeIcon icon={faCheckCircle} />
+                  </span>
+                )}
               </div>
             </div>
+            {phoneError && <div className='error_message'><FontAwesomeIcon icon={faCircleExclamation} /> {phoneError}</div>}
           </div>
           <div className='giohang_content_container'>
             <span>Hình thức nhận hàng</span>
@@ -285,17 +369,25 @@ const increaseQuantity = async (index) => {
                 <label htmlFor=''>Giao tận nơi</label>
               </div>
             </div>
-            <div className='giohang_thongtin_input'>
-              <div className='div_thongtin_input'>
+            <div className={`giohang_thongtin_input ${addressValid ? 'valid-input' : ''}`}>
+              <div className={`div_thongtin_input ${addressError ? 'error' : ''}`}>
                 <input
                   type='text'
                   className='input_giohang'
                   placeholder='Địa chỉ cụ thể'
                   value={address}
-                  onChange={e => setaddress(e.target.value)}
+                  onChange={(e) => validateAddress(e.target.value)}
+                  onBlur={(e) => validateAddress(e.target.value)}
                 />
+                {addressValid && (
+                  <span className="valid-icon">
+                    <FontAwesomeIcon icon={faCheckCircle} />
+                  </span>
+                )}
               </div>
             </div>
+            {addressError && <div className='error_message'><FontAwesomeIcon icon={faCircleExclamation} /> {addressError}</div>}
+            
             <div className='giohang_thongtin_input'>
               <div className='div_thongtin_input'>
                 <input

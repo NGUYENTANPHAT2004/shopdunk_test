@@ -1,0 +1,79 @@
+.blog_container{
+    height: 100%;
+    padding: 10px;
+}
+.btn-voucher {
+    background-color: #28a745;
+    color: white;
+    padding: 8px 12px;
+    border: none;
+    cursor: pointer;
+    border-radius: 5px;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 14px;
+    transition: background 0.3s ease;
+  
+    &:hover {
+      background-color: #218838;
+    }
+  }
+  
+  .btn-voucher {
+    background-color: #ffc107;
+    color: black;
+    &:hover {
+      background-color: #e0a800;
+    }
+  }
+  
+  .search-box {
+    display: flex;
+    align-items: center;
+    background: #f1f1f1;
+    border-radius: 8px;
+    padding: 5px;
+    width: 250px;
+    border: 1px solid #ccc;
+  
+    input {
+      flex: 1;
+      border: none;
+      outline: none;
+      padding: 8px;
+      font-size: 14px;
+      background: transparent;
+    }
+  
+    button {
+      background: #007bff;
+      border: none;
+      color: white;
+      padding: 8px 10px;
+      border-radius: 6px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      transition: background 0.3s ease;
+  
+      &:hover {
+        background: #0056b3;
+      }
+    }
+  }
+  .btn-active {
+    background-color: green;
+    color: white;
+    border: none;
+    padding: 5px 10px;
+    cursor: pointer;
+  }
+  
+  .btn-inactive {
+    background-color: red;
+    color: white;
+    border: none;
+    padding: 5px 10px;
+    cursor: pointer;
+  }

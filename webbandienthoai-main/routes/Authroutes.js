@@ -143,5 +143,39 @@ router.post('/auth/facebook', async (req, res) => {
     res.status(400).json({ message: 'Facebook login failed', error: error.message });
   }
 });
+router.get('/auth/userlist', async (req, res) => {
+  try {
+   const user = await User.User.find();
+    if(user.length > 0) {
+      res.json(user);
+    }else{
+      res.status(404).json({ message: 'danh sách người dùng không có ' });
+    }
+  } catch (error) {
+    console.error('Google Auth Error:', error);
+    res.status(400).json({ message: 'Google login failed', error: error.message });
+  }
+});
+router.put('/auth/updateStatus/:id', async (req, res) => {
+  try {
+    const { status } = req.body;
+    const userId = req.params.id;
+
+    const updatedUser = await User.User.findByIdAndUpdate(
+      userId,
+      { status },
+      { new: true }
+    );
+
+    if (!updatedUser) {
+      return res.status(404).json({ message: 'Không tìm thấy người dùng' });
+    }
+
+    res.json({ message: 'Cập nhật trạng thái thành công', user: updatedUser });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: 'Lỗi server' });
+  }
+});
 
 module.exports = router;
