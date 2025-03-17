@@ -45,7 +45,7 @@ const CategoryItem = ({ category }) => {
       onMouseLeave={handleMouseLeave}
     >
       <Link 
-        to={"/san-pham/" + category.namekhongdau} 
+        to={"/danh-muc/" + category.namekhongdau} 
         className="menu-link"
         onClick={(e) => (hasChildren ) && toggleSubmenu(e)}
       >

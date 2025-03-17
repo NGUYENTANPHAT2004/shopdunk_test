@@ -18,12 +18,14 @@ import { DangNhapLayout } from '../Layout/Admin/DangNhapLayout'
 import DangKiLayout from '../Layout/DangKiLayout/DangKiLayout'
 import { DangNhap } from '../Layout/DangNhapLayout'
 import { TimKiemSanPhamLayout } from '../Layout/TimKiemSanPhamLayout'
+import { DanhMucLayout } from '../Layout/DanhMucLayout'
 
 const publicRoutes = [
   { path: '/', component: TrangChuLayout },
   { path: '/cart', component: GioHangLayout },
   { path: '/thanhcong', component: PaySuccess },
-  { path: '/san-pham/:slugcate/:slug', component: TheLoaiLayout },
+  { path: '/san-pham/:slug', component: TheLoaiLayout },
+  { path: '/danh-muc/:slug', component: DanhMucLayout },
   { path: '/chitietsanpham/:loaisp/:tieude', component: ChiTietLayout },
   { path: '/chitietblog/:tieude', component: ChiTietBlog },
   { path: '/lien-he', component: LienHe },
