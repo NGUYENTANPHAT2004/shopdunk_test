@@ -1,7 +1,9 @@
+/* eslint-disable react-hooks/exhaustive-deps */
 import React, { useEffect, useState, useRef } from 'react'
-import { useParams, Link } from 'react-router-dom'
+import { useParams } from 'react-router-dom'
+import CategoryList from '../../components/ListTheLoai/CategoryList'
 import Loading from '../../components/Loading/Loading'
-import ProductCard from '../../components/ProductItem/ProductCard'  // Component đệ quy hiển thị danh mục
+import ProductCard from '../../components/ProductItem/ProductCard'
 import './TheLoaiLayout.scss'
 import ListBlog from '../../components/ListBlog/ListBlog'
 import ThanhDinhHuong from '../../components/ThanhDinhHuong/ThanhDinhHuong'
@@ -11,69 +13,72 @@ import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
 import { faArrowLeft, faArrowRight } from '@fortawesome/free-solid-svg-icons'
 
 const TheLoaiLayout = () => {
-  const { slug } = useParams();
-  const [productDetails, setProductDetails] = useState(null);
-  const [categoryDetail, setCategoryDetail] = useState(null); // Thông tin danh mục đa cấp
-  const [loading, setLoading] = useState(false);
-  const [page, setPage] = useState(1);
-  const [limit] = useState(8);
-  const [totalPages, setTotalPages] = useState(1);
-  const [sortOrder, setSortOrder] = useState('asc');
+  const { slug } = useParams()
+  const [productDetails, setProductDetails] = useState(null)
+  const [loading, setLoading] = useState(false)
+  const [showFilter, setShowFilter] = useState(false)
+  const filterRef = useRef(null)
+  const filterButtonRef = useRef(null)
+  const [page, setPage] = useState(1)
+  const [limit] = useState(8)
+  const [totalPages, setTotalPages] = useState(1)
+  const [sortOrder, setSortOrder] = useState('asc')
 
-  // API lấy sản phẩm theo thể loại
   useEffect(() => {
-    const fetchProducts = async () => {
+    const handleClickOutside = event => {
+      if (
+        filterRef.current &&
+        !filterRef.current.contains(event.target) &&
+        filterButtonRef.current &&
+        !filterButtonRef.current.contains(event.target)
+      ) {
+        setShowFilter(false)
+      }
+    }
+
+    document.addEventListener('click', handleClickOutside)
+    return () => {
+      document.removeEventListener('click', handleClickOutside)
+    }
+  }, [])
+
+  useEffect(() => {
+    const fetchProduct = async () => {
       try {
-        setLoading(true);
+        setLoading(true)
         const response = await fetch(
           `http://localhost:3005/san-pham-pt/${slug}?page=${page}&limit=${limit}&sort=${sortOrder}`
-        );
-        const data = await response.json();
-        setProductDetails(data);
-        setTotalPages(data.pagination.totalPages);
+        )
+        const data = await response.json()
+        setProductDetails(data)
+        setTotalPages(data.pagination.totalPages)
       } catch (error) {
-        console.error('Lỗi khi tải sản phẩm:', error);
+        console.error('Lỗi khi tải sản phẩm:', error)
       } finally {
-        setLoading(false);
+        setLoading(false)
       }
-    };
-    fetchProducts();
-  }, [slug, page, sortOrder]);
+    }
+    fetchProduct()
+  }, [slug, page, sortOrder])
 
-  // API lấy thông tin danh mục đa cấp theo slug
-  useEffect(() => {
-    const fetchCategoryDetail = async () => {
-      try {
-        const response = await fetch(`http://localhost:3005/categoryitem/${slug}`);
-        const data = await response.json();
-        console.log("Dữ liệu trả về từ API category:", data);
-        setCategoryDetail(data);
-      } catch (error) {
-        console.error('Lỗi khi tải danh mục:', error);
-      }
-    };
-    fetchCategoryDetail();
-  }, [slug]);
-  
-
-  if (!productDetails || !categoryDetail) return <Loading />;
+  if (!productDetails) return <Loading />
 
   return (
     <div className='theloailayout-container'>
       <Helmet>
-        <title>{categoryDetail.name} - Shopdunk</title>
-        <meta name='description' content={categoryDetail.name} />
+        <title>{productDetails.nametheloai} - Shopdunk</title>
+        <meta name='description' content={productDetails.nametheloai} />
       </Helmet>
-      
       <ThanhDinhHuong
         breadcrumbs={[
           { label: 'Trang Chủ', link: '/' },
-          { label: categoryDetail.name, link: `/san-pham/${slug}` }
+          { label: productDetails.nametheloai, link: `/san-pham/${slug}` }
         ]}
       />
-
       <div className='theloailayout'>
-        
+        <div className='category-sidebar'>
+          <CategoryList />
+        </div>
 
         <div className='filter-dropdown'>
           <select
@@ -86,6 +91,12 @@ const TheLoaiLayout = () => {
           </select>
         </div>
 
+        <div
+          className={`category-filter ${showFilter ? 'show' : ''}`}
+          ref={filterRef}
+        >
+          <CategoryList />
+        </div>
         <div className='theloaisp'>
           {loading ? (
             <Loading />
@@ -95,12 +106,11 @@ const TheLoaiLayout = () => {
                 key={sanpham._id}
                 sanpham={sanpham}
                 setLoading={setLoading}
-                nametheloai={categoryDetail.namekhongdau}
+                nametheloai={productDetails.namekhongdau}
               />
             ))
           )}
         </div>
-
         <div className='pagination'>
           <button disabled={page === 1} onClick={() => setPage(page - 1)}>
             <FontAwesomeIcon icon={faArrowLeft} />
@@ -121,7 +131,7 @@ const TheLoaiLayout = () => {
       <ListBlog />
       <DanhGiaLayout />
     </div>
-  );
-};
+  )
+}
 
-export default TheLoaiLayout;
+export default TheLoaiLayout

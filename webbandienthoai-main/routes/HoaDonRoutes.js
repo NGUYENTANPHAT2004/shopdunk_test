@@ -198,8 +198,6 @@ router.post('/create_payment_url', async (req, res) => {
               message: `Sản phẩm không đủ số lượng trong kho. Hiện chỉ còn ${stockItem.quantity} sản phẩm.` 
             });
           }
-          
-          // Cập nhật số lượng tồn kho
           stockItem.quantity -= soluong;
           await stockItem.save();
         }
@@ -294,18 +292,75 @@ router.get('/vnpay_return', async (req, res) => {
       await hoadon.save()
 
       return res.redirect('https://localhost:3000/thanhcong?success=true')
+    } else {
+      // Payment failed, restore inventory
+      try {
+        for (const sanpham of hoadon.sanpham) {
+          const { idsp, soluong, dungluong, mausac } = sanpham
+          
+          // Find the product in stock by productId, dungluongId and mausacId
+          const stockItem = await ProductSizeStock.findOne({
+            productId: idsp,
+            dungluongId: dungluong,
+            mausacId: mausac
+          });
+          
+          if (stockItem && !stockItem.unlimitedStock) {
+            // Restore the quantity
+            stockItem.quantity += soluong;
+            await stockItem.save();
+            console.log(`Restored ${soluong} items to inventory for product ${idsp}`);
+          }
+        }
+        
+        // Mark the order as payment failed
+        hoadon.thanhtoan = false;
+        hoadon.trangthai = 'Thanh toán thất bại';
+        await hoadon.save();
+        
+        console.log(`Payment failed for order ${orderId}, inventory restored`);
+      } catch (error) {
+        console.error('Error restoring inventory:', error);
+      }
     }
   }
-
   res.redirect('https://localhost:3000/thanhcong')
 })
-
 
 router.post('/settrangthai/:idhoadon', async (req, res) => {
   try {
     const idhoadon = req.params.idhoadon
     const { trangthai } = req.body
     const hoadon = await HoaDon.hoadon.findById(idhoadon)
+    
+    // Check if the order is being canceled
+    if (trangthai === 'Hủy Đơn Hàng' && hoadon.trangthai !== 'Hủy Đơn Hàng') {
+      // Only restore inventory if the order was not already canceled
+      try {
+        for (const sanpham of hoadon.sanpham) {
+          const { idsp, soluong, dungluong, idmausac } = sanpham
+          
+          // Find the product in stock by productId, dungluongId and mausacId
+          const stockItem = await ProductSizeStock.findOne({
+            productId: idsp,
+            dungluongId: dungluong,
+            mausacId: idmausac
+          });
+          
+          if (stockItem && !stockItem.unlimitedStock) {
+            // Restore the quantity
+            stockItem.quantity += soluong;
+            await stockItem.save();
+            console.log(`Restored ${soluong} items to inventory for product ${idsp} due to order cancellation`);
+          }
+        }
+      } catch (error) {
+        console.error('Error restoring inventory during order cancellation:', error);
+        return res.status(500).json({ message: 'Lỗi khi khôi phục tồn kho' });
+      }
+    }
+    
+    // Update order status
     hoadon.trangthai = trangthai
     await hoadon.save()
     res.json(hoadon)

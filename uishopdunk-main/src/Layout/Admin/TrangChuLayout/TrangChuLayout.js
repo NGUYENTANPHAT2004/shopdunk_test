@@ -10,19 +10,12 @@ import { HoaDonLayout } from '../HoaDonLayout'
 import { DoanhThuLayout } from '../DoanhThuLayout'
 import TonKhoLayout  from '../TonKhoLayout/TonKhoLayout'
 import { useEffect, useState } from 'react'
-import { io } from "socket.io-client";
-import { toast,ToastContainer } from 'react-toastify'
-import { 
-  initializeSocket, 
-  registerStockListeners, 
-  checkStock 
-} from '../../../untils/socketUtils';
+import { UserLayout } from '../UserLayout'
 function TrangChuLayout() {
   const [searchParams] = useSearchParams()
   const tabFromUrl = searchParams.get('tab') || 'Trang chủ'
   return (
     <div className='trangchu_container'>
-      <ToastContainer />
       <SideBar activeTab={tabFromUrl} />
       <div className='admin_body'>
         {tabFromUrl === 'Sản Phẩm' && <TheLoaiLayoutAdmin />}
@@ -33,7 +26,7 @@ function TrangChuLayout() {
         {tabFromUrl === 'Hóa đơn' && <HoaDonLayout />}
         {tabFromUrl === 'Doanh Thu' && <DoanhThuLayout />}
         {tabFromUrl === 'Kho' && < TonKhoLayout />}
-        {/* Display low stock notification if present */}//+
+        {tabFromUrl === 'Người dùng' && < UserLayout />}
       </div>
     </div>
   )

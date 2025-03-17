@@ -9,7 +9,8 @@ const userSchema = new mongoose.Schema({
   socialLogins: { // Thêm để lưu ID Google/Facebook
     google: { type: String },
     facebook: { type: String }
-  }
+  },
+  status : { type: String, default: 'active' },
 });
 
 const User = mongoose.model('User', userSchema);
