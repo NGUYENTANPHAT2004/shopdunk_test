@@ -27,7 +27,7 @@ function TonKhoLayout() {
  
          // Hiển thị thông báo
          if (data.products && data.products.length > 0) {
-           toast.warning(`Cảnh báo: Có ${data.products.length} sản phẩm có số lượng tồn kho thấp (<5)!`, {//+
+           toast.warning(`Cảnh báo: Có ${data.products.length} sản phẩm có số lượng tồn kho thấp (<=5)!`, {//+
              position: "top-right",//+
              autoClose: 5000,//+
              hideProgressBar: false,//+
@@ -184,6 +184,7 @@ function TonKhoLayout() {
   };
   return (
     <div className="theloai_container">
+      <ToastContainer/>
       <div className="nav_chucnang">
         <input
           type="text"

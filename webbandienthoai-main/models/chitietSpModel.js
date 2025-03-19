@@ -8,6 +8,9 @@ const chitietspSchema = new db.mongoose.Schema({
   idloaisp: { type: db.mongoose.Schema.Types.ObjectId, ref: 'loaisp' },
   namekhongdau: { type: String },
 })
-
+chitietspSchema.index({ name: 'text', content: 'text' });
+chitietspSchema.index({ namekhongdau: 1 });
+chitietspSchema.index({ idloaisp: 1 });
+chitietspSchema.index({ price: 1 });
 const ChitietSp = db.mongoose.model('chitietsp', chitietspSchema)
 module.exports = { ChitietSp }

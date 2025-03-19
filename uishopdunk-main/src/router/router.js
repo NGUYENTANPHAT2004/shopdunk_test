@@ -42,6 +42,7 @@ const publicRoutes = [
   { path: '/register', component: DangKiLayout, layout: null },
   { path: '/search/:keyword', component: TimKiemLayout },
   { path: '/search-sanpham/:keyword', component: TimKiemSanPhamLayout },
+  { path: 'locsanpham', component: TimKiemSanPhamLayout }
 ]
 const privateRoutes = []
 export { publicRoutes, privateRoutes }
