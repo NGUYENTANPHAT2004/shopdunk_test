@@ -11,7 +11,7 @@ const handleCheckStock = async (socket) => {
     // Use the lowStockThreshold from the model instead of hardcoding 5
     const lowStockProducts = await ProductSizeStock.find({
       unlimitedStock: false,
-      quantity: { $lte: 5 }
+      quantity: { $lte: 5  }
     }).populate([
       { path: 'productId', select: 'tensp' },
       { path: 'dungluongId', select: 'dungluong' },

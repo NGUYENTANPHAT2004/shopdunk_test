@@ -3,73 +3,138 @@ import './DanhGiaLayout.scss'
 import { toast } from 'react-toastify'
 import 'react-toastify/dist/ReactToastify.css'
 import moment from 'moment'
+import { useUserContext } from '../../context/Usercontext'
+import { Link } from 'react-router-dom'
 
-const DanhGiaLayout = () => {
+const DanhGiaLayout = ({ theloaiId, theloaiName, theloaiSlug }) => {
   const [rating, setRating] = useState(0)
   const [tenkhach, setTenkhach] = useState('')
-  const [content, setcontent] = useState('')
-  const [danhgias, setdanhgias] = useState([])
-
-  // Tính trung bình số sao
+  const [content, setContent] = useState('')
+  const [danhgias, setDanhgias] = useState([])
   const [averageRating, setAverageRating] = useState(0)
+  const { getUser } = useUserContext()
+  const currentUser = getUser()
+
+  // Set username from user context when component mounts
+  useEffect(() => {
+    if (currentUser) {
+      setTenkhach(currentUser)
+    }
+  }, [currentUser])
 
   const handleRating = value => {
     setRating(value)
   }
 
   const handlePostdanhgia = async () => {
+    // Validation
+    if (!rating) {
+      return toast.error('Vui lòng chọn số sao đánh giá', {
+        position: 'top-right',
+        autoClose: 2000
+      })
+    }
+
+    if (!tenkhach.trim()) {
+      return toast.error('Vui lòng nhập tên của bạn', {
+        position: 'top-right',
+        autoClose: 2000
+      })
+    }
+
+    if (!content.trim()) {
+      return toast.error('Vui lòng nhập nội dung đánh giá', {
+        position: 'top-right',
+        autoClose: 2000
+      })
+    }
+
     try {
+      // Prepare request data
+      const reviewData = {
+        tenkhach,
+        content,
+        rating
+      }
+      
+      // Only add category data if it exists
+      if (theloaiId) reviewData.theloaiId = theloaiId
+      if (theloaiName) reviewData.theloaiName = theloaiName
+      if (theloaiSlug) reviewData.theloaiSlug = theloaiSlug
+      
       const response = await fetch('http://localhost:3005/danhgia', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify({
-          tenkhach,
-          content,
-          rating
-        })
+        body: JSON.stringify(reviewData)
       })
+      
       if (response.ok) {
         toast.success('Đánh giá thành công', {
           position: 'top-right',
           autoClose: 2000
         })
-        setTenkhach('')
-        setcontent('')
+        
+        // Reset form - but keep the name if logged in
+        if (!currentUser) {
+          setTenkhach('')
+        }
+        setContent('')
         setRating(0)
         fetchdanhgia()
+      } else {
+        const errorData = await response.json()
+        throw new Error(errorData.message || 'Server returned an error')
       }
     } catch (error) {
       console.log(error)
+      toast.error('Đã xảy ra lỗi khi gửi đánh giá', {
+        position: 'top-right',
+        autoClose: 2000
+      })
     }
   }
 
   const fetchdanhgia = async () => {
     try {
-      const response = await fetch('http://localhost:3005/getdanhgia')
+      // Use the category-specific endpoint if we have a slug, otherwise fall back to the general endpoint
+      const endpoint = theloaiSlug 
+        ? `http://localhost:3005/getdanhgia/${theloaiSlug}`
+        : 'http://localhost:3005/getdanhgia'
+        
+      const response = await fetch(endpoint)
+      
       if (response.ok) {
         const data = await response.json()
-        setdanhgias(data)
+        setDanhgias(data)
 
         if (data.length > 0) {
           const totalRating = data.reduce((acc, item) => acc + item.rating, 0)
           setAverageRating(totalRating / data.length)
+        } else {
+          setAverageRating(0)
         }
       }
     } catch (error) {
       console.log(error)
+      toast.error('Đã xảy ra lỗi khi tải đánh giá', {
+        position: 'top-right',
+        autoClose: 2000
+      })
     }
   }
 
   useEffect(() => {
     fetchdanhgia()
-  }, [])
+  }, [theloaiSlug]) // Reload reviews when theloaiSlug changes
 
   return (
     <div className='review-container'>
       <div className='review-rating'>
-        <h2 className='title_rate'>Đánh giá danh mục</h2>
+        <h2 className='title_rate'>
+          {theloaiName ? `Đánh giá: ${theloaiName}` : 'Đánh giá danh mục'}
+        </h2>
 
         <div className='rating-summary'>
           <div className='score'>
@@ -123,11 +188,13 @@ const DanhGiaLayout = () => {
 
           <div className='div_danhgia_input'>
             <label htmlFor=''>Tên của bạn</label>
-            <input
+             <input
               type='text'
               value={tenkhach}
               className='input-name'
               onChange={e => setTenkhach(e.target.value)}
+              disabled={currentUser ? true : false}
+              placeholder={currentUser ? '' : 'Nhập tên của bạn'}
             />
           </div>
           <div className='div_danhgia_input'>
@@ -135,7 +202,7 @@ const DanhGiaLayout = () => {
             <textarea
               className='input-review'
               value={content}
-              onChange={e => setcontent(e.target.value)}
+              onChange={e => setContent(e.target.value)}
             ></textarea>
           </div>
 
@@ -148,7 +215,7 @@ const DanhGiaLayout = () => {
       <div className='reviews'>
         {danhgias.length > 0 ? (
           danhgias.map((review, index) => (
-            <div className='review-item' key={index}>
+            <div className='review-item' key={review._id || index}>
               <p className='reviewer'>
                 {`${review.tenkhach} - ${moment(review.date).format(
                   'DD/MM/YYYY'

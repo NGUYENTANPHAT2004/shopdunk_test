@@ -52,56 +52,193 @@ router.get('/sanpham', async (req, res) => {
 
 router.get('/search', async (req, res) => {
   try {
-    const keyword = req.query.keyword || ''
-    const page = parseInt(req.query.page) || 1
-    const limit = parseInt(req.query.limit) || 8
-    const skip = (page - 1) * limit
+    // Lấy và xử lý tham số từ query
+    const keyword = req.query.keyword || '';
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 12;
+    const skip = (page - 1) * limit;
+    const sortField = req.query.sortField || 'price';
+    const sortOrder = req.query.sortOrder === 'desc' ? -1 : 1;
+    const filterCategory = req.query.category || null;
+    const minPrice = req.query.minPrice ? parseFloat(req.query.minPrice) : null;
+    const maxPrice = req.query.maxPrice ? parseFloat(req.query.maxPrice) : null;
 
-    const searchTerms = keyword
-      .split(/\s+/)
-      .map(term => term.trim())
-      .filter(term => term.length > 0)
+    // Xây dựng query tìm kiếm
+    let searchQuery = {};
+    
+    // Xử lý keyword tìm kiếm
+    if (keyword.trim() !== '') {
+      // Tối ưu hóa regex tìm kiếm để phù hợp với tiếng Việt
+      const normalizedKeyword = keyword.trim()
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .toLowerCase();
+      
+      const searchTerms = normalizedKeyword
+        .split(/\s+/)
+        .filter(term => term.length > 0);
 
-    const regex = new RegExp(searchTerms.join('.*'), 'i')
+      if (searchTerms.length > 0) {
+        // Tìm kiếm sản phẩm với mọi từ trong từ khóa (fuzzy search)
+        searchQuery = {
+          $or: [
+            { name: { $regex: new RegExp(searchTerms.join('|'), 'i') } },
+            { content: { $regex: new RegExp(searchTerms.join('|'), 'i') } }
+          ]
+        };
+      }
+    }
 
-    const searchResults = await Sp.ChitietSp.find({ name: { $regex: regex } })
-    const sanphamTotal = searchResults.length
-    const sanphamPage = searchResults.slice(skip, skip + limit)
+    // Áp dụng filter theo thể loại nếu có
+    if (filterCategory) {
+      const theloai = await LoaiSP.LoaiSP.findOne({ namekhongdau: filterCategory });
+      if (theloai) {
+        searchQuery.idloaisp = theloai._id;
+      }
+    }
+    
+    // Áp dụng filter theo giá nếu có
+    if (minPrice !== null || maxPrice !== null) {
+      searchQuery.price = {};
+      if (minPrice !== null) searchQuery.price.$gte = minPrice;
+      if (maxPrice !== null) searchQuery.price.$lte = maxPrice;
+    }
 
-    const sanphamjson = await Promise.all(
-      sanphamPage.map(async sanpham => {
-        const sp1 = await Sp.ChitietSp.findById(sanpham._id)
-        const theloai = await LoaiSP.LoaiSP.findById(sp1.idloaisp)
-        return {
-          _id: sp1._id,
-          name: sp1.name,
-          image: sp1.image,
-          price:
-            theloai.khuyenmai === 0
-              ? sp1.price
-              : sp1.price - (sp1.price * theloai.khuyenmai) / 100,
-          giagoc: sp1.price,
-          khuyenmai: theloai.khuyenmai,
-          namekhongdau: sp1.namekhongdau,
-          nametheloai:theloai.namekhongdau
+    // Đếm tổng số sản phẩm phù hợp với điều kiện tìm kiếm
+    const totalProducts = await Sp.ChitietSp.countDocuments(searchQuery);
+    
+    // Tạo options cho sorting
+    const sortOptions = {};
+    sortOptions[sortField] = sortOrder;
+    
+    // Thực hiện tìm kiếm với pagination và sorting
+    const products = await Sp.ChitietSp.find(searchQuery)
+      .sort(sortOptions)
+      .skip(skip)
+      .limit(limit)
+      .lean();
+
+    // Bổ sung thông tin thể loại và giá cho sản phẩm tìm thấy
+    const productsWithDetails = await Promise.all(
+      products.map(async (product) => {
+        try {
+          const theloai = await LoaiSP.LoaiSP.findById(product.idloaisp);
+          
+          const finalPrice = theloai && theloai.khuyenmai !== undefined && theloai.khuyenmai !== null
+            ? theloai.khuyenmai === 0
+              ? product.price
+              : parseFloat((product.price - (product.price * theloai.khuyenmai / 100)).toFixed(2))
+            : product.price;
+            
+          return {
+            _id: product._id,
+            name: product.name,
+            image: product.image,
+            price: finalPrice,
+            giagoc: product.price,
+            khuyenmai: theloai ? theloai.khuyenmai : 0,
+            namekhongdau: product.namekhongdau,
+            nametheloai: theloai ? theloai.namekhongdau : '',
+            theloaiName: theloai ? theloai.name : '',
+            loaisp: product.loaisp || (theloai ? theloai.name : '')
+          };
+        } catch (error) {
+          console.error(`Lỗi khi xử lý sản phẩm ${product._id}:`, error);
+          return {
+            _id: product._id,
+            name: product.name,
+            image: product.image,
+            price: product.price,
+            giagoc: product.price,
+            namekhongdau: product.namekhongdau
+          };
         }
       })
-    )
+    );
 
+    // Trả về kết quả có cấu trúc rõ ràng
     res.json({
-      sanphamjson,
+      success: true,
+      keyword: keyword,
+      products: productsWithDetails,
       pagination: {
         currentPage: page,
-        totalPages: Math.ceil(sanphamTotal / limit),
-        totalItems: sanphamTotal
+        totalPages: Math.ceil(totalProducts / limit),
+        totalItems: totalProducts,
+        limit: limit
+      },
+      filter: {
+        category: filterCategory,
+        price: {
+          min: minPrice,
+          max: maxPrice
+        }
+      },
+      sort: {
+        field: sortField,
+        order: sortOrder === 1 ? 'asc' : 'desc'
       }
-    })
+    });
   } catch (error) {
-    console.error('Lỗi khi tìm kiếm sản phẩm:', error)
-    res.status(500).json({ success: false, message: 'Lỗi server' })
+    console.error('Lỗi khi tìm kiếm sản phẩm:', error);
+    res.status(500).json({ 
+      success: false, 
+      message: 'Lỗi server khi thực hiện tìm kiếm',
+    });
   }
-})
-
+});
+// Thêm vào SanPhamRoutes.js
+router.get('/search-suggestions', async (req, res) => {
+  try {
+    const keyword = req.query.keyword || '';
+    
+    if (keyword.trim().length < 2) {
+      return res.json({ suggestions: [] });
+    }
+    
+    const searchTerms = keyword
+      .trim()
+      .split(/\s+/)
+      .filter(term => term.length > 0);
+      
+    if (searchTerms.length === 0) {
+      return res.json({ suggestions: [] });
+    }
+    
+    const regex = new RegExp(searchTerms.join('|'), 'i');
+    
+    // Lấy tối đa 5 gợi ý
+    const suggestions = await Sp.ChitietSp.find(
+      { name: { $regex: regex } },
+      { name: 1, namekhongdau: 1, _id: 1, idloaisp: 1 }
+    )
+    .limit(5)
+    .lean();
+    
+    // Bổ sung thông tin về thể loại cho các gợi ý
+    const suggestionsWithCategory = await Promise.all(
+      suggestions.map(async (suggestion) => {
+        try {
+          const theloai = await LoaiSP.LoaiSP.findById(suggestion.idloaisp);
+          return {
+            ...suggestion,
+            nametheloai: theloai ? theloai.namekhongdau : ''
+          };
+        } catch (error) {
+          return suggestion;
+        }
+      })
+    );
+    
+    res.json({ 
+      success: true,
+      suggestions: suggestionsWithCategory
+    });
+  } catch (error) {
+    console.error('Lỗi khi lấy gợi ý tìm kiếm:', error);
+    res.status(500).json({ success: false, message: 'Lỗi server' });
+  }
+});
 router.post(
   '/postchitietsp/:id',
   uploads.fields([{ name: 'image', maxCount: 1 }]),
@@ -140,7 +277,69 @@ router.post(
     }
   }
 )
+router.get('/search-all', async (req, res) => {
+  try {
+    const keyword = req.query.keyword || '';
+    const sortOrder = req.query.sort === 'desc' ? -1 : 1;
 
+    let searchQuery = {};
+    if (keyword.trim() !== '') {
+      const searchTerms = keyword
+        .split(/\s+/)
+        .map(term => term.trim())
+        .filter(term => term.length > 0);
+
+      if (searchTerms.length > 0) {
+        // Tìm sản phẩm có tên chứa bất kỳ từ nào trong từ khóa
+        searchQuery = { 
+          name: { 
+            $regex: new RegExp(searchTerms.join('|'), 'i') 
+          } 
+        };
+      }
+    }
+
+    // Lấy tất cả sản phẩm phù hợp
+    const allProducts = await Sp.ChitietSp.find(searchQuery).lean();
+
+    // Bổ sung thông tin thể loại
+    const sanphamjson = await Promise.all(
+      allProducts.map(async sp => {
+        const theloai = await LoaiSP.LoaiSP.findById(sp.idloaisp);
+        
+        return {
+          _id: sp._id,
+          name: sp.name,
+          image: sp.image,
+          price:
+            theloai && theloai.khuyenmai !== undefined && theloai.khuyenmai !== null
+              ? theloai.khuyenmai === 0
+                ? sp.price
+                : sp.price - (sp.price * theloai.khuyenmai) / 100
+              : sp.price,
+          giagoc: sp.price,
+          khuyenmai: theloai ? theloai.khuyenmai : 0,
+          namekhongdau: sp.namekhongdau,
+          nametheloai: theloai ? theloai.namekhongdau : '',
+          theloaiName: theloai ? theloai.name : ''
+        };
+      })
+    );
+
+    // Sắp xếp theo giá nếu được yêu cầu
+    if (sortOrder !== undefined) {
+      sanphamjson.sort((a, b) => (a.price - b.price) * sortOrder);
+    }
+
+    res.json({
+      sanphamjson,
+      total: sanphamjson.length
+    });
+  } catch (error) {
+    console.error('Lỗi khi tìm kiếm sản phẩm:', error);
+    res.status(500).json({ success: false, message: 'Lỗi server' });
+  }
+});
 router.post(
   '/updatechitietsp/:id',
   uploads.fields([
@@ -281,7 +480,9 @@ router.get('/san-pham-pt/:nametheloai', async (req, res) => {
     const skip = (page - 1) * limit
     const sortOrder = req.query.sort === 'desc' ? -1 : 1
 
-    const theloai = await LoaiSP.LoaiSP.findOne({ namekhongdau: nametheloai })
+    const theloai = await LoaiSP.LoaiSP.findOne({ 
+      namekhongdau: { $regex: new RegExp("^" + nametheloai + "$", "i") } 
+    });
     if (!theloai) {
       return res.status(404).json({ message: 'Thể loại không tồn tại' })
     }

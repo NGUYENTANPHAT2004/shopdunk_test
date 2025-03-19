@@ -129,7 +129,11 @@ const TheLoaiLayout = () => {
         </div>
       </div>
       <ListBlog />
-      <DanhGiaLayout />
+      <DanhGiaLayout 
+        theloaiId={productDetails._id}
+        theloaiName={productDetails.nametheloai}
+        theloaiSlug={productDetails.namekhongdau}
+      />
     </div>
   )
 }

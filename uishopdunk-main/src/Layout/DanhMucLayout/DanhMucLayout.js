@@ -6,7 +6,7 @@ import './DanhMucLayout.scss';
 import ListBlog from '../../components/ListBlog/ListBlog';
 import ThanhDinhHuong from '../../components/ThanhDinhHuong/ThanhDinhHuong';
 import { Helmet } from 'react-helmet';
-import { DanhGiaLayout } from '../DanhGiaLayout';
+import DanhGiaLayout from '../DanhGiaLayout/DanhGiaLayout';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faArrowLeft, faArrowRight } from '@fortawesome/free-solid-svg-icons';
 
@@ -22,6 +22,7 @@ const DanhMucLayout = () => {
   const [totalPages, setTotalPages] = useState(1);
   const [sortOrder, setSortOrder] = useState('asc');
   const [allTheLoai, setAllTheLoai] = useState([]);
+  const [selectedTheLoaiData, setSelectedTheLoaiData] = useState(null);
 
   // State to track parent category info
   const [parentCategory, setParentCategory] = useState(null);
@@ -66,6 +67,28 @@ const DanhMucLayout = () => {
     fetchCategoryDetail();
   }, [slug]);
 
+  // Update selectedTheLoaiData when selectedTheLoai changes
+  useEffect(() => {
+    if (selectedTheLoai === 'all') {
+      // If "all" is selected, use the category detail for reviews
+      setSelectedTheLoaiData({
+        theloaiId: categoryDetail?._id,
+        theloaiName: categoryDetail?.name,
+        theloaiSlug: categoryDetail?.namekhongdau
+      });
+    } else {
+      // Find the selected theloai data
+      const theloai = allTheLoai.find(t => t.namekhongdau === selectedTheLoai);
+      if (theloai) {
+        setSelectedTheLoaiData({
+          theloaiId: theloai._id,
+          theloaiName: theloai.name,
+          theloaiSlug: theloai.namekhongdau
+        });
+      }
+    }
+  }, [selectedTheLoai, allTheLoai, categoryDetail]);
+
   // Extract all theloai from category and its children recursively
   const extractAllTheLoai = (category) => {
     let result = [];
@@ -104,11 +127,17 @@ const DanhMucLayout = () => {
           .then(data => ({
             theLoai: theLoai.name,
             theLoaiSlug: theLoai.namekhongdau,
+            theLoaiId: theLoai._id,
             products: data.sanpham || []
           }))
           .catch(error => {
             console.error(error);
-            return { theLoai: theLoai.name, theLoaiSlug: theLoai.namekhongdau, products: [] };
+            return { 
+              theLoai: theLoai.name, 
+              theLoaiSlug: theLoai.namekhongdau,
+              theLoaiId: theLoai._id,
+              products: [] 
+            };
           })
       );
       
@@ -121,7 +150,8 @@ const DanhMucLayout = () => {
         const productsWithTheLoai = result.products.map(product => ({
           ...product,
           theLoaiName: result.theLoai,
-          theLoaiSlug: result.theLoaiSlug
+          theLoaiSlug: result.theLoaiSlug,
+          theLoaiId: result.theLoaiId
         }));
         allProductsData = [...allProductsData, ...productsWithTheLoai];
       });
@@ -278,7 +308,15 @@ const DanhMucLayout = () => {
       )}
 
       <ListBlog />
-      <DanhGiaLayout />
+      
+      {/* Pass the selected category/theloai info to DanhGiaLayout */}
+      {selectedTheLoaiData && (
+        <DanhGiaLayout 
+          theloaiId={selectedTheLoaiData.theloaiId}
+          theloaiName={selectedTheLoaiData.theloaiName}
+          theloaiSlug={selectedTheLoaiData.theloaiSlug}
+        />
+      )}
     </div>
   );
 };

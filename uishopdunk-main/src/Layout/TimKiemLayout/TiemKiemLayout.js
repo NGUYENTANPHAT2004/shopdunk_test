@@ -1,25 +1,29 @@
 import React, { useEffect, useState } from 'react'
-import { useParams, Link } from 'react-router-dom'
+import { useParams } from 'react-router-dom'
+import moment from 'moment'
+
 import './TimKiemLayout.scss'
 
 const SearchResults = () => {
   const { keyword } = useParams()
   const [results, setResults] = useState([])
   const [loading, setLoading] = useState(true)
+  const [IsOpen, setIsOpen] = useState(false)
 
   useEffect(() => {
     const fetchResults = async () => {
       setLoading(true)
       try {
-        // Gọi GET, kèm query ?keyword=...
-        const response = await fetch(
-          `http://localhost:3005/search?keyword=${(keyword)}`
-        )
-        const data = await response.json()
+        const response = await fetch('http://localhost:3005/timkiemhoadon', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ phone: keyword })
+        })
 
-        // Server trả về: { sanphamjson, pagination: {...} }
-        // Ta cần lấy data.sanphamjson làm kết quả
-        setResults(data.sanphamjson || [])
+        const data = await response.json()
+        setResults(data)
       } catch (error) {
         console.error('Lỗi khi tải kết quả tìm kiếm:', error)
       } finally {
@@ -30,29 +34,42 @@ const SearchResults = () => {
     if (keyword) fetchResults()
   }, [keyword])
 
+  const handleOpen = item => {
+    item.thanhtoan === 'Chưa thanh toán' ? setIsOpen(true) : setIsOpen(false)
+  }
+
   if (loading) return <div>Đang tải kết quả tìm kiếm...</div>
 
   return (
-    <div className='search-results'>
-      <h1>Kết quả tìm kiếm cho: "{keyword}"</h1>
-      {results.length === 0 ? (
-        <p>Không tìm thấy sản phẩm nào.</p>
-      ) : (
-        <div className='results-container'>
+    <div className='timkiem_container'>
+      <table className='tablenhap'>
+        <thead>
+          <tr>
+            <th>Mã đơn hàng</th>
+            <th>Tên Khách Hàng</th>
+            <th>Số điện Thoại</th>
+            <th>Ngày Mua</th>
+            <th>Số lượng sản phẩm</th>
+            <th>Tổng tiền</th>
+            <th>Trạng thái thanh toán</th>
+            <th>Trạng thái đơn hàng</th>
+          </tr>
+        </thead>
+        <tbody>
           {results.map(item => (
-            <div key={item._id} className='result-item'>
-            <Link to={`/chitietsanpham/${item.namekhongdau}`} className='product-link'>
-              <img src={item.image} alt={item.name} className='result-image' />
-              <h3>{item.name}</h3>
-              <p>
-                {item.giagoc} đ
-              </p>
-            </Link>
-          </div>
-          
+            <tr key={item._id} onClick={() => handleOpen(item)}>
+              <td>{item.maHDL}</td>
+              <td>{item.name}</td>
+              <td>{item.phone}</td>
+              <td>{moment(item.ngaymua).format('DD/MM/YYYY')}</td>
+              <td>{item.sanpham.length}</td>
+              <td>{item.tongtien}</td>
+              <td>{item.thanhtoan ? 'Đã thanh toán' : 'Chưa thanh toán'}</td>
+              <td>{item.trangthai}</td>
+            </tr>
           ))}
-        </div>
-      )}
+        </tbody>
+      </table>
     </div>
   )
 }
