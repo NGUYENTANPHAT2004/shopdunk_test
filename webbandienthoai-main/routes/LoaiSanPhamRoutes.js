@@ -180,6 +180,16 @@ router.get('/getchitiettl/:idtheloai', async (req, res) => {
     res.status(500).json({ message: `Đã xảy ra lỗi: ${error}` })
   }
 })
+router.get('/getchitiet-theloai/:nametheloai', async (req, res) => {
+  try {
+    const nametheloai = req.params.nametheloai
+    const theloai = await LoaiSP.LoaiSP.findOne({namekhongdau : nametheloai})
+    res.json(theloai)
+  } catch (error) {
+    console.error(error)
+    res.status(500).json({ message: `Đã xảy ra lỗi: ${error}` })
+  }
+})
 router.post('/deleteloaisp/:id', async (req, res) => {
   try {
     const id = req.params.id;
@@ -224,50 +234,46 @@ router.post('/deleteloaisp/:id', async (req, res) => {
 
 router.post('/deletehangloatloaisp', async (req, res) => {
   try {
-    const { ids } = req.body 
+    const { ids } = req.body;
 
     if (!ids || !Array.isArray(ids) || ids.length === 0) {
-      return res.status(400).json({ message: 'Danh sách ID không hợp lệ' })
+      return res.status(400).json({ message: 'Danh sách ID không hợp lệ' });
     }
 
-    const loaiSPs = await LoaiSP.LoaiSP.find({ _id: { $in: ids } })
+    const loaiSPs = await LoaiSP.LoaiSP.find({ _id: { $in: ids } });
 
     if (loaiSPs.length === 0) {
       return res
         .status(404)
-        .json({ message: 'Không tìm thấy thể loại nào để xóa' })
+        .json({ message: 'Không tìm thấy thể loại nào để xoá' });
     }
 
     await Promise.all(
-      loaiSPs.map(async loaiSP => {
-        // Xóa các chi tiết sản phẩm liên quan
-        await Sp.ChitietSp.deleteMany({ _id: { $in: loaiSP.chitietsp } })
+      loaiSPs.map(async (loaiSP) => {
+        // Gắn isDeleted = true (xóa mềm)
+        loaiSP.isDeleted = true;
+        await loaiSP.save();
 
-        // Cập nhật Category: loại bỏ _id của loaiSP khỏi mảng theloai
-        if (loaiSP.category) {
-          await Category.updateOne(
-            { _id: loaiSP.category },
-            { $pull: { theloai: loaiSP._id } }
-          )
-        }
+        // Gắn isDeleted = true cho các chi tiết sản phẩm liên quan (nếu cần)
+        await Sp.ChitietSp.updateMany(
+          { _id: { $in: loaiSP.chitietsp } },
+          { $set: { isDeleted: true } }
+        );
+
+        // KHÔNG xóa khỏi Category.theloai để vẫn giữ liên kết
+        // Nếu bạn muốn ẩn luôn thì dùng populate có match: { isDeleted: false }
       })
-    )
+    );
 
-    // Xóa hàng loạt các LoaiSP
-    await LoaiSP.LoaiSP.deleteMany({ _id: { $in: ids } })
-
-    res.json({ message: `Đã xóa ${ids.length} thể loại thành công` })
+    res.json({ message: `Đã xoá mềm ${ids.length} thể loại thành công` });
   } catch (error) {
-    console.error(error)
-    res.status(500).json({ message: `Đã xảy ra lỗi: ${error}` })
+    console.error(error);
+    res.status(500).json({ message: `Đã xảy ra lỗi: ${error}` });
   }
-})
-
-
-
+});
 router.get('/theloaisanpham', async (req, res) => {
   try {
-    const theloai = await LoaiSP.LoaiSP.find().lean()
+    const theloai = await LoaiSP.LoaiSP.find({ isDeleted: false }).lean()
     const theloaijson = await Promise.all(
       theloai.map(async tl => {
         return {
@@ -285,7 +291,7 @@ router.get('/theloaisanpham', async (req, res) => {
 
 router.get('/theloaiadmin', async (req, res) => {
   try {
-    const theloai = await LoaiSP.LoaiSP.find().lean()
+    const theloai = await LoaiSP.LoaiSP.find({ isDeleted: false }).lean()
     const theloaijson = await Promise.all(
       theloai.map(async tl => {
         return {
@@ -305,7 +311,19 @@ router.get('/theloaiadmin', async (req, res) => {
     res.json(theloaijson)
   } catch (error) {
     console.log(error)
+    res.status(500).json({ message: 'Lỗi khi tải danh sách thể loại', error: error.message });
   }
 })
+router.post('/restoreloaisp/:id', async (req, res) => {
+  try {
+    const loaiSp = await LoaiSP.LoaiSP.findById(req.params.id);
+    if (!loaiSp) return res.status(404).json({ message: 'Không tìm thấy' });
+    loaiSp.isDeleted = false;
+    await loaiSp.save();
+    res.json({ message: 'Khôi phục thành công' });
+  } catch (error) {
+    res.status(500).json({ message: `Lỗi: ${error}` });
+  }
+});
 
 module.exports = router

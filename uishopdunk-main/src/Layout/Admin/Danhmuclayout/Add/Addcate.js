@@ -104,7 +104,7 @@ function AddCate({ isOpen, onClose, fetchData }) {
         {error && <p className='error-message'>{error}</p>}
 
         <div className='input-group'>
-          <label>Category Name:</label>
+          <label>Tên danh mục:</label>
           <input
             type='text'
             value={name}
@@ -112,13 +112,13 @@ function AddCate({ isOpen, onClose, fetchData }) {
             placeholder='Enter category name'
           />
 
-          <label>Parent Category:</label>
+          <label>Danh mục cha</label>
           <select 
             className="form-select" 
             value={parent} 
             onChange={(e) => setParent(e.target.value)}
           >
-            <option value=''>None (Root Category)</option>
+            <option value=''>Danh mục gốc</option>
             {categories.map(cat => (
               <option key={cat._id} value={cat._id}>
                 {cat.label}

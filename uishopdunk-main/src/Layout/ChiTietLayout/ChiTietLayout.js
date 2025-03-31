@@ -12,6 +12,7 @@ import { faCircleCheck, faGift } from '@fortawesome/free-solid-svg-icons'
 import Slider from 'react-slick'
 import 'slick-carousel/slick/slick.css'
 import 'slick-carousel/slick/slick-theme.css'
+import { RelatedProducts } from '../Splienquan'
 
 const ChiTietLayout = () => {
   const { tieude, loaisp } = useParams()
@@ -29,27 +30,29 @@ const ChiTietLayout = () => {
   const [idmausac, setidmausac] = useState('')
   const [idsanpham, setidsanpham] = useState('')
   const [iddungluong, setiddungluong] = useState('')
+  const [activeTab, setActiveTab] = useState('mota') // 'mota', 'thongso', 'chitiet'
+  const [techSpecs, setTechSpecs] = useState(null)
 
   const [imgsanpham, setimgsanpham] = useState('')
   const [namesanpham, setnamesanpham] = useState('')
 
   const settings = {
-    dots: true, 
-    infinite: true, 
-    speed: 500, 
-    slidesToShow: 5, 
-    slidesToScroll: 1, 
-    autoplay: true, 
+    dots: true,
+    infinite: true,
+    speed: 500,
+    slidesToShow: 5,
+    slidesToScroll: 1,
+    autoplay: true,
     autoplaySpeed: 3000,
     responsive: [
       {
-        breakpoint: 1024, 
+        breakpoint: 1024,
         settings: {
           slidesToShow: 2
         }
       },
       {
-        breakpoint: 768, 
+        breakpoint: 768,
         settings: {
           slidesToShow: 1
         }
@@ -82,6 +85,23 @@ const ChiTietLayout = () => {
     } catch (error) {
       console.error('Lỗi khi lấy tồn kho:', error);
       setQuantity(0);
+    }
+  };
+
+  // Fetch technical specifications
+  const fetchTechSpecs = async () => {
+    try {
+      if (!loaisp) return;
+      
+      const response = await fetch(`http://localhost:3005/getchitiet-theloai/${loaisp}`);
+      if (response.ok) {
+        const data = await response.json();
+        setTechSpecs(data);
+      } else {
+        console.error('Không thể lấy thông số kỹ thuật');
+      }
+    } catch (error) {
+      console.error('Lỗi khi lấy thông số kỹ thuật:', error);
     }
   };
 
@@ -183,7 +203,8 @@ const ChiTietLayout = () => {
   useEffect(() => {
     fetchdungluong()
     fetchProduct()
-  }, [tieude])
+    fetchTechSpecs()
+  }, [tieude, loaisp])
 
   useEffect(() => {
     fetchanhmausac()
@@ -386,129 +407,241 @@ const ChiTietLayout = () => {
               </div>
             </div>
           </div>
-          <div className='short-des'>
-            <p className='title'>
-              <FontAwesomeIcon icon={faGift} />
-              Ưu đãi
-            </p>
-            <div className='short-description'>
-              <div className='short-description-header'>
-                <span>
-                  ( Khuyến mãi dự kiến áp dụng{' '}
-                  <strong>đến 23h59 | 28/2/2025</strong>&nbsp;)
-                </span>
-              </div>
-              <hr />
-              <div style={{ display: 'flex' }}>
-                <div className='short-description-content'>
-                  <div className='event_price'>
-                    Ưu đãi mùa yêu Valentine 10/2 - 17/2 giảm thêm
-                  </div>
-                  <div className='event_value'>100,000 ₫</div>
-                  <div>
-                    Áp dụng màu Ultramarine (Xanh Lưu Ly). Được áp dụng cùng
-                    ZaloPay. Không áp dụng cùng CTKM khác.
-                  </div>
-                </div>
-              </div>
-              <hr />
-              <p className='pchitiet'>
-                <strong className='pstrong'>I. Ưu đãi thanh toán&nbsp;</strong>
-              </p>
-              <p className='pchitiet lh-2'>
-                <span style={{ color: '#000000' }}>
-                  <img src='/tichxanh.jpe' alt='' width={16} height={17} />
-                  Hỗ trợ trả góp
-                  <strong> 0% </strong>
-                  lãi suất, 0 phụ phí
-                  <span style={{ color: '#007edb' }}> (xem chi tiết)</span>
-                </span>
-              </p>
-              <p className='pchitiet lh-2'>
-                <span style={{ color: '#000000' }}>
-                  <img src='/tichxanh.jpe' alt='' width={16} height={17} />
-                  Giảm đến
-                  <strong> 400.000đ </strong>
-                  khi thanh toán qua
-                  <strong> QR ZaloPay </strong>
-                  (SL có hạn)
-                </span>
-              </p>
-              <p className='pchitiet lh-2'>
-                <span style={{ color: '#000000' }}>
-                  <img src='/tichxanh.jpe' alt='' width={16} height={17} />
-                  Giảm đến
-                  <strong> 200.000đ </strong>
-                  khi thanh toán qua
-                  <strong> Kredivo </strong>
-                </span>
-              </p>
-              <p className='pchitiet'>
-                <strong className='pstrong'>II. Ưu đãi mua kèm &nbsp;</strong>
-              </p>
-              <p className='pchitiet lh-2'>
-                <span style={{ color: '#000000' }}>
-                  <img src='/tichxanh.jpe' alt='' width={16} height={17} />
-                  <strong> Ốp chính hãng Apple iPhone 16 series </strong>
-                  giảm
-                  <strong> 100.000đ </strong>
-                </span>
-              </p>
-              <p className='pchitiet lh-2'>
-                <span style={{ color: '#000000' }}>
-                  <img src='/tichxanh.jpe' alt='' width={16} height={17} />
-                  <strong> Sản phẩm Apple, phụ kiên </strong>
-                  giảm đên
-                  <strong> 80% </strong>
-                  <span style={{ color: '#007edb' }}>(xem chi tiết)</span>
-                </span>
-              </p>
-              <p className='pchitiet lh-2'>
-                <span style={{ color: '#000000' }}>
-                  <img src='/tichxanh.jpe' alt='' width={16} height={17} />
-                  Mua combo phụ kiện
-                  <strong> Non Apple </strong>
-                  giảm đến
-                  <strong> 200.000đ </strong>
-                </span>
-              </p>
-              <p className='pchitiet lh-2'>
-                <span style={{ color: '#000000' }}>
-                  <img src='/tichxanh.jpe' alt='' width={16} height={17} />
-                  Giảm đến
-                  <strong> 20% </strong>
-                  khi mua các gói bảo hành
-                  <span style={{ color: '#007edb' }}> (xem chi tiết)</span>
-                </span>
-              </p>
-              <p className='pchitiet'>
-                <strong className='pstrong'>III. Ưu đãi khác &nbsp;</strong>
-              </p>
-              <p className='pchitiet lh-2'>
-                <span style={{ color: '#000000' }}>
-                  <img src='/tichxanh.jpe' alt='' width={16} height={17} />
-                  Duy nhất tại ShopDunk, hỗ trợ mở thẻ tín dụng Sacombank hạn
-                  mức lên tới
-                  <strong> 25 triệu </strong>
-                  dành cho HS-SV
-                </span>
-              </p>
-              <p className='pchitiet lh-2'>
-                <span style={{ color: '#000000' }}>
-                  <img src='/tichxanh.jpe' alt='' width={16} height={17} />
-                  Trợ giá lên đời đến
-                  <strong> 20% </strong>
-                  <span style={{ color: '#007edb' }}>(xem chi tiết)</span>
-                </span>
-              </p>
+          
+          {/* Product Tabs Navigation */}
+          <div className='product-tabs'>
+            <div 
+              className={`product-tab ${activeTab === 'mota' ? 'active' : ''}`}
+              onClick={() => setActiveTab('mota')}
+            >
+              Mô tả sản phẩm
+            </div>
+            <div 
+              className={`product-tab ${activeTab === 'thongso' ? 'active' : ''}`}
+              onClick={() => setActiveTab('thongso')}
+            >
+              Thông số kỹ thuật
+            </div>
+            <div 
+              className={`product-tab ${activeTab === 'chitiet' ? 'active' : ''}`}
+              onClick={() => setActiveTab('chitiet')}
+            >
+              Chi tiết sản phẩm
             </div>
           </div>
+          
+          {/* Mô tả tab content */}
+          <div className={`tab-content ${activeTab === 'mota' ? 'active' : ''}`}>
+            <div className='short-des'>
+              <p className='title'>
+                <FontAwesomeIcon icon={faGift} />
+                Ưu đãi
+              </p>
+              <div className='short-description'>
+                <div className='short-description-header'>
+                  <span>
+                    ( Khuyến mãi dự kiến áp dụng{' '}
+                    <strong>đến 23h59 | 28/2/2025</strong>&nbsp;)
+                  </span>
+                </div>
+                <hr />
+                <div style={{ display: 'flex' }}>
+                  <div className='short-description-content'>
+                    <div className='event_price'>
+                      Ưu đãi mùa yêu Valentine 10/2 - 17/2 giảm thêm
+                    </div>
+                    <div className='event_value'>100,000 ₫</div>
+                    <div>
+                      Áp dụng màu Ultramarine (Xanh Lưu Ly). Được áp dụng cùng
+                      ZaloPay. Không áp dụng cùng CTKM khác.
+                    </div>
+                  </div>
+                </div>
+                <hr />
+                <p className='pchitiet'>
+                  <strong className='pstrong'>I. Ưu đãi thanh toán&nbsp;</strong>
+                </p>
+                <p className='pchitiet lh-2'>
+                  <span style={{ color: '#000000' }}>
+                    <img src='/tichxanh.jpe' alt='' width={16} height={17} />
+                    Hỗ trợ trả góp
+                    <strong> 0% </strong>
+                    lãi suất, 0 phụ phí
+                    <span style={{ color: '#007edb' }}> (xem chi tiết)</span>
+                  </span>
+                </p>
+                <p className='pchitiet lh-2'>
+                  <span style={{ color: '#000000' }}>
+                    <img src='/tichxanh.jpe' alt='' width={16} height={17} />
+                    Giảm đến
+                    <strong> 400.000đ </strong>
+                    khi thanh toán qua
+                    <strong> QR ZaloPay </strong>
+                    (SL có hạn)
+                  </span>
+                </p>
+                <p className='pchitiet lh-2'>
+                  <span style={{ color: '#000000' }}>
+                    <img src='/tichxanh.jpe' alt='' width={16} height={17} />
+                    Giảm đến
+                    <strong> 200.000đ </strong>
+                    khi thanh toán qua
+                    <strong> Kredivo </strong>
+                  </span>
+                </p>
+                <p className='pchitiet'>
+                  <strong className='pstrong'>II. Ưu đãi mua kèm &nbsp;</strong>
+                </p>
+                <p className='pchitiet lh-2'>
+                  <span style={{ color: '#000000' }}>
+                    <img src='/tichxanh.jpe' alt='' width={16} height={17} />
+                    <strong> Ốp chính hãng Apple iPhone 16 series </strong>
+                    giảm
+                    <strong> 100.000đ </strong>
+                  </span>
+                </p>
+                <p className='pchitiet lh-2'>
+                  <span style={{ color: '#000000' }}>
+                    <img src='/tichxanh.jpe' alt='' width={16} height={17} />
+                    <strong> Sản phẩm Apple, phụ kiên </strong>
+                    giảm đên
+                    <strong> 80% </strong>
+                    <span style={{ color: '#007edb' }}>(xem chi tiết)</span>
+                  </span>
+                </p>
+                <p className='pchitiet lh-2'>
+                  <span style={{ color: '#000000' }}>
+                    <img src='/tichxanh.jpe' alt='' width={16} height={17} />
+                    Mua combo phụ kiện
+                    <strong> Non Apple </strong>
+                    giảm đến
+                    <strong> 200.000đ </strong>
+                  </span>
+                </p>
+                <p className='pchitiet lh-2'>
+                  <span style={{ color: '#000000' }}>
+                    <img src='/tichxanh.jpe' alt='' width={16} height={17} />
+                    Giảm đến
+                    <strong> 20% </strong>
+                    khi mua các gói bảo hành
+                    <span style={{ color: '#007edb' }}> (xem chi tiết)</span>
+                  </span>
+                </p>
+                <p className='pchitiet'>
+                  <strong className='pstrong'>III. Ưu đãi khác &nbsp;</strong>
+                </p>
+                <p className='pchitiet lh-2'>
+                  <span style={{ color: '#000000' }}>
+                    <img src='/tichxanh.jpe' alt='' width={16} height={17} />
+                    Duy nhất tại ShopDunk, hỗ trợ mở thẻ tín dụng Sacombank hạn
+                    mức lên tới
+                    <strong> 25 triệu </strong>
+                    dành cho HS-SV
+                  </span>
+                </p>
+                <p className='pchitiet lh-2'>
+                  <span style={{ color: '#000000' }}>
+                    <img src='/tichxanh.jpe' alt='' width={16} height={17} />
+                    Trợ giá lên đời đến
+                    <strong> 20% </strong>
+                    <span style={{ color: '#007edb' }}>(xem chi tiết)</span>
+                  </span>
+                </p>
+              </div>
+            </div>
+          </div>
+          
+          {/* Thông số kỹ thuật tab content */}
+          <div className={`tab-content ${activeTab === 'thongso' ? 'active' : ''}`}>
+            <div className="tech-specs">
+              <h3 className="tech-specs-title">Thông số kỹ thuật</h3>
+              <div className="tech-specs-content">
+                {!techSpecs ? (
+                  <p style={{ padding: '15px', textAlign: 'center' }}>Đang tải thông số kỹ thuật...</p>
+                ) : (
+                  <table className="tech-specs-table">
+                    <tbody>
+                      {techSpecs.manhinh && (
+                        <tr className="even-row">
+                          <td className="spec-name">Công nghệ màn hình</td>
+                          <td className="spec-value">{techSpecs.manhinh}</td>
+                        </tr>
+                      )}
+                      {techSpecs.chip && (
+                        <tr className="odd-row">
+                          <td className="spec-name">Chip xử lý</td>
+                          <td className="spec-value">{techSpecs.chip}</td>
+                        </tr>
+                      )}
+                      {techSpecs.ram && (
+                        <tr className="even-row">
+                          <td className="spec-name">RAM</td>
+                          <td className="spec-value">{techSpecs.ram}</td>
+                        </tr>
+                      )}
+                      {techSpecs.dungluong && (
+                        <tr className="odd-row">
+                          <td className="spec-name">Dung lượng</td>
+                          <td className="spec-value">{techSpecs.dungluong}</td>
+                        </tr>
+                      )}
+                      {techSpecs.camera && (
+                        <tr className="even-row">
+                          <td className="spec-name">Camera</td>
+                          <td className="spec-value">{techSpecs.camera}</td>
+                        </tr>
+                      )}
+                      {techSpecs.pinsac && (
+                        <tr className="odd-row">
+                          <td className="spec-name">Pin và sạc</td>
+                          <td className="spec-value">{techSpecs.pinsac}</td>
+                        </tr>
+                      )}
+                      {techSpecs.congsac && (
+                        <tr className="even-row">
+                          <td className="spec-name">Cổng sạc</td>
+                          <td className="spec-value">{techSpecs.congsac}</td>
+                        </tr>
+                      )}
+                      {techSpecs.hang && (
+                        <tr className="odd-row">
+                          <td className="spec-name">Hãng sản xuất</td>
+                          <td className="spec-value">{techSpecs.hang}</td>
+                        </tr>
+                      )}
+                      {techSpecs.thongtin && (
+                        <tr className="even-row">
+                          <td className="spec-name">Thông tin khác</td>
+                          <td className="spec-value">{techSpecs.thongtin}</td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                )}
+              </div>
+            </div>
+          </div>
+          
+          {/* Chi tiết sản phẩm tab content */}
+          <div className={`tab-content ${activeTab === 'chitiet' ? 'active' : ''}`}>
+            <div className="product-details">
+              <div className="product-details-content">
+                {product && product.content ? (
+                  <div dangerouslySetInnerHTML={{ __html: product.content }} />
+                ) : (
+                  <p style={{ padding: '15px', textAlign: 'center' }}>Không có thông tin chi tiết.</p>
+                )}
+              </div>
+            </div>
+          </div>
+          
           <div 
             className={`divbtn_muagay ${quantity === 0 || quantity === '0' || quantity === 'Hết hàng' ? 'disabled' : ''}`} 
             onClick={handleBuyNow}
           >
             {quantity === 0 || quantity === '0' || quantity === 'Hết hàng' ? 'HẾT HÀNG' : 'MUA NGAY'}
           </div>
+          
           <div className='short-des'>
             <p className='pchitiet lh-2'>
               <span style={{ color: '#000000' }}>
@@ -570,6 +703,7 @@ const ChiTietLayout = () => {
       <div className='category-sidebar'>
         <ListBlog />
       </div>
+      <RelatedProducts category={loaisp} currentProductId={idsanpham} />
     </div>
   )
 }

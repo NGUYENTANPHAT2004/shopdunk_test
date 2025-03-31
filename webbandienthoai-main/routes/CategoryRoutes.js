@@ -60,15 +60,26 @@ const populateRecursive = async (categories) => {
     const populateTasks = [];
     
     // Add theloai population if needed
+    // Lọc chỉ lấy theloai chưa bị xoá mềm
     if (category.theloai && category.theloai.length > 0) {
-      populateTasks.push(category.populate('theloai'));
+      populateTasks.push(
+        category.populate({
+          path: 'theloai',
+          match: { isDeleted: false }
+        })
+      );
     }
-    
-    // Add children population if needed  
+
+    // Lọc children không cần match vì category không có xoá mềm (nếu có thì thêm tương tự)
     if (category.children && category.children.length > 0) {
-      populateTasks.push(category.populate('children'));
+      populateTasks.push(
+        category.populate({
+          path: 'children',
+          // Nếu bạn sau này cho category cũng xóa mềm thì thêm match ở đây
+          // match: { isDeleted: false }
+        })
+      );
     }
-    
     // Execute all populate tasks in parallel
     if (populateTasks.length > 0) {
       await Promise.all(populateTasks);

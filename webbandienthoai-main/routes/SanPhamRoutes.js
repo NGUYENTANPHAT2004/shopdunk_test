@@ -1,5 +1,7 @@
 const router = require('express').Router()
+const { dungluong } = require('../models/DungLuongModel')
 const LoaiSP = require('../models/LoaiSanPham')
+const { mausac } = require('../models/MauSacModel')
 const Sp = require('../models/chitietSpModel')
 const uploads = require('./upload')
 
@@ -449,6 +451,9 @@ router.get('/san-pham/:nametheloai', async (req, res) => {
     const theloai = await LoaiSP.LoaiSP.findOne({
       namekhongdau: nametheloai
     })
+    if (!theloai) {
+      return res.status(404).json({ message: 'Thể loại không tồn tại' })
+    }
     const sanpham = await Promise.all(
       theloai.chitietsp.map(async sp => {
         const sp1 = await Sp.ChitietSp.findById(sp._id)
@@ -469,6 +474,10 @@ router.get('/san-pham/:nametheloai', async (req, res) => {
     res.json(sanphamjson)
   } catch (error) {
     console.log(error)
+    res.status(500).json({ 
+      success: false, 
+      message: `Đã xảy ra lỗi: ${error}`
+    })
   }
 })
 
@@ -574,5 +583,19 @@ router.get('/getchitietspadmin/:idsp', async (req, res) => {
     console.log(error)
   }
 })
-
+router.post('/restoreAll', async (req, res) => {
+  try {
+    // Cập nhật các document trong collection thể loại
+    await LoaiSP.LoaiSP.updateMany({}, { isDeleted: false });
+    await Sp.ChitietSp.updateMany({}, { isDeleted: false });
+    // Cập nhật các document trong collection màu sắc
+    await mausac.updateMany({}, { isDeleted: false });
+    // Cập nhật các document trong collection dung lượng
+    await dungluong.updateMany({}, { isDeleted: false });
+    
+    res.status(200).json({ message: 'Đã khôi phục (isDeleted:false) cho tất cả các mục thành công' });
+  } catch (error) {
+    res.status(500).json({ message: `Đã xảy ra lỗi: ${error.message}` });
+  }
+});
 module.exports = router
