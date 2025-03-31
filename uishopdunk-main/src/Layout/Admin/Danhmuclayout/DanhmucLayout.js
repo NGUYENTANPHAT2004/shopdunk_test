@@ -152,7 +152,7 @@ function DanhmucLayout() {
       <div className="top-actions">
         <button className="btn-them-danhmuc" onClick={() => setIsOpenAdd(true)}>
           <FaPlus className="icons" />
-          Add Category
+          Thêm danh mục
         </button>
         <div className="select-all">
           <label>
@@ -161,13 +161,13 @@ function DanhmucLayout() {
               checked={selectAll}
               onChange={handleSelectAll}
             />
-            Select All
+            Tất cả
           </label>
         </div>
         <div className="action-buttons">
           <button className="btn-them-danhmuc" onClick={handleDeleteSelected}>
             <FaTrashCan className='icons' />
-            Delete
+            Xóa
           </button>
         </div>
       </div>

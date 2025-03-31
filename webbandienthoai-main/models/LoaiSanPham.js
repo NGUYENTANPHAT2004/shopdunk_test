@@ -15,7 +15,8 @@ const LoaiSPSchema = new db.mongoose.Schema({
   thongtin: { type: String },
   khuyenmai: { type: Number },
   dungluongmay: [{ type: db.mongoose.Schema.Types.ObjectId, ref: 'dungluong' }],
-  category: { type: db.mongoose.Schema.Types.ObjectId, ref: 'Category', required: true }
+  category: { type: db.mongoose.Schema.Types.ObjectId, ref: 'Category', required: true },
+  isDeleted: { type: Boolean, default: false }
 })
 
 const LoaiSP = db.mongoose.model('loaisp', LoaiSPSchema)

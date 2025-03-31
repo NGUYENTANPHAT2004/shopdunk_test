@@ -1,41 +1,71 @@
-import React, { createContext, useContext, useState } from 'react';
+import React, { createContext, useContext, useState, useEffect } from 'react';
 import axios from 'axios';
-import { ToastContainer, toast } from 'react-toastify'
-import 'react-toastify/dist/ReactToastify.css'
+import { toast } from 'react-toastify';
+import 'react-toastify/dist/ReactToastify.css';
 import Swal from "sweetalert2";
 const UserContext = createContext(null);
 
 export const UserContextProvider = ({ children }) => {
   const [user, setUser] = useState(null);
+  const [welcomeVoucher, setWelcomeVoucher] = useState(null);
 
-  // 🔹 Khi ứng dụng load lần đầu, lấy user từ localStorage
-  
+  // Load user from localStorage on initial render
+  useEffect(() => {
+    const storedUser = localStorage.getItem("user");
+    if (storedUser) {
+      try {
+        setUser(JSON.parse(storedUser));
+      } catch (error) {
+        console.error("Error parsing stored user data:", error);
+        localStorage.removeItem("user");
+      }
+    }
+    
+    // Check for stored welcome voucher
+    const storedVoucher = localStorage.getItem("welcomeVoucher");
+    if (storedVoucher) {
+      try {
+        setWelcomeVoucher(JSON.parse(storedVoucher));
+      } catch (error) {
+        console.error("Error parsing welcome voucher:", error);
+        localStorage.removeItem("welcomeVoucher");
+      }
+    }
+  }, []);
+
   const login = async (loginData) => {
     try {
       const { data: responseData } = await axios.post('http://localhost:3005/login_auth', loginData);
       
-      // Kiểm tra nếu có lỗi từ API
+      // Check for API errors
       if (!responseData || responseData.error) {
         throw new Error(responseData.message || "Tài khoản hoặc mật khẩu không đúng!");
       }
+      
+      // Make sure phone number is included in stored user data
+      const userData = responseData.user || responseData;
+      const userWithPhone = {
+        ...userData,
+        phone: userData.phone || loginData.phone
+      };
   
-      // Hiển thị thông báo đăng nhập thành công
+      // Success notification
       toast.success("Đăng nhập thành công! Đang chuyển hướng...", {
         position: "top-right",
         autoClose: 2000
       });
   
-      // Lưu thông tin user vào localStorage
-      localStorage.setItem("user", JSON.stringify(responseData));
-      setUser(responseData);
+      // Store user data in localStorage and state
+      localStorage.setItem("user", JSON.stringify(userWithPhone));
+      setUser(userWithPhone);
   
-      // Chuyển hướng sau khi lưu user
+      // Redirect after a delay
       setTimeout(() => {
         window.location.href = "/";
       }, 2500);
       
     } catch (error) {
-      // Hiển thị lỗi cụ thể từ API hoặc lỗi mặc định
+      // Display specific API error or default error
       toast.error(error.response?.data?.message || "Đăng nhập thất bại! Kiểm tra lại tài khoản/mật khẩu.", {
         position: "top-right",
         autoClose: 3000
@@ -45,7 +75,6 @@ export const UserContextProvider = ({ children }) => {
     }
   };
   
-
   const register = async (registerData) => {
     try {
       const { data: responseData } = await axios.post('http://localhost:3005/register_auth', registerData);
@@ -54,22 +83,43 @@ export const UserContextProvider = ({ children }) => {
         throw new Error(responseData.message || "Tài khoản hoặc mật khẩu đã tồn tại!");
       }
   
-      // Hiển thị thông báo đăng ký thành công
-      toast.success("Đăng ký thành công! Đang chuyển hướng...", {
+      // Handle welcome voucher if available
+      if (responseData.welcomeVoucher) {
+        console.log("Welcome voucher received:", responseData.welcomeVoucher);
+        setWelcomeVoucher(responseData.welcomeVoucher);
+        
+        // Store welcome voucher in localStorage to persist through redirects
+        localStorage.setItem("welcomeVoucher", JSON.stringify(responseData.welcomeVoucher));
+      }
+      
+      // Success notification
+      toast.success("Đăng ký thành công!", {
         position: "top-right",
         autoClose: 2000
       });
   
-      // Lưu user vào state
-      setUser(responseData);
-  
-      // Chuyển hướng sau 2.5 giây
+      // Ensure phone is stored with user data
+      const userData = {
+        ...responseData.user,
+        phone: registerData.phone
+      };
+      
+      localStorage.setItem("user", JSON.stringify(userData));
+      setUser(userData);
+      
+      // Don't redirect immediately to allow voucher to show
       setTimeout(() => {
-        window.location.href = "/";
-      }, 2500);
+        if (responseData.welcomeVoucher) {
+          // If there's a welcome voucher, don't redirect automatically
+          // User will dismiss the voucher to continue
+          console.log("Not redirecting yet - welcome voucher is showing");
+        } else {
+          window.location.href = "/";
+        }
+      }, 2000);
       
     } catch (error) {
-      // Hiển thị lỗi từ API nếu có, hoặc thông báo mặc định
+      // Display API error or default error
       toast.error(error.response?.data?.message || "Tài khoản đã tồn tại hoặc có lỗi xảy ra!", {
         position: "top-right",
         autoClose: 3000
@@ -78,23 +128,48 @@ export const UserContextProvider = ({ children }) => {
       console.error("Lỗi đăng ký:", error);
     }
   };
-  
+
+  const getUserPhone = () => {
+    try {
+      const storedUser = localStorage.getItem("user");
+      if (!storedUser) return null;
+      
+      const userData = JSON.parse(storedUser);
+      
+      // Check different possible paths to the phone property
+      return userData?.phone || userData?.user?.phone || null;
+    } catch (error) {
+      console.error("Error getting user phone:", error);
+      return null;
+    }
+  };
 
   const getUser = () => {
     try {
       const user = localStorage.getItem("user");
-      if (!user) return null; // Nếu không có dữ liệu, trả về null
+      if (!user) return null;
   
       const parsedUser = JSON.parse(user);
   
-      // Kiểm tra username có tồn tại trong `parsedUser` hay không
-      return parsedUser?.user?.username || parsedUser?.username || null;
+      // Check username existence in different possible paths
+      return parsedUser?.username || parsedUser?.user?.username || null;
     } catch (error) {
       console.error("Error parsing user data:", error);
       return null;
     }
   };
   
+  // Handles welcome voucher dismissal
+  const dismissWelcomeVoucher = () => {
+    console.log("Dismissing welcome voucher");
+    setWelcomeVoucher(null);
+    localStorage.removeItem("welcomeVoucher");
+    
+    // After dismissing, redirect to home if we're on register page
+    if (window.location.pathname.includes('/register')) {
+      window.location.href = "/";
+    }
+  };
 
   const logout = () => {
     if (localStorage.getItem('user')) {
@@ -109,7 +184,9 @@ export const UserContextProvider = ({ children }) => {
       }).then((result) => {
         if (result.isConfirmed) {
           localStorage.removeItem("user");
+          localStorage.removeItem("welcomeVoucher");
           setUser(null);
+          setWelcomeVoucher(null);
           window.dispatchEvent(new Event("userLogout"));
     
           toast.success("Đăng xuất thành công!", {
@@ -119,22 +196,35 @@ export const UserContextProvider = ({ children }) => {
         }
       });
     } else {
-      toast.info("Bạn chưa đăng nhập" ,{
+      toast.info("Bạn chưa đăng nhập", {
         position: "top-right",
         autoClose: 2000
       });
     }
   };
-  const loginWithSocial = async (provider, token) => {
+
+  const loginWithSocial = async (provider, token, phone) => {
     try {
-      const { data } = await axios.post(`http://localhost:3005/auth/${provider}`, { token });
-      if(data){
-        localStorage.setItem('user', JSON.stringify(data));
+      // Add phone parameter for social login
+      const requestData = phone ? { token, phone } : { token };
+      const { data } = await axios.post(`http://localhost:3005/auth/${provider}`, requestData);
+      
+      if(data) {
+        // Ensure phone is included in stored data
+        const userData = {
+          ...data.user || data,
+          phone: phone || data.user?.phone || data.phone
+        };
+        
+        localStorage.setItem('user', JSON.stringify(userData));
+        setUser(userData);
       }
+      
       toast.success("Đăng nhập thành công! Đang chuyển hướng...", {
         position: "top-right",
         autoClose: 2000
       });
+      
       setTimeout(() => {
         window.location.href = "/";
       }, 2500);
@@ -147,7 +237,17 @@ export const UserContextProvider = ({ children }) => {
   };
 
   return (
-    <UserContext.Provider value={{ login, register, getUser, logout,loginWithSocial,user }}>
+    <UserContext.Provider value={{ 
+      login, 
+      register, 
+      getUser, 
+      getUserPhone,
+      logout, 
+      loginWithSocial, 
+      user, 
+      welcomeVoucher,
+      dismissWelcomeVoucher
+    }}>
       {children}
     </UserContext.Provider>
   );

@@ -8,38 +8,37 @@ function ModalNhapThongTin ({
   amount,
   sanphams,
   name,
+  nguoinhan,
   phone,
   sex,
   giaotannoi,
   address,
   ghichu,
-  magiamgia
+  magiamgia,
+  userId
 }) {
   const [bankCode, setBankCode] = useState('')
   const [loading, setLoading] = useState(false)
   const [stockError, setStockError] = useState(null)
   const [isStockChecked, setIsStockChecked] = useState(false)
    
-  // Check stock availability when modal opens
+  // ✅ Kiểm tra tồn kho khi modal mở
   useEffect(() => {
     if (isOpen && sanphams && sanphams.length > 0) {
       checkStockAvailability()
     }
   }, [isOpen, sanphams])
 
-  // Function to check stock availability for all products in the cart
   const checkStockAvailability = async () => {
     setLoading(true)
     setStockError(null)
     setIsStockChecked(false)
 
     try {
-      // Check stock for each product in the cart
       for (const item of sanphams) {
-        console.log(item.idmausac)
         const response = await fetch(`http://localhost:3005/stock/${item.idsp}/${item.dungluong}/${item.idmausac}`)
-        const stockInfo = await response.json()   
-        // If product has limited stock and quantity exceeds available stock
+        const stockInfo = await response.json()
+
         if (!stockInfo.unlimitedStock && stockInfo.stock !== 'Không giới hạn' && stockInfo.stock < item.soluong) {
           setStockError({
             productId: item.idsp,
@@ -53,11 +52,10 @@ function ModalNhapThongTin ({
         }
       }
 
-      // All products have sufficient stock
       setIsStockChecked(true)
       setLoading(false)
     } catch (error) {
-      console.error('Error checking stock:', error)
+      console.error('Lỗi kiểm tra tồn kho:', error)
       setStockError({
         message: 'Không thể kiểm tra tồn kho. Vui lòng thử lại sau.'
       })
@@ -67,13 +65,11 @@ function ModalNhapThongTin ({
   }
 
   const handlethanhtoan = async () => {
-    // If stock hasn't been checked yet, check it first
     if (!isStockChecked) {
       await checkStockAvailability()
-      if (stockError) return // Don't proceed if there's a stock error
+      if (stockError) return
     }
 
-    // Don't proceed if there's a stock error
     if (stockError) {
       alert(stockError.message)
       return
@@ -83,11 +79,10 @@ function ModalNhapThongTin ({
     try {
       const response = await fetch('http://localhost:3005/create_payment_url', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           name,
+          nguoinhan,
           phone,
           sex,
           giaotannoi,
@@ -97,10 +92,13 @@ function ModalNhapThongTin ({
           bankCode,
           amount,
           sanphams,
-          language:'vn'
+          language: 'vn',
+          userId: userId || null // ✅ Gửi userId nếu có
         })
       })
+
       const data = await response.json()
+
       if (data.message) {
         alert(data.message)
       } else {
@@ -122,7 +120,7 @@ function ModalNhapThongTin ({
             <p>{stockError.message}</p>
           </div>
         )}
-        
+
         <div className='bankcode-select'>
           <label>Mã ngân hàng</label>
           <div className='manganhang'>
@@ -145,9 +143,7 @@ function ModalNhapThongTin ({
               checked={bankCode === 'VNBANK'}
               onChange={e => setBankCode(e.target.value)}
             />
-            <label htmlFor='vnbank'>
-              Thanh toán qua ATM-Tài khoản ngân hàng nội địa
-            </label>
+            <label htmlFor='vnbank'>Thanh toán qua ATM - ngân hàng nội địa</label>
           </div>
           <div className='manganhang'>
             <input
@@ -161,6 +157,7 @@ function ModalNhapThongTin ({
             <label htmlFor='intcard'>Thanh toán qua thẻ quốc tế</label>
           </div>
         </div>
+
         <button 
           className={`btndathang ${stockError || loading ? 'disabled' : ''}`} 
           onClick={handlethanhtoan}

@@ -19,6 +19,7 @@ import DangKiLayout from '../Layout/DangKiLayout/DangKiLayout'
 import { DangNhap } from '../Layout/DangNhapLayout'
 import { TimKiemSanPhamLayout } from '../Layout/TimKiemSanPhamLayout'
 import { DanhMucLayout } from '../Layout/DanhMucLayout'
+import LichSuDonHangLayout from '../Layout/lichsudonhang/lichsudonhang'
 
 const publicRoutes = [
   { path: '/', component: TrangChuLayout },
@@ -42,7 +43,9 @@ const publicRoutes = [
   { path: '/register', component: DangKiLayout, layout: null },
   { path: '/search/:keyword', component: TimKiemLayout },
   { path: '/search-sanpham/:keyword', component: TimKiemSanPhamLayout },
-  { path: 'locsanpham', component: TimKiemSanPhamLayout }
+  { path: '/locsanpham', component: TimKiemSanPhamLayout },
+  { path: '/orders', component: LichSuDonHangLayout }
+
 ]
 const privateRoutes = []
 export { publicRoutes, privateRoutes }

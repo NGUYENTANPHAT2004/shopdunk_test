@@ -1,28 +1,72 @@
 import React, { useState, useEffect } from 'react'
 import './Header.scss'
 import { useNavigate } from 'react-router-dom'
-import { FaSearch, FaTimes, FaBars } from 'react-icons/fa'
+import { FaSearch, FaTicketAlt, FaBell } from 'react-icons/fa'
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
 import { faBagShopping, faUser, faBars } from '@fortawesome/free-solid-svg-icons'
 import { Link } from "react-router-dom"
 import { useUserContext } from '../../../context/Usercontext'
 import { ToastContainer, toast } from 'react-toastify'
+import VoucherModal from '../../../components/VoucherModal/VoucherModal'
+import VoucherNotification from '../../../notifi/VoucherNotification'
+import WelcomeVoucher from '../../../notifi/WelcomeVoucher'
+
 const Header = () => {
   const [searchKeyword, setSearchKeyword] = useState('')
   const [itemCount, setItemCount] = useState(0)
   const [isUserHovered, setIsUserHovered] = useState(false)
   const [isSearchExpanded, setIsSearchExpanded] = useState(false)
   const [isMenuOpen, setIsMenuOpen] = useState(false)
-  const { getUser, logout, user } = useUserContext()
-  const [username, setUsername] = useState(null);
+  const [isVoucherModalOpen, setIsVoucherModalOpen] = useState(false)
+  const { getUser, getUserPhone, logout, welcomeVoucher, dismissWelcomeVoucher } = useUserContext()
+  const [username, setUsername] = useState(null)
+  const [userPhone, setUserPhone] = useState(null)
+  const [hasNewVouchers, setHasNewVouchers] = useState(false)
   const navigate = useNavigate()
 
+  // Initialize user data
   useEffect(() => {
-    setUsername(getUser());
-  }, [user])
+    const user = getUser();
+    setUsername(user);
+    
+    // Get phone from localStorage directly
+    const storedUser = localStorage.getItem('user');
+    if (storedUser) {
+      try {
+        const userData = JSON.parse(storedUser);
+        const phone = userData?.phone || userData?.user?.phone;
+        setUserPhone(phone);
+        console.log("Found user phone:", phone);
+        // Check for new vouchers if phone exists
+        if (phone) {
+          checkForNewVouchers(phone);
+        }
+      } catch (e) {
+        console.error('Error parsing user data:', e);
+      }
+    }
+  }, [])
   
+  // Update user data when logout event occurs
   useEffect(() => {
-    const updateUser = () => setUsername(getUser());
+    const updateUser = () => {
+      const user = getUser();
+      setUsername(user);
+      
+      // Update phone when user changes
+      const storedUser = localStorage.getItem('user');
+      if (storedUser) {
+        try {
+          const userData = JSON.parse(storedUser);
+          const phone = userData?.phone || userData?.user?.phone;
+          setUserPhone(phone);
+        } catch (e) {
+          console.error('Error parsing user data:', e);
+        }
+      } else {
+        setUserPhone(null);
+      }
+    };
   
     window.addEventListener("userLogout", updateUser);
   
@@ -31,6 +75,40 @@ const Header = () => {
     };
   }, []);
   
+  // Check for new vouchers periodically
+  useEffect(() => {
+    if (!userPhone) return;
+    
+    console.log("Setting up voucher checking for phone:", userPhone);
+    
+    // Initial check
+    checkForNewVouchers(userPhone);
+    
+    // Set up interval for checking (every 5 minutes)
+    const intervalId = setInterval(() => {
+      checkForNewVouchers(userPhone);
+    }, 5 * 60 * 1000);
+    
+    return () => clearInterval(intervalId);
+  }, [userPhone]);
+  
+  // Check for new vouchers
+  const checkForNewVouchers = async (phone) => {
+    try {
+      console.log("Checking for new vouchers for phone:", phone);
+      const response = await fetch(`http://localhost:3005/checknewvouchers/${phone}`);
+      const data = await response.json();
+      
+      if (response.ok && data.hasNewVouchers) {
+        console.log("Found new vouchers:", data.vouchers);
+        setHasNewVouchers(true);
+      }
+    } catch (error) {
+      console.error('Error checking for new vouchers:', error);
+    }
+  };
+  
+  // Update cart count
   const updateCartCount = () => {
     const cart = localStorage.getItem('cart')
     setItemCount(cart ? JSON.parse(cart).length : 0)
@@ -70,6 +148,27 @@ const Header = () => {
   
   const toggleMenu = () => {
     setIsMenuOpen(!isMenuOpen)
+  }
+  
+  const openVoucherModal = () => {
+    if (username) {
+      if (userPhone) {
+        setIsVoucherModalOpen(true);
+        // Reset new vouchers notification when modal is opened
+        setHasNewVouchers(false);
+      } else {
+        toast.warning('Không tìm thấy thông tin số điện thoại của bạn', {
+          position: "top-right",
+          autoClose: 3000
+        });
+      }
+    } else {
+      toast.info('Vui lòng đăng nhập để xem mã giảm giá của bạn', {
+        position: "top-right",
+        autoClose: 3000
+      });
+      setTimeout(() => navigate('/login'), 1000);
+    }
   }
 
   // Close dropdown when clicking outside
@@ -125,7 +224,7 @@ const Header = () => {
           <button className='search-toggle' onClick={toggleSearch}>
             <FaSearch className='search-toggle-icon' />
           </button>
-        </div>
+        </div>  
 
         <Link to="/cart" className='cart-container'>
           <FontAwesomeIcon icon={faBagShopping} className='cart-icon' />
@@ -145,7 +244,14 @@ const Header = () => {
           {isUserHovered && (
             <div className='auth-dropdown'>
               {username ? (
-                <button onClick={logout} className='auth-link'>Đăng xuất</button>
+                <>
+                  <button onClick={openVoucherModal} className='auth-link voucher-link'>
+                    Mã giảm giá
+                    {hasNewVouchers && <span className='notification-dot'></span>}
+                  </button>
+                  <Link to="/orders" className='auth-link'>Đơn hàng</Link>
+                  <button onClick={logout} className='auth-link'>Đăng xuất</button>
+                </>
               ) : (
                 <>
                   <Link to='/login' className='auth-link'>Đăng nhập</Link>
@@ -155,31 +261,30 @@ const Header = () => {
             </div>
           )}
         </div>
-        
-        {/* Menu Toggle Button */}
-        {/* <button className='menu-toggle' onClick={toggleMenu}>
-          <FontAwesomeIcon icon={faBars} className='menu-icon' />
-        </button> */}
-        
-        {/* Mobile Menu */}
-        {/* <div className={`mobile-menu ${isMenuOpen ? 'open' : ''}`}>
-          <div className="mobile-menu-container">
-            <div className="mobile-menu-header">
-              <button className="close-menu" onClick={toggleMenu}>
-                <FaTimes />
-              </button>
-            </div>
-            <div className="mobile-menu-content">
-              <Link to="/" className="mobile-menu-item" onClick={toggleMenu}>Trang chủ</Link>
-              <Link to="/iphone" className="mobile-menu-item" onClick={toggleMenu}>iPhone</Link>
-              <Link to="/ipad" className="mobile-menu-item" onClick={toggleMenu}>iPad</Link>
-              <Link to="/mac" className="mobile-menu-item" onClick={toggleMenu}>Mac</Link>
-              <Link to="/watch" className="mobile-menu-item" onClick={toggleMenu}>Watch</Link>
-              <Link to="/airpods" className="mobile-menu-item" onClick={toggleMenu}>AirPods</Link>
-            </div>
-          </div>
-        </div> */}
       </div>
+      
+      {/* Voucher Components */}
+      <VoucherModal 
+        isOpen={isVoucherModalOpen} 
+        onClose={() => setIsVoucherModalOpen(false)}
+        phone={userPhone}
+      />
+      
+      {/* Voucher Notification for logged-in users */}
+      {username && userPhone && (
+        <VoucherNotification 
+          phone={userPhone} 
+          onVoucherClick={openVoucherModal}
+        />
+      )}
+      
+      {/* Welcome Voucher for new registrations */}
+      {welcomeVoucher && (
+        <WelcomeVoucher 
+          voucher={welcomeVoucher} 
+          onClose={dismissWelcomeVoucher}
+        />
+      )}
     </div>
   )
 }
