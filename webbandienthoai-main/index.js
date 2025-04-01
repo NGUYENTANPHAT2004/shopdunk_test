@@ -22,7 +22,7 @@ const adminnotifi = require('./socket/adminnotifi')
 const http = require("http")
 const { initSocket } = require('./config/socket');
 const cors = require('cors')
-const uri ='mongodb+srv://baongocxink03:KD3qvAqFfpKC1uzX@cluster0.aocmw.mongodb.net/webbandienthoai?retryWrites=true&w=majority'
+const uri ='mongodb+srv://phat1z:123@ez88.akrq2.mongodb.net/datn?retryWrites=true&w=majority&appName=ez88'
 
 
 const mongoStoreOptions = {

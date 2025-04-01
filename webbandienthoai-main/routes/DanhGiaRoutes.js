@@ -143,5 +143,56 @@ router.post('/xoadanhgia', async (req, res) => {
     res.status(500).json({ message: `Đã xảy ra lỗi: ${error}` })
   }
 })
+router.get('/danhgia/product/:productId', async (req, res) => {
+  try {
+    const { productId } = req.params;
+    
+    // Tìm tất cả đánh giá cho sản phẩm này
+    const danhGia = await DanhGia.danhgia.find({ theloaiId: productId });
+    
+    // Tính trung bình rating
+    let totalRating = 0;
+    danhGia.forEach(item => {
+      totalRating += item.rating;
+    });
+    
+    const averageRating = danhGia.length > 0 ? (totalRating / danhGia.length) : 0;
+    
+    res.json({
+      success: true,
+      totalRatings: danhGia.length,
+      averageRating: parseFloat(averageRating.toFixed(1)),
+      ratings: danhGia
+    });
+  } catch (error) {
+    console.error('Lỗi khi lấy đánh giá sản phẩm:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Lỗi server khi lấy đánh giá sản phẩm'
+    });
+  }
+});
+
+// Route để lấy các đánh giá gần đây (để hiển thị trên trang chủ chẳng hạn)
+router.get('/danhgia/recent', async (req, res) => {
+  try {
+    // Lấy 10 đánh giá gần nhất có nội dung
+    const recentRatings = await DanhGia.danhgia
+      .find({ content: { $ne: "" } })
+      .sort({ date: -1 })
+      .limit(10);
+    
+    res.json({
+      success: true,
+      ratings: recentRatings
+    });
+  } catch (error) {
+    console.error('Lỗi khi lấy đánh giá gần đây:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Lỗi server khi lấy đánh giá gần đây'
+    });
+  }
+});
 
 module.exports = router

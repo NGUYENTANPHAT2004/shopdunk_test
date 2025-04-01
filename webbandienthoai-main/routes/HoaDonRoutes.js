@@ -35,7 +35,7 @@ function sortObject (obj) {
 
 router.get('/gethoadon', async (req, res) => {
   try {
-    const hoadon = await HoaDon.hoadon.find().lean()
+    const hoadon = await HoaDon.hoadon.find({ isDeleted: { $ne: true } }).lean()
     res.json(hoadon)
   } catch (error) {
     console.error(error)
@@ -47,7 +47,7 @@ router.post('/deletehoaddon', async (req, res) => {
   try {
     const { ids } = req.body
     
-    // Find orders that might need inventory restoration before deleting
+    // Find orders that might need inventory restoration before soft deleting
     const ordersToDelete = await HoaDon.hoadon.find({ _id: { $in: ids } })
     
     // Restore inventory for orders that reduced inventory but weren't completed
@@ -58,7 +58,12 @@ router.post('/deletehoaddon', async (req, res) => {
       }
     }
     
-    await HoaDon.hoadon.deleteMany({ _id: { $in: ids } })
+    // Soft delete by updating isDeleted flag
+    await HoaDon.hoadon.updateMany(
+      { _id: { $in: ids } },
+      { $set: { isDeleted: true } }
+    )
+    
     res.json({ message: 'Xóa hóa đơn thành công' })
   } catch (error) {
     console.error(error)
@@ -618,9 +623,9 @@ router.get('/checknewvouchers/:phone', async (req, res) => {
 
 router.post('/settrangthai/:idhoadon', async (req, res) => {
   try {
-    const idhoadon = req.params.idhoadon
-    const { trangthai } = req.body
-    const hoadon = await HoaDon.hoadon.findById(idhoadon)
+    const idhoadon = req.params.idhoadon;
+    const { trangthai, thanhtoan } = req.body;
+    const hoadon = await HoaDon.hoadon.findById(idhoadon);
     
     if (!hoadon) {
       return res.status(404).json({ message: 'Không tìm thấy hóa đơn' });
@@ -639,21 +644,29 @@ router.post('/settrangthai/:idhoadon', async (req, res) => {
       }
     }
     
-    // Update order status
-    hoadon.trangthai = trangthai
-    await hoadon.save()
-    res.json(hoadon)
+    // Update order status and payment status
+    hoadon.trangthai = trangthai;
+    if (typeof thanhtoan === 'boolean') {
+      hoadon.thanhtoan = thanhtoan;
+    }
+    
+    await hoadon.save();
+    res.json(hoadon);
   } catch (error) {
-    console.error(error)
-    res.status(500).json({ message: 'lỗi' })
+    console.error(error);
+    res.status(500).json({ message: 'Lỗi khi cập nhật trạng thái đơn hàng' });
   }
-})
+});
 
 router.get('/getchitiethd/:idhoadon', async (req, res) => {
   try {
     const idhoadon = req.params.idhoadon
 
-    const hoadon = await HoaDon.hoadon.findById(idhoadon)
+    const hoadon = await HoaDon.hoadon.findOne({ _id: idhoadon, isDeleted: { $ne: true } })
+    if (!hoadon) {
+      return res.status(404).json({ message: 'Không tìm thấy hóa đơn' })
+    }
+    
     const hoadonsanpham = await Promise.all(
       hoadon.sanpham.map(async sanpham => {
         const sanpham1 = await SanPham.ChitietSp.findById(sanpham.idsp)
@@ -1515,7 +1528,7 @@ router.get('/order-success-rate', async (req, res) => {
       const count = item.count;
       const amount = item.totalAmount;
 
-      if (status === 'Đã thanh toán' || status === 'Hoàn thành' || status === 'Đã nhận') {
+      if (status === 'Đã thanh toán' || status === 'Hoàn thành') {
         statusStats.success.count += count;
         statusStats.success.amount += amount;
       } else if (status === 'Đang xử lý') {
