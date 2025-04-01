@@ -28,7 +28,7 @@ function isAllowedDayOfWeek(daysOfWeek) {
 
 router.get('/getmagg', async (req, res) => {
   try {
-    const magg = await MaGiamGia.magiamgia.find().lean()
+    const magg = await MaGiamGia.magiamgia.find({ isDeleted: { $ne: true } }).lean()
     const maggjson = magg.map(mg => {
       return {
         _id: mg._id,
@@ -139,12 +139,18 @@ router.post('/updatemagg/:idmagg', async (req, res) => {
 
 router.post('/deletemagg', async (req, res) => {
   try {
-    const { ids } = req.body
+    const { ids, reason } = req.body
     if (!Array.isArray(ids) || ids.length === 0) {
       return res.status(400).json({ message: 'Danh sách ID không hợp lệ' })
     }
 
-    await Promise.all(ids.map(id => MaGiamGia.magiamgia.findByIdAndDelete(id)))
+    // Soft delete the vouchers
+    await Promise.all(ids.map(id => MaGiamGia.magiamgia.findByIdAndUpdate(id, {
+      isDeleted: true,
+      deletedAt: new Date(),
+      deletedBy: req.body.deletedBy || 'System',
+      deletionReason: reason || 'Không có lý do'
+    })))
 
     res.json({ message: `Đã xóa thành công ${ids.length} mã giảm giá` })
   } catch (error) {
@@ -404,22 +410,59 @@ router.get('/timkiemvoucher/:phone', async (req, res) => {
       });
     }
     
-    // Get current date
-    const currentDate = new Date();
+    // Get current date and time
+    const now = moment();
     
-    // Find all vouchers
-    const allVouchers = await MaGiamGia.magiamgia.find().lean();
+    // Find all active and non-deleted vouchers
+    const allVouchers = await MaGiamGia.magiamgia.find({
+      isDeleted: { $ne: true },
+      ngaybatdau: { $lte: now.toDate() },
+      ngayketthuc: { $gte: now.toDate() },
+      soluong: { $gt: 0 }
+    }).lean();
     
     // Filter vouchers for this user
     const userVouchers = allVouchers.filter(voucher => {
-      // Keep server-wide vouchers or vouchers that user hasn't used (for non-server-wide)
-      return voucher.isServerWide || 
-             !voucher.isOneTimePerUser || 
-             !(voucher.appliedUsers && voucher.appliedUsers.includes(phone));
+      // Check if voucher is still valid
+      const isExpired = now.isAfter(moment(voucher.ngayketthuc));
+      if (isExpired) return false;
+
+      // Check if voucher has any remaining uses
+      if (voucher.soluong <= 0) return false;
+
+      // Check golden hour restrictions
+      if (voucher.goldenHourStart && voucher.goldenHourEnd) {
+        const currentTime = now.format('HH:mm');
+        if (!isWithinGoldenHour(voucher.goldenHourStart, voucher.goldenHourEnd)) {
+          return false;
+        }
+      }
+
+      // Check day of week restrictions
+      if (voucher.daysOfWeek && voucher.daysOfWeek.length > 0) {
+        if (!isAllowedDayOfWeek(voucher.daysOfWeek)) {
+          return false;
+        }
+      }
+
+      // Check user usage restrictions
+      if (!voucher.isServerWide) {
+        if (voucher.isOneTimePerUser) {
+          // Check if user has already used this voucher
+          if (voucher.appliedUsers && voucher.appliedUsers.includes(phone)) {
+            return false;
+          }
+        }
+      }
+
+      return true;
     });
     
     // Transform vouchers for client response
     const transformedVouchers = userVouchers.map(voucher => {
+      const timeLeft = moment(voucher.ngayketthuc).diff(now, 'hours');
+      const isGoldenHour = voucher.goldenHourStart && voucher.goldenHourEnd;
+      
       return {
         _id: voucher._id,
         magiamgia: voucher.magiamgia,
@@ -427,12 +470,16 @@ router.get('/timkiemvoucher/:phone', async (req, res) => {
         soluong: voucher.soluong,
         minOrderValue: voucher.minOrderValue || 0,
         maxOrderValue: voucher.maxOrderValue || null,
-        ngaybatdau: voucher.ngaybatdau,
-        ngayketthuc: voucher.ngayketthuc,
+        ngaybatdau: moment(voucher.ngaybatdau).format('DD/MM/YYYY'),
+        ngayketthuc: moment(voucher.ngayketthuc).format('DD/MM/YYYY'),
         goldenHourStart: voucher.goldenHourStart,
         goldenHourEnd: voucher.goldenHourEnd,
         isServerWide: voucher.isServerWide,
-        daysOfWeek: voucher.daysOfWeek || []
+        daysOfWeek: voucher.daysOfWeek || [],
+        timeLeft: timeLeft,
+        isGoldenHour: isGoldenHour,
+        isOneTimePerUser: voucher.isOneTimePerUser,
+        hasUsed: voucher.appliedUsers && voucher.appliedUsers.includes(phone)
       };
     });
     
@@ -448,4 +495,51 @@ router.get('/timkiemvoucher/:phone', async (req, res) => {
     });
   }
 });
+
+router.post('/restoremagg', async (req, res) => {
+  try {
+    const { ids } = req.body
+    if (!Array.isArray(ids) || ids.length === 0) {
+      return res.status(400).json({ message: 'Danh sách ID không hợp lệ' })
+    }
+
+    // Restore the vouchers
+    await Promise.all(ids.map(id => MaGiamGia.magiamgia.findByIdAndUpdate(id, {
+      isDeleted: false,
+      deletedAt: null,
+      deletedBy: null,
+      deletionReason: null
+    })))
+
+    res.json({ message: `Đã khôi phục thành công ${ids.length} mã giảm giá` })
+  } catch (error) {
+    console.error(error)
+    res.status(500).json({ message: 'Lỗi trong quá trình khôi phục' })
+  }
+})
+
+// Add route to get deleted vouchers
+router.get('/getdeletedmagg', async (req, res) => {
+  try {
+    const deletedVouchers = await MaGiamGia.magiamgia.find({ isDeleted: true }).lean()
+    const vouchersJson = deletedVouchers.map(mg => {
+      return {
+        _id: mg._id,
+        magiamgia: mg.magiamgia,
+        soluong: mg.soluong,
+        sophantram: mg.sophantram,
+        ngaybatdau: moment(mg.ngaybatdau).format('DD/MM/YYYY'),
+        ngayketthuc: moment(mg.ngayketthuc).format('DD/MM/YYYY'),
+        deletedAt: moment(mg.deletedAt).format('DD/MM/YYYY HH:mm:ss'),
+        deletedBy: mg.deletedBy,
+        deletionReason: mg.deletionReason
+      }
+    })
+    res.json(vouchersJson)
+  } catch (error) {
+    console.error(error)
+    res.status(500).json({ message: 'Lỗi khi lấy danh sách mã giảm giá đã xóa' })
+  }
+})
+
 module.exports = router

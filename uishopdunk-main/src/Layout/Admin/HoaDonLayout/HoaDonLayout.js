@@ -38,6 +38,23 @@ function HoaDonLayout () {
   }
 
   const handleSelectItem = id => {
+    // Find the order being selected
+    const selectedOrder = data.find(item => item._id === id);
+    
+    // Check if the order has a restricted status
+    const restrictedStatuses = [
+      'Thanh toán thất bại',
+      'Thanh toán hết hạn',
+      'Hủy Đơn Hàng',
+      'Đã nhận',
+      'Hoàn thành'
+    ];
+    
+    if (restrictedStatuses.includes(selectedOrder.trangthai)) {
+      alert('Không thể chọn đơn hàng có trạng thái này');
+      return;
+    }
+
     let newSelectedIds = [...selectedIds]
     if (newSelectedIds.includes(id)) {
       newSelectedIds = newSelectedIds.filter(itemId => itemId !== id)
@@ -54,16 +71,92 @@ function HoaDonLayout () {
       // Find the current order
       const currentOrder = data.find(item => item._id === id);
       
-      // Prevent changing status of canceled orders
+      // Prevent invalid status transitions
       if (currentOrder.trangthai === 'Hủy Đơn Hàng' && value !== 'Hủy Đơn Hàng') {
         alert('Không thể thay đổi trạng thái của đơn hàng đã hủy');
         return;
       }
       
-      // Prevent canceling delivered orders
-      if (value === 'Hủy Đơn Hàng' && currentOrder.trangthai === 'Đã nhận') {
-        alert('Không thể hủy đơn hàng đã giao thành công');
+      // Prevent canceling completed orders
+      if (value === 'Hủy Đơn Hàng' && 
+          (currentOrder.trangthai === 'Đã nhận' || currentOrder.trangthai === 'Hoàn thành')) {
+        alert('Không thể hủy đơn hàng đã hoàn thành');
         return;
+      }
+
+      // Prevent invalid status transitions for completed orders
+      if (currentOrder.trangthai === 'Hoàn thành' && 
+          (value === 'Thanh toán thất bại' || value === 'Thanh toán hết hạn' || 
+           value === 'Đang xử lý' || value === 'Đã thanh toán' || 
+           value === 'Đang vận chuyển' || value === 'Đã nhận')) {
+        alert('Không thể thay đổi trạng thái của đơn hàng đã hoàn thành');
+        return;
+      }
+
+      // Prevent invalid status transitions for received orders
+      if (currentOrder.trangthai === 'Đã nhận' && 
+          (value === 'Thanh toán thất bại' || value === 'Thanh toán hết hạn' || 
+           value === 'Đang xử lý' || value === 'Đã thanh toán' || 
+           value === 'Đang vận chuyển')) {
+        alert('Không thể thay đổi trạng thái của đơn hàng đã nhận');
+        return;
+      }
+
+      // Prevent invalid status transitions for failed payment orders
+      if (currentOrder.trangthai === 'Thanh toán thất bại' && 
+          (value === 'Đã nhận' || value === 'Hoàn thành')) {
+        alert('Không thể chuyển đơn hàng thanh toán thất bại sang trạng thái này');
+        return;
+      }
+
+      // Prevent invalid status transitions for expired payment orders
+      if (currentOrder.trangthai === 'Thanh toán hết hạn' && 
+          (value === 'Đã nhận' || value === 'Hoàn thành')) {
+        alert('Không thể chuyển đơn hàng thanh toán hết hạn sang trạng thái này');
+        return;
+      }
+
+      // Set default values based on current status
+      let defaultValues = {};
+      
+      // If order is already paid, set default values for shipping states
+      if (currentOrder.thanhtoan) {
+        if (value === 'Đang vận chuyển') {
+          defaultValues = {
+            trangthai: 'Đang vận chuyển',
+            thanhtoan: true
+          };
+        } else if (value === 'Đã nhận') {
+          defaultValues = {
+            trangthai: 'Đã nhận',
+            thanhtoan: true
+          };
+        } else if (value === 'Hoàn thành') {
+          defaultValues = {
+            trangthai: 'Hoàn thành',
+            thanhtoan: true
+          };
+        }
+      }
+      
+      // If order is unpaid, set default values for payment states
+      if (!currentOrder.thanhtoan) {
+        if (value === 'Đã thanh toán') {
+          defaultValues = {
+            trangthai: 'Đã thanh toán',
+            thanhtoan: true
+          };
+        } else if (value === 'Thanh toán thất bại') {
+          defaultValues = {
+            trangthai: 'Thanh toán thất bại',
+            thanhtoan: false
+          };
+        } else if (value === 'Thanh toán hết hạn') {
+          defaultValues = {
+            trangthai: 'Thanh toán hết hạn',
+            thanhtoan: false
+          };
+        }
       }
       
       // Confirm before canceling an order
@@ -71,26 +164,31 @@ function HoaDonLayout () {
         if (!window.confirm('Bạn có chắc chắn muốn hủy đơn hàng này không?')) {
           return;
         }
+        defaultValues = {
+          trangthai: 'Hủy Đơn Hàng',
+          thanhtoan: currentOrder.thanhtoan
+        };
       }
-  
+
       const response = await fetch(`http://localhost:3005/settrangthai/${id}`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({
-          trangthai: value
+          trangthai: value,
+          ...defaultValues
         })
-      })
-  
+      });
+
       if (response.ok) {
-        fetchdata()
+        fetchdata();
       } else {
         const errorData = await response.json();
         alert(errorData.message || 'Có lỗi xảy ra khi cập nhật trạng thái');
       }
     } catch (error) {
-      console.error(error)
+      console.error(error);
       alert('Có lỗi xảy ra khi cập nhật trạng thái');
     }
   }
@@ -186,9 +284,13 @@ function HoaDonLayout () {
                   className='custom-select'
                 >
                   <option value='Đang xử lý'>🕒 Đang xử lý</option>
+                  <option value='Đã thanh toán'>💳 Đã thanh toán</option>
                   <option value='Đang vận chuyển'>🚚 Đang vận chuyển</option>
                   <option value='Đã nhận'>✅ Đã nhận</option>
-                  <option value='Hủy Đơn Hàng'>❌ Hủy đơn hàng</option>
+                  <option value='Hoàn thành'>✨ Hoàn thành</option>
+                  <option value='Thanh toán thất bại'>❌ Thanh toán thất bại</option>
+                  <option value='Thanh toán hết hạn'>⏰ Thanh toán hết hạn</option>
+                  <option value='Hủy Đơn Hàng'>🗑️ Hủy đơn hàng</option>
                 </select>
               </td>
             </tr>

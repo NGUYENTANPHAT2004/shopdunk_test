@@ -3,9 +3,11 @@
 import React, { useEffect, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import './ChiTietLayout.scss'
+import axios from 'axios'
 
 import ListBlog from '../../components/ListBlog/ListBlog'
 import ThanhDinhHuong from '../../components/ThanhDinhHuong/ThanhDinhHuong'
+import ProductRating from '../../components/ProductRating/ProductRating'
 import { Helmet } from 'react-helmet'
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
 import { faCircleCheck, faGift } from '@fortawesome/free-solid-svg-icons'
@@ -32,6 +34,7 @@ const ChiTietLayout = () => {
   const [iddungluong, setiddungluong] = useState('')
   const [activeTab, setActiveTab] = useState('mota') // 'mota', 'thongso', 'chitiet'
   const [techSpecs, setTechSpecs] = useState(null)
+  const [productRatings, setProductRatings] = useState(null)
 
   const [imgsanpham, setimgsanpham] = useState('')
   const [namesanpham, setnamesanpham] = useState('')
@@ -200,6 +203,20 @@ const ChiTietLayout = () => {
     }
   }
 
+  // Hàm fetch đánh giá sản phẩm
+  const fetchProductRatings = async () => {
+    if (!idsanpham) return;
+    
+    try {
+      const response = await axios.get(`http://localhost:3005/danhgia/product/${idsanpham}`);
+      if (response.data && response.data.success) {
+        setProductRatings(response.data);
+      }
+    } catch (error) {
+      console.error('Lỗi khi lấy đánh giá sản phẩm:', error);
+    }
+  };
+
   useEffect(() => {
     fetchdungluong()
     fetchProduct()
@@ -209,6 +226,12 @@ const ChiTietLayout = () => {
   useEffect(() => {
     fetchanhmausac()
   }, [idmausac])
+
+  useEffect(() => {
+    if (idsanpham) {
+      fetchProductRatings();
+    }
+  }, [idsanpham]);
 
   if (isLoading) {
     return <p>Đang tải dữ liệu...</p>
@@ -329,14 +352,13 @@ const ChiTietLayout = () => {
             <div className='product-name-chitiet'>{product.name}</div>
             <div className='divratedanhgia_container'>
               <div className='divratedanhgia'>
-                <div className='startdangia'>
-                  <img src='/star.png' alt='' width={15} height={15} />
-                  <img src='/star.png' alt='' width={15} height={15} />
-                  <img src='/star.png' alt='' width={15} height={15} />
-                  <img src='/star.png' alt='' width={15} height={15} />
-                  <img src='/star.png' alt='' width={15} height={15} />
+                <ProductRating productId={idsanpham} size="medium" showCount={true} />
+                <div className='danhgiarate'>
+                  Đánh giá
+                  {productRatings && productRatings.totalRatings > 0 && (
+                    <span className="rating-number"> ({productRatings.totalRatings})</span>
+                  )}
                 </div>
-                <div className='danhgiarate'>Đánh giá</div>
               </div>
             </div>
             <div className='chitietprice'>
