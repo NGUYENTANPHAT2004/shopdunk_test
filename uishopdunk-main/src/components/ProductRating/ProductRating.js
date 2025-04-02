@@ -16,14 +16,34 @@ const ProductRating = ({ productId, size = 'medium', showCount = true }) => {
       
       try {
         setIsLoading(true);
-        const response = await axios.get(`http://localhost:3005/danhgia/product/${productId}`);
+        // Sửa endpoint API để phù hợp với định nghĩa trong OrderRatingRoutes.js
+        const response = await axios.get(`http://localhost:3005/order-rating/product/${productId}`);
         
         if (response.data && response.data.success) {
-          setAverageRating(response.data.averageRating || 0);
-          setRatingCount(response.data.totalRatings || 0);
+          // Xử lý nhiều trường hợp cấu trúc dữ liệu có thể có
+          if (response.data.data) {
+            // Cấu trúc dữ liệu đúng: response.data.data.averageRating và totalRatings
+            if (response.data.data.averageRating !== undefined) {
+              setAverageRating(response.data.data.averageRating || 0);
+            }
+            
+            // Kiểm tra cả hai vị trí có thể chứa số lượng đánh giá
+            if (response.data.data.totalRatings !== undefined) {
+              setRatingCount(response.data.data.totalRatings || 0);
+            } else if (response.data.data.pagination && response.data.data.pagination.totalItems !== undefined) {
+              setRatingCount(response.data.data.pagination.totalItems || 0);
+            }
+          } else if (response.data.averageRating !== undefined) {
+            // Trường hợp alternative: response.data.averageRating
+            setAverageRating(response.data.averageRating || 0);
+            setRatingCount(response.data.totalRatings || 0);
+          }
         }
       } catch (error) {
         console.error('Error fetching product ratings:', error);
+        // Đặt giá trị mặc định khi có lỗi
+        setAverageRating(0);
+        setRatingCount(0);
       } finally {
         setIsLoading(false);
       }

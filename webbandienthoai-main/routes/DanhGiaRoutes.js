@@ -143,10 +143,6 @@ router.post('/xoadanhgia', async (req, res) => {
     res.status(500).json({ message: `Đã xảy ra lỗi: ${error}` })
   }
 })
-// Updated route handler for product ratings
-// Path: routes/DanhGiaRoutes.js - update the product rating endpoint
-
-// Replace or update the existing product rating endpoint:
 router.get('/danhgia/product/:productId', async (req, res) => {
   try {
     const { productId } = req.params;

@@ -6,6 +6,7 @@ import './lichsudonhang.scss';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faStar, faTrash, faReceipt, faExclamationTriangle } from '@fortawesome/free-solid-svg-icons';
 import ProductRating from '../../components/ProductRating/ProductRating';
+import OrderDetails from './OrderDeatails';
 
 function LichSuDonHangLayout() {
   const { user } = useUserContext();
@@ -19,6 +20,9 @@ function LichSuDonHangLayout() {
   const [error, setError] = useState(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deleteOrderId, setDeleteOrderId] = useState(null);
+  const [ratingModalOpen, setRatingModalOpen] = useState(false);
+  const [ratingError, setRatingError] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -51,6 +55,44 @@ function LichSuDonHangLayout() {
     try {
       setLoading(true);
       const response = await axios.get(`http://localhost:3005/getchitiethd/${idhoadon}`);
+      
+      // Kiểm tra response trước khi xử lý
+      if (!response.data || !response.data.hoadonsanpham || !Array.isArray(response.data.hoadonsanpham)) {
+        console.error('Dữ liệu không hợp lệ từ API:', response.data);
+        throw new Error('Dữ liệu đơn hàng không hợp lệ');
+      }
+      
+      try {
+        // Nếu đơn hàng có sản phẩm, kiểm tra trạng thái đánh giá cho từng sản phẩm
+        if (response.data.hoadonsanpham.length > 0) {
+          const ratingStatusPromises = response.data.hoadonsanpham.map(product => 
+            axios.get(`http://localhost:3005/order-rating/check`, {
+              params: {
+                userId: user._id,
+                productId: product.idsp,
+                orderId: idhoadon
+              }
+            }).catch(err => {
+              console.warn(`Không thể kiểm tra trạng thái đánh giá cho sản phẩm ${product.idsp}:`, err);
+              return { data: { hasRated: false } }; // Giá trị mặc định nếu API lỗi
+            })
+          );
+          
+          const ratingResults = await Promise.all(ratingStatusPromises);
+          
+          // Cập nhật trạng thái đánh giá cho từng sản phẩm
+          response.data.hoadonsanpham = response.data.hoadonsanpham.map((product, index) => {
+            return {
+              ...product,
+              hasRated: ratingResults[index]?.data?.hasRated || false
+            };
+          });
+        }
+      } catch (ratingErr) {
+        console.error('Lỗi khi kiểm tra trạng thái đánh giá:', ratingErr);
+        // Vẫn tiếp tục hiển thị đơn hàng ngay cả khi không thể kiểm tra trạng thái đánh giá
+      }
+      
       setSelectedDonHang(response.data);
     } catch (error) {
       console.error('Lỗi khi xem chi tiết:', error);
@@ -122,41 +164,99 @@ function LichSuDonHangLayout() {
     }
   };
 
-  const handleRating = (product) => {
+  // Hàm kiểm tra xem sản phẩm đã được đánh giá chưa
+  const checkRatingStatus = async (product, orderId) => {
+    try {
+      const response = await axios.get(`http://localhost:3005/order-rating/check`, {
+        params: {
+          userId: user._id,
+          productId: product._id || product.idsp,
+          orderId: orderId
+        }
+      });
+      
+      return response.data.hasRated;
+    } catch (error) {
+      console.error('Lỗi kiểm tra trạng thái đánh giá:', error);
+      return false;
+    }
+  };
+
+  const openRatingModal = async (product) => {
+    // Kiểm tra xem sản phẩm đã được đánh giá chưa
+    const hasRated = await checkRatingStatus(product, selectedDonHang._id);
+    
+    if (hasRated) {
+      alert('Bạn đã đánh giá sản phẩm này!');
+      return;
+    }
+    
     setSelectedProduct(product);
-    setShowRatingModal(true);
-    setRating(0); // Reset rating
-    setComment(''); // Reset comment
+    setRating(0);
+    setComment('');
+    setRatingError('');
+    setRatingModalOpen(true);
+  };
+
+  const closeRatingModal = () => {
+    setSelectedProduct(null);
+    setRating(0);
+    setComment('');
+    setRatingError('');
+    setRatingModalOpen(false);
   };
 
   const submitRating = async () => {
     if (!selectedProduct || !rating) {
-      alert('Vui lòng chọn số sao đánh giá');
+      setRatingError('Vui lòng chọn số sao đánh giá');
       return;
     }
 
     try {
-      setLoading(true);
-      await axios.post('http://localhost:3005/danhgia', {
-        tenkhach: user.name || user.username || 'Khách hàng',
+      setIsSubmitting(true);
+      setRatingError('');
+
+      // Sử dụng axios thay vì fetch để đồng nhất với phong cách code
+      const response = await axios.post('http://localhost:3005/order-rating', {
+        userId: user._id,
+        orderId: selectedDonHang._id,
+        productId: selectedProduct._id || selectedProduct.idsp,
+        productName: selectedProduct.tenSP || selectedProduct.namesanpham,
+        productImage: selectedProduct.hinhanh || selectedProduct.image,
+        tenkhach: user.tenkhach,
         content: comment,
         rating: rating,
-        theloaiId: selectedProduct.idsp,
-        theloaiName: selectedProduct.namesanpham,
-        theloaiSlug: selectedProduct.namesanpham.toLowerCase().replace(/\s+/g, '-')
+        dungluong: selectedProduct.dungluong,
+        mausac: selectedProduct.mausac,
+        verified: true
       });
-      
-      alert('Đánh giá thành công!');
-      setShowRatingModal(false);
-      setRating(0);
-      setComment('');
-      setSelectedProduct(null);
+
+      if (response.data.success) {
+        alert('Cảm ơn bạn đã đánh giá sản phẩm!');
+        closeRatingModal();
+        
+        // Cập nhật lại đơn hàng đang xem để hiển thị trạng thái đã đánh giá
+        if (selectedDonHang) {
+          handleXemChiTiet(selectedDonHang._id);
+        }
+        
+        // Cập nhật lại danh sách đơn hàng
+        refreshOrderList();
+      } else {
+        setRatingError(response.data.message || 'Có lỗi xảy ra khi gửi đánh giá');
+      }
     } catch (error) {
       console.error('Lỗi khi đánh giá:', error);
-      alert('Có lỗi xảy ra khi đánh giá');
+      setRatingError('Có lỗi xảy ra khi gửi đánh giá. Vui lòng thử lại sau.');
     } finally {
-      setLoading(false);
+      setIsSubmitting(false);
     }
+  };
+
+  const canRateProduct = (product, order) => {
+    // Chỉ cho phép đánh giá nếu đơn hàng đã hoàn thành hoặc đã giao
+    const eligibleStatuses = ['Đã giao hàng', 'Hoàn thành', 'Đã nhận'];
+    return eligibleStatuses.includes(order.trangthai) && !product.hasRated;
   };
 
   const getStatusClass = (status) => {
@@ -263,104 +363,58 @@ function LichSuDonHangLayout() {
       )}
 
       {selectedDonHang && (
-        <div className="chitiet-donhang">
-          <div className="chitiet-header">
-            <h3>Chi tiết đơn hàng </h3>
-            <span className={`status-badge ${getStatusClass(selectedDonHang.trangthai)}`}>
-              {selectedDonHang.trangthai}
-            </span>
-          </div>
-          
-          <div className="order-info">
-            <div className="info-group">
-              <p><strong>Người nhận:</strong> {selectedDonHang.nguoinhan}</p>
-              <p><strong>SĐT:</strong> {selectedDonHang.phone}</p>
-              <p><strong>Địa chỉ:</strong> {selectedDonHang.address || 'N/A'}</p>
-            </div>
-            <div className="info-group">
-              <p><strong>Ngày mua:</strong> {selectedDonHang.ngaymua}</p>
-              <p><strong>Thanh toán:</strong> {selectedDonHang.thanhtoan ? 'Đã thanh toán' : 'Chưa thanh toán'}</p>
-              <p><strong>Ghi chú:</strong> {selectedDonHang.ghichu || 'Không có'}</p>
-            </div>
-          </div>
-          
-          <h4>Sản phẩm:</h4>
-          <ul className="product-list">
-            {selectedDonHang.hoadonsanpham.map((sp, index) => (
-              <li key={index} className="product-item">
-                <div className="product-details">
-                  <span className="product-name">{sp.namesanpham}</span>
-                  <span className="product-variant">{sp.dungluong} - {sp.mausac}</span>
-                  <div className="product-price-row">
-                    <span className="product-quantity">SL: {sp.soluong}</span>
-                    <span className="product-price">{sp.price.toLocaleString()}₫</span>
-                  </div>
-                </div>
-                
-                {(selectedDonHang.trangthai === 'Hoàn thành' || selectedDonHang.trangthai === 'Đã nhận') && (
-                  <button className="btn-rating" onClick={() => handleRating(sp)}>
-                    <FontAwesomeIcon icon={faStar} /> Đánh giá
-                  </button>
-                )}
-              </li>
-            ))}
-          </ul>
-          
-          <div className="order-total">
-            <p><strong>Tổng tiền:</strong> <span className="total-price">{selectedDonHang.tongtien.toLocaleString()}₫</span></p>
-          </div>
-          
-          <div className="action-row">
-            <button className="btn-close" onClick={() => setSelectedDonHang(null)}>Đóng</button>
-            {selectedDonHang.trangthai === 'Đã thanh toán' && (
-              <button className="btn-confirm" onClick={() => handleXacNhan(selectedDonHang._id)}>Xác nhận đã nhận</button>
-            )}
-          </div>
-        </div>
+        <OrderDetails
+          selectedDonHang={selectedDonHang}
+          setSelectedDonHang={setSelectedDonHang}
+          handleXacNhan={handleXacNhan}
+          handleRating={openRatingModal}
+          canRateProduct={canRateProduct}
+          getStatusClass={getStatusClass}
+        />
       )}
 
-      {showRatingModal && (
+      {ratingModalOpen && (
         <div className="rating-modal">
           <div className="rating-content">
             <h3>Đánh giá sản phẩm</h3>
-            <div className="product-to-rate">
-              <div className="product-info">
-                <div className="product-name">{selectedProduct?.namesanpham}</div>
-                <div className="product-variant">{selectedProduct?.dungluong} - {selectedProduct?.mausac}</div>
+            <div className="product-rating-info">
+              <img 
+                src={selectedProduct.hinhanh || selectedProduct.image} 
+                alt={selectedProduct.tenSP || selectedProduct.namesanpham} 
+              />
+              <div>
+                <h4>{selectedProduct.tenSP || selectedProduct.namesanpham}</h4>
+                <p>Dung lượng: {selectedProduct.dungluong}</p>
+                <p>Màu sắc: {selectedProduct.mausac}</p>
               </div>
             </div>
             <div className="rating-stars">
-              <span className="star-label">Bạn cảm thấy sản phẩm này như thế nào?</span>
-              <div className="stars-container">
+              <label>Đánh giá của bạn:</label>
+              <div className="stars">
                 {[1, 2, 3, 4, 5].map((star) => (
                   <FontAwesomeIcon
                     key={star}
                     icon={faStar}
-                    className={star <= rating ? 'star-active' : 'star-inactive'}
+                    className={star <= rating ? 'active' : ''}
                     onClick={() => setRating(star)}
                   />
                 ))}
               </div>
             </div>
             <textarea
-              placeholder="Chia sẻ trải nghiệm của bạn về sản phẩm này..."
+              placeholder="Chia sẻ trải nghiệm của bạn về sản phẩm..."
               value={comment}
               onChange={(e) => setComment(e.target.value)}
             />
-            <div className="rating-buttons">
-              <button className="cancel-rating" onClick={() => {
-                setShowRatingModal(false);
-                setRating(0);
-                setComment('');
-              }}>
-                Hủy
-              </button>
+            {ratingError && <p className="error-message">{ratingError}</p>}
+            <div className="rating-actions">
+              <button onClick={closeRatingModal} disabled={isSubmitting}>Hủy</button>
               <button 
-                className="submit-rating" 
                 onClick={submitRating}
-                disabled={!rating}
+                disabled={!rating || isSubmitting}
+                className={!rating || isSubmitting ? 'disabled' : ''}
               >
-                Gửi đánh giá
+                {isSubmitting ? 'Đang gửi...' : 'Gửi đánh giá'}
               </button>
             </div>
           </div>
