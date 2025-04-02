@@ -15,6 +15,7 @@ import Slider from 'react-slick'
 import 'slick-carousel/slick/slick.css'
 import 'slick-carousel/slick/slick-theme.css'
 import { RelatedProducts } from '../Splienquan'
+import ProductRatingsContainer from '../../components/ProductRating/ProductRatingcontainer'
 
 const ChiTietLayout = () => {
   const { tieude, loaisp } = useParams()
@@ -450,6 +451,12 @@ const ChiTietLayout = () => {
             >
               Chi tiết sản phẩm
             </div>
+            <div 
+    className={`product-tab ${activeTab === 'danhgia' ? 'active' : ''}`}
+    onClick={() => setActiveTab('danhgia')}
+  >
+    Đánh giá ({productRatings?.totalRatings || 0})
+  </div>
           </div>
           
           {/* Mô tả tab content */}
@@ -656,7 +663,17 @@ const ChiTietLayout = () => {
               </div>
             </div>
           </div>
-          
+          {/* Đánh giá sản phẩm tab content */}
+<div className={`tab-content ${activeTab === 'danhgia' ? 'active' : ''}`}>
+  <div className="product-ratings">
+    <h3 className="ratings-title">Đánh giá từ khách hàng</h3>
+    {productRatings?.totalRatings > 0 ? (
+      <ProductRatingsContainer productId={idsanpham} />
+    ) : (
+      <p className="no-ratings">Chưa có đánh giá nào cho sản phẩm này</p>
+    )}
+  </div>
+</div>
           <div 
             className={`divbtn_muagay ${quantity === 0 || quantity === '0' || quantity === 'Hết hàng' ? 'disabled' : ''}`} 
             onClick={handleBuyNow}
