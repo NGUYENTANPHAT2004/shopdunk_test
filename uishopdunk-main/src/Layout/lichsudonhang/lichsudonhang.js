@@ -32,7 +32,9 @@ function LichSuDonHangLayout() {
         const response = await axios.post('http://localhost:3005/gethoadonuser', {
           userId: user._id,
         });
-        setDonHangs(response.data.hoadons || []);
+        // Filter out any orders that might be marked as isDeleted
+        const filteredOrders = response.data.hoadons?.filter(order => !order.isDeleted) || [];
+        setDonHangs(filteredOrders);
         setError(null);
       } catch (error) {
         console.error('Lỗi khi lấy lịch sử đơn hàng:', error);
@@ -66,13 +68,23 @@ function LichSuDonHangLayout() {
       alert('Đơn hàng đã được xác nhận hoàn thành');
       setSelectedDonHang(null);
       // Reload lại danh sách
-      const refreshed = await axios.post('http://localhost:3005/gethoadonuser', {
-        userId: user._id,
-      });
-      setDonHangs(refreshed.data.hoadons || []);
+      refreshOrderList();
     } catch (error) {
       console.error('Lỗi xác nhận đơn:', error);
       alert('Có lỗi xảy ra khi xác nhận đơn hàng.');
+    }
+  };
+
+  const refreshOrderList = async () => {
+    try {
+      const refreshed = await axios.post('http://localhost:3005/gethoadonuser', {
+        userId: user._id,
+      });
+      // Filter out any deleted orders
+      const filteredOrders = refreshed.data.hoadons?.filter(order => !order.isDeleted) || [];
+      setDonHangs(filteredOrders);
+    } catch (error) {
+      console.error('Lỗi khi làm mới danh sách đơn hàng:', error);
     }
   };
 
@@ -90,20 +102,17 @@ function LichSuDonHangLayout() {
         ids: [deleteOrderId]
       });
       
-      // Reload lại danh sách
-      const refreshed = await axios.post('http://localhost:3005/gethoadonuser', {
-        userId: user._id,
-      });
-      setDonHangs(refreshed.data.hoadons || []);
-      
-      // Close the dialog and reset state
-      setShowDeleteConfirm(false);
-      setDeleteOrderId(null);
+      // Immediately remove the deleted order from the state
+      setDonHangs(prevDonHangs => prevDonHangs.filter(order => order._id !== deleteOrderId));
       
       // If we're deleting the currently viewed order, close the detail view
       if (selectedDonHang && selectedDonHang._id === deleteOrderId) {
         setSelectedDonHang(null);
       }
+      
+      // Close the dialog and reset state
+      setShowDeleteConfirm(false);
+      setDeleteOrderId(null);
       
     } catch (error) {
       console.error('Lỗi xóa đơn hàng:', error);
@@ -209,48 +218,54 @@ function LichSuDonHangLayout() {
       {donHangs.length === 0 ? (
         <p className="empty-message">Bạn chưa có đơn hàng nào.</p>
       ) : (
-        <table className="table-donhang">
-          <thead>
-            <tr>
-              <th>Mã Đơn</th>
-              <th>Ngày Mua</th>
-              <th>Trạng Thái</th>
-              <th>Tổng Tiền</th>
-              <th>Hành Động</th>
-            </tr>
-          </thead>
-          <tbody>
-            {donHangs.map((hd) => (
-              <tr key={hd._id} className={hd.isDeleted ? 'order-deleted' : ''}>
-                <td>{hd.maHDL || hd._id.slice(-4)}</td>
-                <td>{moment(hd.ngaymua).format('DD/MM/YYYY')}</td>
-                <td className={getStatusClass(hd.trangthai)}>
-                  <span className="status-indicator">{hd.trangthai}</span>
-                </td>
-                <td>{hd.tongtien.toLocaleString()}₫</td>
-                <td className="action-buttons">
-                  <button className="btn-view" onClick={() => handleXemChiTiet(hd._id)}>
-                    <FontAwesomeIcon icon={faReceipt} /> Chi tiết
-                  </button>
-                  {hd.trangthai === 'Đã thanh toán' && (
-                    <button className="btn-confirm" onClick={() => handleXacNhan(hd._id)}>Xác nhận</button>
-                  )}
-                  {canDeleteOrder(hd) && (
-                    <button className="btn-delete" onClick={() => confirmDeleteOrder(hd._id)}>
-                      <FontAwesomeIcon icon={faTrash} />
-                    </button>
-                  )}
-                </td>
+        <div className="table-responsive">
+          <table className="table-donhang">
+            <thead>
+              <tr>
+                <th>Mã Đơn</th>
+                <th>Ngày Mua</th>
+                <th>Trạng Thái</th>
+                <th>Tổng Tiền</th>
+                <th>Hành Động</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {donHangs.map((hd) => (
+                <tr key={hd._id}>
+                  <td>{hd.maHDL || (hd._id ? hd._id.slice(-6) : 'N/A')}</td>
+                  <td>{moment(hd.ngaymua).format('DD/MM/YYYY')}</td>
+                  <td>
+                    <span className={`status-indicator ${getStatusClass(hd.trangthai)}`}>
+                      {hd.trangthai}
+                    </span>
+                  </td>
+                  <td className="price-column">{hd.tongtien.toLocaleString()}₫</td>
+                  <td className="action-buttons">
+                    <button className="btn-view" onClick={() => handleXemChiTiet(hd._id)}>
+                      <FontAwesomeIcon icon={faReceipt} /> Chi tiết
+                    </button>
+                    {hd.trangthai === 'Đã thanh toán' && (
+                      <button className="btn-confirm" onClick={() => handleXacNhan(hd._id)}>
+                        Xác nhận
+                      </button>
+                    )}
+                    {canDeleteOrder(hd) && (
+                      <button className="btn-delete" onClick={() => confirmDeleteOrder(hd._id)}>
+                        <FontAwesomeIcon icon={faTrash} />
+                      </button>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       )}
 
       {selectedDonHang && (
         <div className="chitiet-donhang">
           <div className="chitiet-header">
-            <h3>Chi tiết đơn hàng</h3>
+            <h3>Chi tiết đơn hàng </h3>
             <span className={`status-badge ${getStatusClass(selectedDonHang.trangthai)}`}>
               {selectedDonHang.trangthai}
             </span>
@@ -276,8 +291,10 @@ function LichSuDonHangLayout() {
                 <div className="product-details">
                   <span className="product-name">{sp.namesanpham}</span>
                   <span className="product-variant">{sp.dungluong} - {sp.mausac}</span>
-                  <span className="product-quantity">SL: {sp.soluong}</span>
-                  <span className="product-price">{sp.price.toLocaleString()}₫</span>
+                  <div className="product-price-row">
+                    <span className="product-quantity">SL: {sp.soluong}</span>
+                    <span className="product-price">{sp.price.toLocaleString()}₫</span>
+                  </div>
                 </div>
                 
                 {(selectedDonHang.trangthai === 'Hoàn thành' || selectedDonHang.trangthai === 'Đã nhận') && (
@@ -306,25 +323,45 @@ function LichSuDonHangLayout() {
         <div className="rating-modal">
           <div className="rating-content">
             <h3>Đánh giá sản phẩm</h3>
-            <p className="product-to-rate">{selectedProduct?.namesanpham}</p>
+            <div className="product-to-rate">
+              <div className="product-info">
+                <div className="product-name">{selectedProduct?.namesanpham}</div>
+                <div className="product-variant">{selectedProduct?.dungluong} - {selectedProduct?.mausac}</div>
+              </div>
+            </div>
             <div className="rating-stars">
-              {[1, 2, 3, 4, 5].map((star) => (
-                <FontAwesomeIcon
-                  key={star}
-                  icon={faStar}
-                  className={star <= rating ? 'star-active' : 'star-inactive'}
-                  onClick={() => setRating(star)}
-                />
-              ))}
+              <span className="star-label">Bạn cảm thấy sản phẩm này như thế nào?</span>
+              <div className="stars-container">
+                {[1, 2, 3, 4, 5].map((star) => (
+                  <FontAwesomeIcon
+                    key={star}
+                    icon={faStar}
+                    className={star <= rating ? 'star-active' : 'star-inactive'}
+                    onClick={() => setRating(star)}
+                  />
+                ))}
+              </div>
             </div>
             <textarea
-              placeholder="Nhập nhận xét của bạn về sản phẩm..."
+              placeholder="Chia sẻ trải nghiệm của bạn về sản phẩm này..."
               value={comment}
               onChange={(e) => setComment(e.target.value)}
             />
             <div className="rating-buttons">
-              <button onClick={submitRating} disabled={!rating}>Gửi đánh giá</button>
-              <button onClick={() => setShowRatingModal(false)}>Hủy</button>
+              <button className="cancel-rating" onClick={() => {
+                setShowRatingModal(false);
+                setRating(0);
+                setComment('');
+              }}>
+                Hủy
+              </button>
+              <button 
+                className="submit-rating" 
+                onClick={submitRating}
+                disabled={!rating}
+              >
+                Gửi đánh giá
+              </button>
             </div>
           </div>
         </div>
