@@ -143,14 +143,21 @@ router.post('/xoadanhgia', async (req, res) => {
     res.status(500).json({ message: `Đã xảy ra lỗi: ${error}` })
   }
 })
+// Updated route handler for product ratings
+// Path: routes/DanhGiaRoutes.js - update the product rating endpoint
+
+// Replace or update the existing product rating endpoint:
 router.get('/danhgia/product/:productId', async (req, res) => {
   try {
     const { productId } = req.params;
     
-    // Tìm tất cả đánh giá cho sản phẩm này
-    const danhGia = await DanhGia.danhgia.find({ theloaiId: productId });
+    // Find all approved ratings for this product
+    const danhGia = await DanhGia.danhgia.find({ 
+      theloaiId: productId,
+      isRead: true // Only return approved ratings
+    }).sort({ date: -1 }); // Sort by newest first
     
-    // Tính trung bình rating
+    // Calculate average rating with proper rounding to one decimal place
     let totalRating = 0;
     danhGia.forEach(item => {
       totalRating += item.rating;
@@ -158,10 +165,13 @@ router.get('/danhgia/product/:productId', async (req, res) => {
     
     const averageRating = danhGia.length > 0 ? (totalRating / danhGia.length) : 0;
     
+    // Format the average with one decimal place
+    const formattedAverage = parseFloat(averageRating.toFixed(1));
+    
     res.json({
       success: true,
       totalRatings: danhGia.length,
-      averageRating: parseFloat(averageRating.toFixed(1)),
+      averageRating: formattedAverage,
       ratings: danhGia
     });
   } catch (error) {
@@ -169,6 +179,30 @@ router.get('/danhgia/product/:productId', async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Lỗi server khi lấy đánh giá sản phẩm'
+    });
+  }
+});
+
+// Add this new endpoint to get all ratings by product (including unapproved ones) - for admin
+router.get('/danhgia/product/:productId/all', async (req, res) => {
+  try {
+    const { productId } = req.params;
+    
+    // Find all ratings for this product, including unapproved ones
+    const danhGia = await DanhGia.danhgia.find({ 
+      theloaiId: productId
+    }).sort({ date: -1, isRead: 1 }); // Sort by newest first, unapproved first
+    
+    res.json({
+      success: true,
+      totalRatings: danhGia.length,
+      ratings: danhGia
+    });
+  } catch (error) {
+    console.error('Lỗi khi lấy tất cả đánh giá sản phẩm:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Lỗi server khi lấy tất cả đánh giá sản phẩm'
     });
   }
 });
