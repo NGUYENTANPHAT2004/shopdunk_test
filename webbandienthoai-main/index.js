@@ -19,6 +19,7 @@ const hoadonrouter = require('./routes/HoaDonRoutes')
 const stockrouter = require('./routes/stockrouter')
 const authroutes = require("./routes/Authroutes.js")
 const adminnotifi = require('./socket/adminnotifi')
+const orderrating = require('./routes/OrderRatingRoutes')
 const http = require("http")
 const { initSocket } = require('./config/socket');
 const cors = require('cors')
@@ -63,6 +64,7 @@ app.use('/', magiamgiaroutes)
 app.use('/', authroutes)
 app.use('/', hoadonrouter)
 app.use('/', stockrouter)
+app.use('/', orderrating)
 
 // Setup socket handlers
 adminnotifi(io)

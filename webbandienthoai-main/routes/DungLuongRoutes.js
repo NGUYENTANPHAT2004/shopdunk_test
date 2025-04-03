@@ -45,6 +45,7 @@ router.get('/geteditdl/:id', async (req, res) => {
     res.status(500).json({ message: `Đã xảy ra lỗi: ${error}` })
   }
 })
+
 router.get('/dungluongmay/:namekhongdau', async (req, res) => {
   try {
     const namekhongdau = req.params.namekhongdau;
@@ -113,28 +114,24 @@ router.get('/getmausacgh/:iddungluong', async (req, res) => {
   }
 });
 
-
+// ĐÃ SỬA: Không xóa dung lượng khỏi dungluongmay khi xóa mềm
 router.post('/deletedungluong/:iddungluong', async (req, res) => {
   try {
     const iddungluong = req.params.iddungluong;
     const dungluong = await DungLuong.dungluong.findById(iddungluong);
-    const loaisp = await LoaiSP.TenSP.findById(dungluong.idloaisp);
-
-    if (loaisp) {
-      loaisp.dungluongmay = loaisp.dungluongmay.filter(
-        dl => dl.toString() !== dungluong._id.toString()
-      );
-      await loaisp.save();
+    
+    if (!dungluong) {
+      return res.status(404).json({ message: 'Không tìm thấy dung lượng' });
     }
 
-    // Xoá mềm dung lượng
+    // Xoá mềm dung lượng - KHÔNG xóa khỏi dungluongmay
     dungluong.isDeleted = true;
     await dungluong.save();
 
     // Xoá mềm màu sắc liên quan
     await Promise.all(
       dungluong.mausac.map(async mausacId => {
-        const mausac = await MauSac.mausac.findById(mausacId._id);
+        const mausac = await MauSac.mausac.findById(mausacId);
         if (mausac) {
           mausac.isDeleted = true;
           await mausac.save();
@@ -149,67 +146,53 @@ router.post('/deletedungluong/:iddungluong', async (req, res) => {
   }
 });
 
-// BƯỚC 3: Xoá mềm hàng loạt
-
+// ĐÃ SỬA: Không xóa dung lượng khỏi dungluongmay khi xóa mềm hàng loạt
 router.post('/deletedungluonghangloat', async (req, res) => {
   try {
-    const { iddungluongList } = req.body;
+    // Accept both iddungluongList and ids for backward compatibility
+    const ids = req.body.ids || req.body.iddungluongList;
 
-    if (!Array.isArray(iddungluongList) || iddungluongList.length === 0) {
+    if (!Array.isArray(ids) || ids.length === 0) {
       return res.status(400).json({ message: 'Danh sách ID không hợp lệ' });
     }
 
-    const dungluongList = await DungLuong.dungluong.find({
-      _id: { $in: iddungluongList }
-    });
-
-    if (!dungluongList.length) {
-      return res.status(404).json({ message: 'Không tìm thấy dung lượng để xoá' });
-    }
-
-    await Promise.all(
-      dungluongList.map(async dungluong => {
-        const loaisp = await LoaiSP.LoaiSP.findById(dungluong.idloaisp);
-
-        if (loaisp) {
-          loaisp.dungluongmay = loaisp.dungluongmay.filter(
-            dl => dl.toString() !== dungluong._id.toString()
-          );
-          await loaisp.save();
-        }
-
-        dungluong.isDeleted = true;
-        await dungluong.save();
-
-        await Promise.all(
-          dungluong.mausac.map(async mausac => {
-            const ms = await MauSac.mausac.findById(mausac._id);
-            if (ms) {
-              ms.isDeleted = true;
-              await ms.save();
-            }
-          })
-        );
-      })
+    // Xóa mềm dung lượng
+    await DungLuong.dungluong.updateMany(
+      { _id: { $in: ids } },
+      { $set: { isDeleted: true } }
     );
 
-    res.json({ message: 'Đã xoá mềm danh sách dung lượng', deletedIds: iddungluongList });
+    // Xóa mềm màu sắc liên quan
+    const dungluongList = await DungLuong.dungluong.find({ _id: { $in: ids } });
+    
+    for (const dungluong of dungluongList) {
+      if (dungluong.mausac && dungluong.mausac.length > 0) {
+        await MauSac.mausac.updateMany(
+          { _id: { $in: dungluong.mausac } },
+          { $set: { isDeleted: true } }
+        );
+      }
+    }
+
+    res.json({ message: 'Đã xoá mềm danh sách dung lượng', deletedIds: ids });
   } catch (error) {
     console.error(error);
     res.status(500).json({ message: `Đã xảy ra lỗi: ${error}` });
   }
 });
 
-// BƯỚC 4: Khi lấy dữ liệu, lọc theo isDeleted = false nếu cần
-
-// Ví dụ trong /dungluong/:idloaisp
 router.get('/dungluong/:idloaisp', async (req, res) => {
   try {
     const idloaisp = req.params.idloaisp;
     const loaisp = await LoaiSP.LoaiSP.findById(idloaisp);
+    
+    if (!loaisp) {
+      return res.status(404).json({ message: 'Không tìm thấy thể loại' });
+    }
+    
     const dungluong = await Promise.all(
       loaisp.dungluongmay.map(async dl => {
-        const dluong = await DungLuong.dungluong.findOne({ _id: dl._id, isDeleted: false });
+        const dluong = await DungLuong.dungluong.findOne({ _id: dl, isDeleted: false });
         if (!dluong) return null;
         return {
           _id: dluong._id,
@@ -224,5 +207,94 @@ router.get('/dungluong/:idloaisp', async (req, res) => {
   }
 });
 
+// ĐÃ SỬA: route dungluongtrash để tìm dung lượng đã xóa mềm
+router.get('/dungluongtrash/:idtheloai', async (req, res) => {
+  try {
+    const idtheloai = req.params.idtheloai;
+    const theloai = await LoaiSP.LoaiSP.findById(idtheloai);
+    
+    if (!theloai) {
+      return res.status(404).json({ message: 'Không tìm thấy thể loại' });
+    }
+    
+    console.log("Số lượng dungluongmay:", theloai.dungluongmay.length);
+    
+    const dungluong = await Promise.all(
+      theloai.dungluongmay.map(async dl => {
+        // Tìm dung lượng đã xóa mềm (isDeleted = true)
+        const dluong = await DungLuong.dungluong.findOne({ 
+          _id: dl, 
+          isDeleted: true 
+        });
+        
+        if (!dluong) return null;
+        
+        console.log("Tìm thấy dung lượng đã xóa:", dluong._id);
+        return {
+          _id: dluong._id,
+          name: dluong.name
+        };
+      })
+    );
+    
+    const filteredResults = dungluong.filter(Boolean);
+    console.log("Số lượng kết quả có trong thùng rác:", filteredResults.length);
+    res.json(filteredResults);
+  } catch (error) {
+    console.error("Lỗi khi lấy thùng rác:", error);
+    res.status(500).json({ message: `Đã xảy ra lỗi: ${error}` });
+  }
+});
+
+// Route khôi phục dung lượng từ thùng rác
+router.post('/restore-dungluong', async (req, res) => {
+  try {
+    const { ids } = req.body;
+    if (!Array.isArray(ids) || ids.length === 0) {
+      return res.status(400).json({ message: 'Danh sách ID không hợp lệ' });
+    }
+
+    // Khôi phục dung lượng
+    await DungLuong.dungluong.updateMany(
+      { _id: { $in: ids } },
+      { $set: { isDeleted: false } }
+    );
+
+    // Nếu cần, khôi phục cả màu sắc liên quan
+    for (const id of ids) {
+      const dungluong = await DungLuong.dungluong.findById(id);
+      if (dungluong && dungluong.mausac && dungluong.mausac.length > 0) {
+        await MauSac.mausac.updateMany(
+          { _id: { $in: dungluong.mausac } },
+          { $set: { isDeleted: false } }
+        );
+      }
+    }
+
+    res.json({ message: 'Hoàn tác dung lượng thành công' });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: `Đã xảy ra lỗi: ${error}` });
+  }
+});
+
+router.post('/deletedungluong/:id', async (req, res) => {
+  try {
+    const id = req.params.id;
+    const dungluong = await DungLuong.dungluong.findById(id);
+    if (!dungluong) {
+      return res.status(404).json({ message: 'Không tìm thấy dung lượng' });
+    }
+
+    // Chỉ thực hiện xóa mềm, không xóa khỏi mảng dungluongmay
+    dungluong.isDeleted = true;
+    await dungluong.save();
+
+    res.json({ message: 'Xóa thành công' });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: `Đã xảy ra lỗi: ${error}` });
+  }
+});
 
 module.exports = router

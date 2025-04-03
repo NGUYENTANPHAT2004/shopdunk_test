@@ -77,8 +77,8 @@ router.post('/putloaisp/:id', async (req, res) => {
       khuyenmai // ID Category (mới) do FE gửi lên
     } = req.body;
 
-    // 1. Tìm LoạiSP cũ
-    const loaiSpOld = await LoaiSP.LoaiSP.findById(id);
+    // 1. Tìm LoạiSP cũ - thêm filter isDeleted: false
+    const loaiSpOld = await LoaiSP.LoaiSP.findOne({ _id: id, isDeleted: false });
     if (!loaiSpOld) {
       return res.status(404).json({ message: 'Không tìm thấy thể loại' });
     }
@@ -169,27 +169,40 @@ router.post('/putloaisp/:id', async (req, res) => {
   }
 });
 
-
+// Đã thêm filter isDeleted: false
 router.get('/getchitiettl/:idtheloai', async (req, res) => {
   try {
     const idtheloai = req.params.idtheloai
-    const theloai = await LoaiSP.LoaiSP.findById(idtheloai)
+    const theloai = await LoaiSP.LoaiSP.findOne({ _id: idtheloai, isDeleted: false })
+    
+    if (!theloai) {
+      return res.status(404).json({ message: 'Không tìm thấy thể loại hoặc thể loại đã bị xóa' })
+    }
+    
     res.json(theloai)
   } catch (error) {
     console.error(error)
     res.status(500).json({ message: `Đã xảy ra lỗi: ${error}` })
   }
 })
+
+// Đã thêm filter isDeleted: false
 router.get('/getchitiet-theloai/:nametheloai', async (req, res) => {
   try {
     const nametheloai = req.params.nametheloai
-    const theloai = await LoaiSP.LoaiSP.findOne({namekhongdau : nametheloai})
+    const theloai = await LoaiSP.LoaiSP.findOne({ namekhongdau: nametheloai, isDeleted: false })
+    
+    if (!theloai) {
+      return res.status(404).json({ message: 'Không tìm thấy thể loại hoặc thể loại đã bị xóa' })
+    }
+    
     res.json(theloai)
   } catch (error) {
     console.error(error)
     res.status(500).json({ message: `Đã xảy ra lỗi: ${error}` })
   }
 })
+
 router.post('/deleteloaisp/:id', async (req, res) => {
   try {
     const id = req.params.id;
@@ -216,8 +229,6 @@ router.post('/deleteloaisp/:id', async (req, res) => {
       console.error(
         `Cảnh báo: LoạiSP ${loaiSp._id} vẫn còn trong mảng 'theloai' của Category ${loaiSp.category}`
       );
-      // Tuỳ bạn xử lý, có thể throw Error hoặc chỉ log cảnh báo
-      // throw new Error('Không thể xóa tham chiếu LoạiSP khỏi Category');
     }
 
     // Xoá chính LoaiSP
@@ -229,8 +240,6 @@ router.post('/deleteloaisp/:id', async (req, res) => {
     res.status(500).json({ message: `Đã xảy ra lỗi: ${error}` });
   }
 });
-
-
 
 router.post('/deletehangloatloaisp', async (req, res) => {
   try {
@@ -271,6 +280,8 @@ router.post('/deletehangloatloaisp', async (req, res) => {
     res.status(500).json({ message: `Đã xảy ra lỗi: ${error}` });
   }
 });
+
+// Đã có filter isDeleted: false (giữ nguyên)
 router.get('/theloaisanpham', async (req, res) => {
   try {
     const theloai = await LoaiSP.LoaiSP.find({ isDeleted: false }).lean()
@@ -285,10 +296,12 @@ router.get('/theloaisanpham', async (req, res) => {
     )
     res.json(theloaijson)
   } catch (error) {
-    console.log(error)
+    console.error(error)
+    res.status(500).json({ message: 'Lỗi khi tải danh sách thể loại', error: error.message });
   }
 })
 
+// Đã có filter isDeleted: false (giữ nguyên)
 router.get('/theloaiadmin', async (req, res) => {
   try {
     const theloai = await LoaiSP.LoaiSP.find({ isDeleted: false }).lean()
@@ -310,10 +323,11 @@ router.get('/theloaiadmin', async (req, res) => {
     )
     res.json(theloaijson)
   } catch (error) {
-    console.log(error)
+    console.error(error)
     res.status(500).json({ message: 'Lỗi khi tải danh sách thể loại', error: error.message });
   }
 })
+
 router.post('/restoreloaisp/:id', async (req, res) => {
   try {
     const loaiSp = await LoaiSP.LoaiSP.findById(req.params.id);
@@ -323,6 +337,130 @@ router.post('/restoreloaisp/:id', async (req, res) => {
     res.json({ message: 'Khôi phục thành công' });
   } catch (error) {
     res.status(500).json({ message: `Lỗi: ${error}` });
+  }
+});
+
+// Đã có filter isDeleted: true (giữ nguyên)
+router.get('/theloaitrash', async (req, res) => {
+  try {
+    const theloai = await LoaiSP.LoaiSP.find({ isDeleted: true }).lean()
+    const theloaijson = await Promise.all(
+      theloai.map(async tl => {
+        return {
+          _id: tl._id,
+          name: tl.name,
+          chip: tl.chip,
+          ram: tl.ram,
+          dungluong: tl.dungluong,
+          camera: tl.camera,
+          pinsac: tl.pinsac,
+          hang: tl.hang,
+          congsac: tl.congsac,
+          khuyenmai: tl.khuyenmai
+        }
+      })
+    )
+    res.json(theloaijson)
+  } catch (error) {
+    console.error(error)
+    res.status(500).json({ message: `Đã xảy ra lỗi: ${error}` })
+  }
+})
+
+// Hoàn tác thể loại từ thùng rác
+router.post('/restore-theloai', async (req, res) => {
+  try {
+    const { ids } = req.body
+    if (!Array.isArray(ids) || ids.length === 0) {
+      return res.status(400).json({ message: 'Danh sách ID không hợp lệ' })
+    }
+
+    const updateResult = await LoaiSP.LoaiSP.updateMany(
+      { _id: { $in: ids } },
+      { $set: { isDeleted: false } }
+    )
+
+    // Hoàn tác các sản phẩm liên quan
+    await Sp.ChitietSp.updateMany(
+      { idloaisp: { $in: ids } },
+      { $set: { isDeleted: false } }
+    )
+
+    res.json({ 
+      message: 'Hoàn tác thể loại thành công',
+      modifiedCount: updateResult.modifiedCount 
+    })
+  } catch (error) {
+    console.error(error)
+    res.status(500).json({ message: `Đã xảy ra lỗi: ${error}` })
+  }
+})
+
+// Thêm mới: Route lấy sản phẩm theo loại với filter isDeleted: false
+router.get('/san-pham-pt/:slug', async (req, res) => {
+  try {
+    const { slug } = req.params;
+    const { page = 1, limit = 8, sort = 'asc' } = req.query;
+    
+    // Convert page and limit to numbers
+    const pageNum = parseInt(page);
+    const limitNum = parseInt(limit);
+    
+    // Calculate skip value for pagination
+    const skip = (pageNum - 1) * limitNum;
+    
+    // Find the category by namekhongdau (slug)
+    const theloai = await LoaiSP.LoaiSP.findOne({ namekhongdau: slug, isDeleted: false });
+    
+    if (!theloai) {
+      return res.status(404).json({ message: 'Không tìm thấy thể loại' });
+    }
+    
+    // Find products for this category with pagination and sorting
+    let query = Sp.ChitietSp.find({ 
+      idloaisp: theloai._id,
+      isDeleted: false
+    });
+    
+    // Apply sorting
+    if (sort === 'asc') {
+      query = query.sort({ giaban: 1 });
+    } else if (sort === 'desc') {
+      query = query.sort({ giaban: -1 });
+    }
+    
+    // Get total count for pagination
+    const totalProducts = await Sp.ChitietSp.countDocuments({ 
+      idloaisp: theloai._id,
+      isDeleted: false
+    });
+    
+    // Apply pagination
+    const products = await query
+      .skip(skip)
+      .limit(limitNum)
+      .lean();
+    
+    // Calculate total pages
+    const totalPages = Math.ceil(totalProducts / limitNum);
+    
+    // Return the response
+    res.json({
+      _id: theloai._id,
+      nametheloai: theloai.name,
+      namekhongdau: theloai.namekhongdau,
+      sanpham: products,
+      pagination: {
+        currentPage: pageNum,
+        totalPages,
+        totalProducts,
+        limit: limitNum
+      }
+    });
+    
+  } catch (error) {
+    console.error('Lỗi khi tải sản phẩm:', error);
+    res.status(500).json({ message: `Đã xảy ra lỗi: ${error}` });
   }
 });
 

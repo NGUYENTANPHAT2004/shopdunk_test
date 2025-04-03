@@ -3,45 +3,38 @@ import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faStar as solidStar } from '@fortawesome/free-solid-svg-icons';
 import { faStar as regularStar } from '@fortawesome/free-regular-svg-icons';
 import axios from 'axios';
-import './ProductRating.scss';
 
 const ProductRating = ({ productId, size = 'medium', showCount = true }) => {
   const [averageRating, setAverageRating] = useState(0);
   const [ratingCount, setRatingCount] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState(null);
 
   useEffect(() => {
     const fetchRatings = async () => {
-      if (!productId) return;
+      if (!productId) {
+        setIsLoading(false);
+        return;
+      }
       
       try {
         setIsLoading(true);
-        // Sửa endpoint API để phù hợp với định nghĩa trong OrderRatingRoutes.js
+        setError(null);
+        
         const response = await axios.get(`http://localhost:3005/order-rating/product/${productId}`);
         
         if (response.data && response.data.success) {
-          // Xử lý nhiều trường hợp cấu trúc dữ liệu có thể có
-          if (response.data.data) {
-            // Cấu trúc dữ liệu đúng: response.data.data.averageRating và totalRatings
-            if (response.data.data.averageRating !== undefined) {
-              setAverageRating(response.data.data.averageRating || 0);
-            }
-            
-            // Kiểm tra cả hai vị trí có thể chứa số lượng đánh giá
-            if (response.data.data.totalRatings !== undefined) {
-              setRatingCount(response.data.data.totalRatings || 0);
-            } else if (response.data.data.pagination && response.data.data.pagination.totalItems !== undefined) {
-              setRatingCount(response.data.data.pagination.totalItems || 0);
-            }
-          } else if (response.data.averageRating !== undefined) {
-            // Trường hợp alternative: response.data.averageRating
-            setAverageRating(response.data.averageRating || 0);
-            setRatingCount(response.data.totalRatings || 0);
-          }
+          // Handle the response data correctly
+          setAverageRating(response.data.averageRating || 0);
+          setRatingCount(response.data.totalRatings || 0);
+        } else {
+          console.warn('Invalid rating response format:', response.data);
+          setAverageRating(0);
+          setRatingCount(0);
         }
       } catch (error) {
         console.error('Error fetching product ratings:', error);
-        // Đặt giá trị mặc định khi có lỗi
+        setError('Could not load ratings');
         setAverageRating(0);
         setRatingCount(0);
       } finally {
@@ -112,6 +105,10 @@ const ProductRating = ({ productId, size = 'medium', showCount = true }) => {
 
   if (isLoading) {
     return <div className="product-rating-placeholder" style={{ height: getStarSize() }}></div>;
+  }
+
+  if (error) {
+    return <div className="product-rating-error" style={{ fontSize: getStarSize() }}>⚠️</div>;
   }
 
   return (

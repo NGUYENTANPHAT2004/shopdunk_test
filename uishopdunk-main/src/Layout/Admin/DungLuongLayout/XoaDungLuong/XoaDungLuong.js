@@ -5,6 +5,7 @@ import { MdCancelPresentation } from 'react-icons/md'
 function XoaDungLuong ({ isOpen, onClose, iddungluong, fetchdata, setSelectedIds }) {
   const handleXoaDungLuong = async () => {
     try {
+      // Change parameter name to 'ids' to match updated API
       const response = await fetch(
         `http://localhost:3005/deletedungluonghangloat`,
         {
@@ -13,20 +14,26 @@ function XoaDungLuong ({ isOpen, onClose, iddungluong, fetchdata, setSelectedIds
             'Content-Type': 'application/json'
           },
           body: JSON.stringify({
-            iddungluongList: iddungluong
+            ids: iddungluong
           })
         }
       )
-      if (response.ok) {
-        onClose()
-        setSelectedIds([])
-        fetchdata()
-        alert('Xóa thành công!')
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Có lỗi xảy ra khi xóa dung lượng');
       }
+      
+      onClose()
+      setSelectedIds([])
+      fetchdata()
+      alert('Xóa thành công!')
     } catch (error) {
-      console.error('lỗi xóa sản phẩm:', error)
+      console.error('Lỗi xóa dung lượng:', error)
+      alert(`Lỗi xóa dung lượng: ${error.message}`)
     }
   }
+  
   return (
     <Modal isOpen={isOpen} onClose={onClose}>
       <div>

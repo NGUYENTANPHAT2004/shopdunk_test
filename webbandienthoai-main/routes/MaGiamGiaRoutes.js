@@ -399,69 +399,115 @@ router.get('/activegoldenhour/:phone', async (req, res) => {
     });
   }
 })
+// Cập nhật endpoint /timkiemvoucher/:phone trong file MaGiamGiaRoutes.js
+// Cập nhật endpoint /timkiemvoucher/:phone trong file MaGiamGiaRoutes.js
 router.get('/timkiemvoucher/:phone', async (req, res) => {
   try {
     const { phone } = req.params;
     
     if (!phone) {
+      console.log("Missing phone parameter in /timkiemvoucher");
       return res.status(400).json({ 
         success: false, 
         message: 'Số điện thoại không được cung cấp' 
       });
     }
     
+    // Validate phone format
+    if (!/^\d{10,12}$/.test(phone.toString().trim())) {
+      console.log(`Invalid phone format in /timkiemvoucher: ${phone}`);
+      return res.status(400).json({ 
+        success: false, 
+        message: 'Số điện thoại không hợp lệ'
+      });
+    }
+    
     // Get current date and time
     const now = moment();
     
-    // Find all active and non-deleted vouchers
+    // Find all active and non-deleted vouchers available for this user
     const allVouchers = await MaGiamGia.magiamgia.find({
       isDeleted: { $ne: true },
       ngaybatdau: { $lte: now.toDate() },
       ngayketthuc: { $gte: now.toDate() },
-      soluong: { $gt: 0 }
+      soluong: { $gt: 0 },
+      $or: [
+        // Server-wide vouchers
+        { isServerWide: true },
+        
+        // Vouchers specifically created for this user
+        { intended_users: phone }
+      ]
     }).lean();
     
-    // Filter vouchers for this user
+    console.log(`Found ${allVouchers.length} total vouchers for phone ${phone}`);
+    
+    // Filter vouchers for this user - exclude those already used by this user
     const userVouchers = allVouchers.filter(voucher => {
-      // Check if voucher is still valid
-      const isExpired = now.isAfter(moment(voucher.ngayketthuc));
-      if (isExpired) return false;
-
-      // Check if voucher has any remaining uses
-      if (voucher.soluong <= 0) return false;
-
-      // Check golden hour restrictions
-      if (voucher.goldenHourStart && voucher.goldenHourEnd) {
-        const currentTime = now.format('HH:mm');
-        if (!isWithinGoldenHour(voucher.goldenHourStart, voucher.goldenHourEnd)) {
-          return false;
-        }
+      if (voucher.isOneTimePerUser && voucher.appliedUsers && voucher.appliedUsers.includes(phone)) {
+        return false;  // Skip if user has already used this one-time voucher
       }
-
-      // Check day of week restrictions
-      if (voucher.daysOfWeek && voucher.daysOfWeek.length > 0) {
-        if (!isAllowedDayOfWeek(voucher.daysOfWeek)) {
-          return false;
-        }
-      }
-
-      // Check user usage restrictions
-      if (!voucher.isServerWide) {
-        if (voucher.isOneTimePerUser) {
-          // Check if user has already used this voucher
-          if (voucher.appliedUsers && voucher.appliedUsers.includes(phone)) {
-            return false;
-          }
-        }
-      }
-
+      
       return true;
     });
     
+    console.log(`After filtering already used vouchers: ${userVouchers.length} available for ${phone}`);
+    
+    // Filter out duplicate voucher types - keep only the best of each type
+    const voucherTypes = {};
+    userVouchers.forEach(voucher => {
+      const prefix = getVoucherPrefix(voucher.magiamgia);
+      
+      // Special case for server-wide/golden hour vouchers - keep all of them
+      if (prefix === 'SW') {
+        if (!voucherTypes[prefix]) {
+          voucherTypes[prefix] = [];
+        }
+        voucherTypes[prefix].push(voucher);
+        return;
+      }
+      
+      // For other voucher types, only keep the one with highest discount
+      if (!voucherTypes[prefix] || voucher.sophantram > voucherTypes[prefix].sophantram) {
+        voucherTypes[prefix] = voucher;
+      }
+    });
+    
+    // Convert back to array
+    let filteredVouchers = [];
+    Object.keys(voucherTypes).forEach(type => {
+      if (Array.isArray(voucherTypes[type])) {
+        filteredVouchers = [...filteredVouchers, ...voucherTypes[type]];
+      } else {
+        filteredVouchers.push(voucherTypes[type]);
+      }
+    });
+    
+    console.log(`After removing duplicates: ${filteredVouchers.length} vouchers for ${phone}`);
+    
     // Transform vouchers for client response
-    const transformedVouchers = userVouchers.map(voucher => {
+    const transformedVouchers = filteredVouchers.map(voucher => {
       const timeLeft = moment(voucher.ngayketthuc).diff(now, 'hours');
       const isGoldenHour = voucher.goldenHourStart && voucher.goldenHourEnd;
+      
+      // Check if this voucher is currently in golden hour
+      let isCurrentlyGoldenHour = false;
+      if (isGoldenHour) {
+        const currentTime = now.format('HH:mm');
+        const currentDay = now.day(); // 0-6, Sunday-Saturday
+        
+        // Check time
+        if (voucher.goldenHourStart <= voucher.goldenHourEnd) {
+          isCurrentlyGoldenHour = currentTime >= voucher.goldenHourStart && currentTime <= voucher.goldenHourEnd;
+        } else {
+          isCurrentlyGoldenHour = currentTime >= voucher.goldenHourStart || currentTime <= voucher.goldenHourEnd;
+        }
+        
+        // Check day of week
+        if (voucher.daysOfWeek && voucher.daysOfWeek.length > 0) {
+          isCurrentlyGoldenHour = isCurrentlyGoldenHour && voucher.daysOfWeek.includes(currentDay);
+        }
+      }
       
       return {
         _id: voucher._id,
@@ -478,8 +524,10 @@ router.get('/timkiemvoucher/:phone', async (req, res) => {
         daysOfWeek: voucher.daysOfWeek || [],
         timeLeft: timeLeft,
         isGoldenHour: isGoldenHour,
+        isCurrentlyGoldenHour: isCurrentlyGoldenHour,
         isOneTimePerUser: voucher.isOneTimePerUser,
-        hasUsed: voucher.appliedUsers && voucher.appliedUsers.includes(phone)
+        hasUsed: voucher.appliedUsers && voucher.appliedUsers.includes(phone),
+        voucherType: getVoucherTypeLabel(voucher.magiamgia)
       };
     });
     
@@ -496,6 +544,231 @@ router.get('/timkiemvoucher/:phone', async (req, res) => {
   }
 });
 
+// Helper function to get voucher prefix
+function getVoucherPrefix(code) {
+  if (!code) return 'OTHER';
+  
+  if (code.startsWith('FIRST')) return 'FIRST';
+  if (code.startsWith('LOYAL')) return 'LOYAL';
+  if (code.startsWith('WELCOME')) return 'WELCOME';
+  if (code.startsWith('SW')) return 'SW';
+  if (code.startsWith('REWARD')) return 'REWARD';
+  return 'OTHER';
+}
+
+// Helper function to get voucher type label
+function getVoucherTypeLabel(code) {
+  if (!code) return 'Mã giảm giá';
+  
+  if (code.startsWith('FIRST')) return 'Khách hàng mới';
+  if (code.startsWith('LOYAL')) return 'Khách hàng thân thiết';
+  if (code.startsWith('WELCOME')) return 'Chào mừng';
+  if (code.startsWith('SW')) return 'Khung giờ vàng';
+  if (code.startsWith('REWARD')) return 'Phần thưởng';
+  return 'Mã giảm giá';
+}
+
+
+// Helper function to get voucher prefix
+function getVoucherPrefix(code) {
+  if (code.startsWith('FIRST')) return 'FIRST';
+  if (code.startsWith('LOYAL')) return 'LOYAL';
+  if (code.startsWith('WELCOME')) return 'WELCOME';
+  if (code.startsWith('SW')) return 'SW';
+  if (code.startsWith('REWARD')) return 'REWARD';
+  return 'OTHER';
+}
+
+// Cập nhật endpoint /activegoldenhour/:phone trong file MaGiamGiaRoutes.js
+router.get('/activegoldenhour/:phone', async (req, res) => {
+  try {
+    const { phone } = req.params;
+    const currentTime = moment().format('HH:mm');
+    const currentDay = moment().day(); // 0-6, Sunday-Saturday
+    
+    // Find all active vouchers with golden hour restrictions
+    const activeVouchers = await MaGiamGia.magiamgia.find({
+      ngaybatdau: { $lte: new Date() },
+      ngayketthuc: { $gte: new Date() },
+      soluong: { $gt: 0 },
+      goldenHourStart: { $ne: null },
+      goldenHourEnd: { $ne: null },
+      isDeleted: { $ne: true }
+    }).lean();
+    
+    // Filter vouchers by current time and day
+    const availableVouchers = activeVouchers.filter(voucher => {
+      // Check golden hour
+      let isTimeValid = false;
+      
+      if (voucher.goldenHourStart <= voucher.goldenHourEnd) {
+        isTimeValid = currentTime >= voucher.goldenHourStart && currentTime <= voucher.goldenHourEnd;
+      } else {
+        isTimeValid = currentTime >= voucher.goldenHourStart || currentTime <= voucher.goldenHourEnd;
+      }
+      
+      if (!isTimeValid) return false;
+      
+      // Check day of week
+      const isDayValid = voucher.daysOfWeek && voucher.daysOfWeek.length > 0 
+        ? voucher.daysOfWeek.includes(currentDay)
+        : true;
+      
+      if (!isDayValid) return false;
+      
+      // Check if user already used it (for one-time vouchers)
+      const isAvailableForUser = voucher.isServerWide || 
+        !voucher.isOneTimePerUser || 
+        !(voucher.appliedUsers && voucher.appliedUsers.includes(phone));
+      
+      return isAvailableForUser;
+    });
+    
+    // Tìm tối đa 3 voucher khung giờ vàng để thông báo
+    const limitedVouchers = availableVouchers.slice(0, 3);
+    
+    if (limitedVouchers.length > 0) {
+      res.json({
+        hasActiveVouchers: true,
+        vouchers: limitedVouchers.map(v => ({
+          code: v.magiamgia,
+          percentOff: v.sophantram,
+          minOrderValue: v.minOrderValue,
+          maxOrderValue: v.maxOrderValue,
+          goldenHourTime: `${v.goldenHourStart} - ${v.goldenHourEnd}`
+        }))
+      });
+    } else {
+      res.json({
+        hasActiveVouchers: false
+      });
+    }
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({
+      hasActiveVouchers: false,
+      message: 'Lỗi khi kiểm tra khung giờ vàng'
+    });
+  }
+});
+// Cập nhật endpoint /checknewvouchers/:phone trong file MaGiamGiaRoutes.js
+router.get('/checknewvouchers/:phone', async (req, res) => {
+  try {
+    const { phone } = req.params;
+    
+    if (!phone) {
+      console.log("Missing phone parameter in /checknewvouchers");
+      return res.status(400).json({ 
+        success: false, 
+        message: 'Số điện thoại không được cung cấp' 
+      });
+    }
+    
+    // Validate phone format
+    if (!/^\d{10,12}$/.test(phone.toString().trim())) {
+      console.log(`Invalid phone format in /checknewvouchers: ${phone}`);
+      return res.status(400).json({ 
+        success: false, 
+        message: 'Số điện thoại không hợp lệ'
+      });
+    }
+    
+    // Get current date and time
+    const now = moment();
+    const oneHourAgo = moment().subtract(1, 'hour').toDate();
+    
+    // Tìm voucher mới cho user này (tạo trong 1 giờ gần đây)
+    const newVouchers = await MaGiamGia.magiamgia.find({
+      ngaybatdau: { $gte: oneHourAgo },
+      ngayketthuc: { $gte: now.toDate() },
+      soluong: { $gt: 0 },
+      isDeleted: { $ne: true },
+      $or: [
+        // Server-wide vouchers
+        { isServerWide: true },
+        
+        // Vouchers specifically created for this user
+        { intended_users: phone }
+      ]
+    }).sort({ ngaybatdau: -1 }).limit(5).lean();
+    
+    console.log(`Found ${newVouchers.length} new vouchers for phone ${phone}`);
+    
+    // Cũng kiểm tra xem có voucher khung giờ vàng nào đang hoạt động không
+    const goldenHourVouchers = await MaGiamGia.magiamgia.find({
+      ngaybatdau: { $lte: now.toDate() },
+      ngayketthuc: { $gte: now.toDate() },
+      soluong: { $gt: 0 },
+      goldenHourStart: { $ne: null },
+      goldenHourEnd: { $ne: null },
+      isDeleted: { $ne: true },
+      appliedUsers: { $nin: [phone] } // Chưa được sử dụng bởi user này
+    }).limit(2).lean();
+    
+    // Lọc voucher khung giờ vàng theo thời gian hiện tại
+    const currentTime = now.format('HH:mm');
+    const currentDay = now.day(); // 0-6, Sunday-Saturday
+    
+    const activeGoldenHourVouchers = goldenHourVouchers.filter(voucher => {
+      // Check golden hour time
+      let isTimeValid = false;
+      if (voucher.goldenHourStart <= voucher.goldenHourEnd) {
+        isTimeValid = currentTime >= voucher.goldenHourStart && currentTime <= voucher.goldenHourEnd;
+      } else {
+        isTimeValid = currentTime >= voucher.goldenHourStart || currentTime <= voucher.goldenHourEnd;
+      }
+      
+      if (!isTimeValid) return false;
+      
+      // Check day of week
+      const isDayValid = voucher.daysOfWeek && voucher.daysOfWeek.length > 0 
+        ? voucher.daysOfWeek.includes(currentDay)
+        : true;
+      
+      return isDayValid;
+    });
+    
+    console.log(`Found ${activeGoldenHourVouchers.length} active golden hour vouchers for phone ${phone}`);
+    
+    // Combine both normal and golden hour vouchers
+    const allAvailableVouchers = [...newVouchers, ...activeGoldenHourVouchers];
+    
+    // Format vouchers for response
+    const formattedVouchers = allAvailableVouchers.map(voucher => {
+      // Check if this voucher is in golden hour
+      let isInGoldenHour = false;
+      if (voucher.goldenHourStart && voucher.goldenHourEnd) {
+        if (voucher.goldenHourStart <= voucher.goldenHourEnd) {
+          isInGoldenHour = currentTime >= voucher.goldenHourStart && currentTime <= voucher.goldenHourEnd;
+        } else {
+          isInGoldenHour = currentTime >= voucher.goldenHourStart || currentTime <= voucher.goldenHourEnd;
+        }
+      }
+      
+      return {
+        code: voucher.magiamgia,
+        discount: voucher.sophantram,
+        minOrderValue: voucher.minOrderValue || 0,
+        expiresAt: moment(voucher.ngayketthuc).format('DD/MM/YYYY'),
+        isNew: moment(voucher.ngaybatdau).isAfter(oneHourAgo),
+        isGoldenHour: Boolean(voucher.goldenHourStart && voucher.goldenHourEnd),
+        currentlyActive: isInGoldenHour
+      };
+    });
+    
+    res.json({
+      success: true,
+      hasNewVouchers: formattedVouchers.length > 0,
+      vouchers: formattedVouchers
+    });
+  } catch (error) {
+    console.error('Error checking new vouchers:', error);
+    res.status(500).json({ 
+      success: false,
+      message: 'Đã xảy ra lỗi khi kiểm tra voucher mới' 
+    });
+  }
+});
 router.post('/restoremagg', async (req, res) => {
   try {
     const { ids } = req.body
