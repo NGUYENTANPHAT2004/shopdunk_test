@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { FaEdit, FaPlus, FaSearch,FaGift } from 'react-icons/fa';
+import { FaEdit, FaPlus, FaSearch, FaGift, FaUserShield } from 'react-icons/fa';
 import { FaTrashCan } from 'react-icons/fa6';
 import './UserLayout.scss';
 
@@ -7,6 +7,8 @@ function UserLayout() {
   const [data, setData] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
+  const [selectedUser, setSelectedUser] = useState(null);
+  const [showRoleModal, setShowRoleModal] = useState(false);
   const itemsPerPage = 5;
 
   // Fetch dữ liệu từ API
@@ -49,10 +51,40 @@ function UserLayout() {
     }
   };
 
+  // API cập nhật role user
+  const updateUserRole = async (id, newRole) => {
+    try {
+      const response = await fetch(`http://localhost:3005/auth/updateRole/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ role: newRole })
+      });
+
+      if (response.ok) {
+        setData((prevData) =>
+          prevData.map((user) =>
+            user._id === id ? { ...user, role: newRole } : user
+          )
+        );
+        setShowRoleModal(false);
+      } else {
+        console.error('Cập nhật role thất bại');
+      }
+    } catch (error) {
+      console.error('Lỗi server:', error);
+    }
+  };
+
   // Xử lý bật/tắt trạng thái
   const toggleStatus = (id, currentStatus) => {
-    const newStatus = currentStatus === 'Active' ? 'Inactive' : 'Active';
+    const newStatus = currentStatus === 'active' ? 'inactive' : 'active';
     updateUserStatus(id, newStatus);
+  };
+
+  // Xử lý mở modal thay đổi role
+  const openRoleModal = (user) => {
+    setSelectedUser(user);
+    setShowRoleModal(true);
   };
 
   // Xử lý tìm kiếm
@@ -66,10 +98,31 @@ function UserLayout() {
   const indexOfLastItem = currentPage * itemsPerPage;
   const indexOfFirstItem = indexOfLastItem - itemsPerPage;
   const currentUsers = filteredData.slice(indexOfFirstItem, indexOfLastItem);
+
+  // Hiển thị role bằng tiếng Việt
+  const getRoleDisplay = (role) => {
+    switch (role) {
+      case 'admin': return 'Quản trị viên';
+      case 'user': return 'Người dùng';
+      default: return role;
+    }
+  };
+
+  // Hiển thị trạng thái bằng tiếng Việt
+  const getStatusDisplay = (status) => {
+    switch (status) {
+      case 'active': return 'Hoạt động';
+      case 'inactive': return 'Không hoạt động';
+      case 'suspended': return 'Tạm khóa';
+      case 'pending': return 'Chờ xác nhận';
+      default: return status;
+    }
+  };
+
   return (
     <div className="blog_container">
       <div className="nav_chucnang">
-      <button className="btn-voucher">
+        <button className="btn-voucher">
           <FaGift /> Add Voucher
         </button>
         <div className="search-box">
@@ -92,6 +145,7 @@ function UserLayout() {
             <th>Tên</th>
             <th>Email</th>
             <th>Phương thức</th>
+            <th>Vai trò</th>
             <th>Trạng thái</th>
             <th>Hành động</th>
           </tr>
@@ -103,14 +157,31 @@ function UserLayout() {
               <td>{item._id}</td>
               <td>{item.username}</td>
               <td>{item.email}</td>
-              <td>{item.socialLogins ? 'Google/Facebook' : 'Email'}</td>
-              <td>{item.status}</td>
+              <td>{item.socialLogins && (item.socialLogins.google || item.socialLogins.facebook) ? 'Google/Facebook' : 'Email'}</td>
               <td>
+                <span className={`role-badge role-${item.role}`}>
+                  {getRoleDisplay(item.role)}
+                </span>
+              </td>
+              <td>
+                <span className={`status-badge status-${item.status}`}>
+                  {getStatusDisplay(item.status)}
+                </span>
+              </td>
+              <td className="action-buttons">
                 <button
-                  className={item.status === 'Active' ? 'btn-active' : 'btn-inactive'}
-                  onClick={() => toggleStatus(item._id, item.status)}
+                  className="btn-role"
+                  onClick={() => openRoleModal(item)}
+                  title="Thay đổi vai trò"
                 >
-                  {item.status === 'Active' ? 'ẩn' : 'hiện'}
+                  <FaUserShield />
+                </button>
+                <button
+                  className={item.status === 'active' ? 'btn-active' : 'btn-inactive'}
+                  onClick={() => toggleStatus(item._id, item.status)}
+                  title={item.status === 'active' ? 'Ẩn người dùng' : 'Hiện người dùng'}
+                >
+                  {item.status === 'active' ? 'ẩn' : 'hiện'}
                 </button>
               </td>
             </tr>
@@ -128,6 +199,39 @@ function UserLayout() {
           Next
         </button>
       </div>
+
+      {/* Modal thay đổi role */}
+      {showRoleModal && selectedUser && (
+        <div className="modal-overlay">
+          <div className="modal-content">
+            <h2>Thay đổi vai trò người dùng</h2>
+            <p>Người dùng: {selectedUser.username}</p>
+            <p>Email: {selectedUser.email}</p>
+            <p>Vai trò hiện tại: {getRoleDisplay(selectedUser.role)}</p>
+            
+            <div className="role-options">
+              <button 
+                className={selectedUser.role === 'user' ? 'active' : ''} 
+                onClick={() => updateUserRole(selectedUser._id, 'user')}
+              >
+                Người dùng
+              </button>
+              <button 
+                className={selectedUser.role === 'admin' ? 'active' : ''} 
+                onClick={() => updateUserRole(selectedUser._id, 'admin')}
+              >
+                Quản trị viên
+              </button>
+            </div>
+            
+            <div className="modal-actions">
+              <button className="btn-cancel" onClick={() => setShowRoleModal(false)}>
+                Hủy
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
