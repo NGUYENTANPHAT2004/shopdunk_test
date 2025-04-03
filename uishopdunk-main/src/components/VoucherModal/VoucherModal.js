@@ -8,6 +8,7 @@ const VoucherModal = ({ isOpen, onClose, phone }) => {
   const [copiedCode, setCopiedCode] = useState(null);
   const [activeTab, setActiveTab] = useState('available');
   const [notification, setNotification] = useState(null);
+  const [lastGoldenHourCheck, setLastGoldenHourCheck] = useState(0);
 
   useEffect(() => {
     const fetchVouchers = async () => {
@@ -19,7 +20,9 @@ const VoucherModal = ({ isOpen, onClose, phone }) => {
         const data = await response.json();
         
         if (response.ok) {
-          setVouchers(data.vouchers || []);
+          // Lọc voucher để tránh voucher trùng lặp
+          const uniqueVouchers = filterDuplicateVouchers(data.vouchers || []);
+          setVouchers(uniqueVouchers);
         } else {
           console.error('Error fetching vouchers:', data.message);
           setNotification({
@@ -63,10 +66,18 @@ const VoucherModal = ({ isOpen, onClose, phone }) => {
     }
   }, [isOpen, phone]);
   
-  // Check golden hour vouchers
+  // Check golden hour vouchers with throttling
   useEffect(() => {
     const checkGoldenHourVouchers = async () => {
       if (!phone || !isOpen) return;
+      
+      // Prevent checking too frequently
+      const now = Date.now();
+      if (now - lastGoldenHourCheck < 5 * 60 * 1000) { // 5 minutes between checks
+        return;
+      }
+      
+      setLastGoldenHourCheck(now);
       
       try {
         const response = await fetch(`http://localhost:3005/activegoldenhour/${phone}`);
@@ -85,11 +96,54 @@ const VoucherModal = ({ isOpen, onClose, phone }) => {
     
     if (isOpen) {
       checkGoldenHourVouchers();
-      // Check every 5 minutes for golden hour updates
+      // Check less frequently
       const interval = setInterval(checkGoldenHourVouchers, 5 * 60 * 1000);
       return () => clearInterval(interval);
     }
-  }, [isOpen, phone]);
+  }, [isOpen, phone, lastGoldenHourCheck]);
+
+  // Lọc voucher trùng lặp - ưu tiên giữ lại voucher có % giảm giá cao hơn
+  const filterDuplicateVouchers = (vouchersList) => {
+    // Nhóm voucher theo loại (prefix)
+    const vouchersByType = {};
+    
+    vouchersList.forEach(voucher => {
+      const prefix = getVoucherPrefix(voucher.magiamgia);
+      if (!vouchersByType[prefix]) {
+        vouchersByType[prefix] = [];
+      }
+      vouchersByType[prefix].push(voucher);
+    });
+    
+    // Đối với mỗi loại, chỉ giữ lại voucher có % giảm cao nhất
+    const filteredVouchers = [];
+    
+    Object.keys(vouchersByType).forEach(prefix => {
+      // Khung giờ vàng (SW) có thể có nhiều voucher khác nhau
+      if (prefix === 'SW') {
+        filteredVouchers.push(...vouchersByType[prefix]);
+      } else {
+        // Đối với các loại khác, chỉ giữ lại voucher có % giảm cao nhất
+        const bestVoucher = vouchersByType[prefix].reduce((best, current) => {
+          return best.sophantram > current.sophantram ? best : current;
+        }, vouchersByType[prefix][0]);
+        
+        filteredVouchers.push(bestVoucher);
+      }
+    });
+    
+    return filteredVouchers;
+  };
+  
+  // Lấy prefix của voucher
+  const getVoucherPrefix = (code) => {
+    if (code.startsWith('FIRST')) return 'FIRST';
+    if (code.startsWith('LOYAL')) return 'LOYAL';
+    if (code.startsWith('WELCOME')) return 'WELCOME';
+    if (code.startsWith('SW')) return 'SW';
+    if (code.startsWith('REWARD')) return 'REWARD';
+    return 'OTHER';
+  };
 
   const handleCopyCode = (code) => {
     navigator.clipboard.writeText(code).then(() => {
@@ -126,6 +180,8 @@ const VoucherModal = ({ isOpen, onClose, phone }) => {
 
   // Filter vouchers based on active tab
   const filteredVouchers = vouchers.filter((voucher) => {
+    if (!voucher) return false;
+    
     const now = new Date();
     const isExpired = new Date(voucher.ngayketthuc) < now;
     const isAvailable = !isExpired && voucher.soluong > 0;
@@ -137,6 +193,21 @@ const VoucherModal = ({ isOpen, onClose, phone }) => {
     }
     return true;
   });
+
+  // Check if voucher is currently in golden hour
+  const isInGoldenHour = (voucher) => {
+    if (!voucher.goldenHourStart || !voucher.goldenHourEnd) return false;
+    
+    const now = new Date();
+    const currentTime = now.getHours().toString().padStart(2, '0') + ':' + 
+                        now.getMinutes().toString().padStart(2, '0');
+    
+    if (voucher.goldenHourStart <= voucher.goldenHourEnd) {
+      return currentTime >= voucher.goldenHourStart && currentTime <= voucher.goldenHourEnd;
+    } else {
+      return currentTime >= voucher.goldenHourStart || currentTime <= voucher.goldenHourEnd;
+    }
+  };
 
   if (!isOpen) return null;
 
@@ -167,13 +238,13 @@ const VoucherModal = ({ isOpen, onClose, phone }) => {
             className={`tab-button ${activeTab === 'available' ? 'active' : ''}`}
             onClick={() => setActiveTab('available')}
           >
-            Khả dụng ({vouchers.filter(v => new Date(v.ngayketthuc) >= new Date() && v.soluong > 0).length})
+            Khả dụng ({vouchers.filter(v => v && new Date(v.ngayketthuc) >= new Date() && v.soluong > 0).length})
           </button>
           <button
             className={`tab-button ${activeTab === 'expired' ? 'active' : ''}`}
             onClick={() => setActiveTab('expired')}
           >
-            Đã hết hạn ({vouchers.filter(v => new Date(v.ngayketthuc) < new Date() || v.soluong <= 0).length})
+            Đã hết hạn ({vouchers.filter(v => v && (new Date(v.ngayketthuc) < new Date() || v.soluong <= 0)).length})
           </button>
         </div>
 
@@ -190,15 +261,22 @@ const VoucherModal = ({ isOpen, onClose, phone }) => {
           ) : (
             <div className="vouchers-list">
               {filteredVouchers.map((voucher, index) => {
+                if (!voucher) return null;
+                
                 const isExpired = new Date(voucher.ngayketthuc) < new Date();
                 const isOutOfStock = voucher.soluong <= 0;
                 const isGoldenHour = voucher.goldenHourStart && voucher.goldenHourEnd;
+                const isCurrentlyGoldenHour = isGoldenHour && isInGoldenHour(voucher);
                 const voucherType = getVoucherTypeLabel(voucher.magiamgia);
                 
                 return (
                   <div 
                     key={index} 
-                    className={`voucher-item ${(isExpired || isOutOfStock) ? 'expired' : ''} ${isGoldenHour ? 'golden-hour-voucher' : ''}`}
+                    className={`voucher-item 
+                      ${(isExpired || isOutOfStock) ? 'expired' : ''} 
+                      ${isGoldenHour ? 'golden-hour-voucher' : ''}
+                      ${isCurrentlyGoldenHour ? 'active-golden-hour' : ''}
+                    `}
                   >
                     <div className="voucher-header">
                       <div className="voucher-type">
@@ -211,6 +289,11 @@ const VoucherModal = ({ isOpen, onClose, phone }) => {
                       {(isExpired || isOutOfStock) && (
                         <div className="expired-label">
                           {isOutOfStock ? 'Đã hết lượt sử dụng' : 'Đã hết hạn'}
+                        </div>
+                      )}
+                      {isCurrentlyGoldenHour && (
+                        <div className="active-now-label">
+                          Đang áp dụng
                         </div>
                       )}
                     </div>
@@ -248,8 +331,9 @@ const VoucherModal = ({ isOpen, onClose, phone }) => {
                       )}
                       
                       {isGoldenHour && (
-                        <p className="golden-hour">
+                        <p className={`golden-hour ${isCurrentlyGoldenHour ? 'active' : ''}`}>
                           <FaRegClock /> Khung giờ vàng: {voucher.goldenHourStart} - {voucher.goldenHourEnd}
+                          {isCurrentlyGoldenHour && <span className="active-badge">Đang diễn ra</span>}
                         </p>
                       )}
                       

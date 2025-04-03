@@ -2,10 +2,10 @@
 import { ModalBig } from '../../../components/ModalBig'
 import { useState, useEffect } from 'react'
 import { FaEdit, FaPlus } from 'react-icons/fa'
+import { FaTrashCan, FaRotateLeft } from 'react-icons/fa6'
 import { AddSanPham } from './AddSanPham'
-import { XoaSanPham } from './XoaSanPham'
 import { UpdateSanPham } from './UpdateSanPham'
-import { FaTrashCan } from 'react-icons/fa6'
+import { XoaSanPham } from './XoaSanPham'
 
 function SanPhamLayout ({ isOpen, onClose, idtheloai }) {
   const [data, setdata] = useState([])
@@ -15,6 +15,7 @@ function SanPhamLayout ({ isOpen, onClose, idtheloai }) {
   const [loading, setloading] = useState(true)
   const [selectedIds, setSelectedIds] = useState([])
   const [selectAll, setSelectAll] = useState(false)
+  const [showTrash, setShowTrash] = useState(false)
 
   const fetchdata = async () => {
     if (idtheloai) {
@@ -37,11 +38,36 @@ function SanPhamLayout ({ isOpen, onClose, idtheloai }) {
     }
   }
 
+  const fetchTrashData = async () => {
+    if (idtheloai) {
+      setloading(true)
+      try {
+        const response = await fetch(
+          `http://localhost:3005/getsanphamtrash/${idtheloai}`
+        )
+        if (response.ok) {
+          const data = await response.json()
+          setdata(data)
+        }
+      } catch (error) {
+        console.error(error)
+      } finally {
+        setloading(false)
+      }
+    } else {
+      setloading(false)
+    }
+  }
+
   useEffect(() => {
     if (idtheloai && isOpen) {
-      fetchdata()
+      if (showTrash) {
+        fetchTrashData()
+      } else {
+        fetchdata()
+      }
     }
-  }, [idtheloai, isOpen])
+  }, [idtheloai, isOpen, showTrash])
 
   const handleSelectAll = () => {
     if (selectAll) {
@@ -64,6 +90,35 @@ function SanPhamLayout ({ isOpen, onClose, idtheloai }) {
     setSelectAll(newSelectedIds.length === data.length)
   }
 
+  const handleRestore = async () => {
+    if (selectedIds.length === 0) {
+      alert('Chọn sản phẩm để hoàn tác')
+      return
+    }
+
+    try {
+      const response = await fetch('http://localhost:3005/restore-sanpham', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ ids: selectedIds })
+      })
+
+      if (response.ok) {
+        alert('Hoàn tác thành công')
+        setSelectedIds([])
+        setSelectAll(false)
+        fetchTrashData()
+      } else {
+        alert('Có lỗi xảy ra khi hoàn tác')
+      }
+    } catch (error) {
+      console.error(error)
+      alert('Có lỗi xảy ra khi hoàn tác')
+    }
+  }
+
   return (
     <ModalBig
       isOpen={isOpen}
@@ -71,44 +126,72 @@ function SanPhamLayout ({ isOpen, onClose, idtheloai }) {
         onClose()
         setSelectedIds([])
         setSelectAll(false)
+        setShowTrash(false)
       }}
     >
       <div>
         <div className='nav_chucnang'>
-          <button
-            className='btnthemtheloai'
-            onClick={() => setIsOpenThem(true)}
-          >
-            <FaPlus className='icons' />
-            Thêm sản phẩm
-          </button>
-          <button
-            className='btnthemtheloai'
-            onClick={() => {
-              if (selectedIds.length === 0) {
-                alert('Chọn một sản phẩm để cập nhật')
-              } else if (selectedIds.length > 1) {
-                alert('Chỉ được chọn một sản phẩm để cập nhật')
-              } else {
-                setIsOpenEdit(true)
-              }
-            }}
-          >
-            <FaEdit className='icons' />
-            Cập nhật
-          </button>
-
-          <button
-            className='btnthemtheloai'
-            onClick={() =>
-              selectedIds.length > 0
-                ? setIsOpenXoa(true)
-                : alert('Chọn sản phẩm để xóa')
-            }
-          >
-            <FaTrashCan className='icons' />
-            Xóa sản phẩm
-          </button>
+          {!showTrash ? (
+            <>
+              <button
+                className='btnthemtheloai'
+                onClick={() => setIsOpenThem(true)}
+              >
+                <FaPlus className='icons' />
+                Thêm sản phẩm
+              </button>
+              <button
+                className='btnthemtheloai'
+                onClick={() => {
+                  if (selectedIds.length === 0) {
+                    alert('Chọn một sản phẩm để cập nhật')
+                  } else if (selectedIds.length > 1) {
+                    alert('Chỉ được chọn một sản phẩm để cập nhật')
+                  } else {
+                    setIsOpenEdit(true)
+                  }
+                }}
+              >
+                <FaEdit className='icons' />
+                Cập nhật
+              </button>
+              <button
+                className='btnthemtheloai'
+                onClick={() =>
+                  selectedIds.length > 0
+                    ? setIsOpenXoa(true)
+                    : alert('Chọn sản phẩm để xóa')
+                }
+              >
+                <FaTrashCan className='icons' />
+                Xóa sản phẩm
+              </button>
+              <button
+                className='btnthemtheloai'
+                onClick={() => setShowTrash(true)}
+              >
+                <FaTrashCan className='icons' />
+                Thùng rác
+              </button>
+            </>
+          ) : (
+            <>
+              <button
+                className='btnthemtheloai'
+                onClick={() => setShowTrash(false)}
+              >
+                <FaRotateLeft className='icons' />
+                Quay lại
+              </button>
+              <button
+                className='btnthemtheloai'
+                onClick={handleRestore}
+              >
+                <FaRotateLeft className='icons' />
+                Hoàn tác
+              </button>
+            </>
+          )}
         </div>
 
         <table className='tablenhap'>
@@ -177,7 +260,7 @@ function SanPhamLayout ({ isOpen, onClose, idtheloai }) {
         isOpen={isOpenXoa}
         onClose={() => setIsOpenXoa(false)}
         idsanpham={selectedIds}
-        fetchdata={fetchdata}
+        fetchData={fetchdata}
         setSelectedIds={setSelectedIds}
       />
     </ModalBig>

@@ -5,6 +5,7 @@ import './VoucherNotification.scss';
 const VoucherNotification = ({ phone, onVoucherClick }) => {
   const [notifications, setNotifications] = useState([]);
   const [visible, setVisible] = useState(false);
+  const [lastCheckTime, setLastCheckTime] = useState(0);
 
   // Check for new vouchers
   useEffect(() => {
@@ -16,6 +17,14 @@ const VoucherNotification = ({ phone, onVoucherClick }) => {
     console.log("VoucherNotification initialized with phone:", phone);
 
     const checkNewVouchers = async () => {
+      // Kiểm tra xem đã đủ thời gian giữa các lần check chưa
+      const now = Date.now();
+      if (now - lastCheckTime < 10 * 60 * 1000) { // Chỉ check mỗi 10 phút 
+        return;
+      }
+      
+      setLastCheckTime(now);
+      
       try {
         console.log("Checking for new vouchers at:", new Date().toLocaleTimeString());
         const response = await fetch(`http://localhost:3005/checknewvouchers/${phone}`);
@@ -52,6 +61,12 @@ const VoucherNotification = ({ phone, onVoucherClick }) => {
 
     // Check for golden hour vouchers
     const checkGoldenHourVouchers = async () => {
+      // Kiểm tra xem đã đủ thời gian giữa các lần check chưa
+      const now = Date.now();
+      if (now - lastCheckTime < 10 * 60 * 1000) { // Chỉ check mỗi 10 phút
+        return;
+      }
+      
       try {
         const response = await fetch(`http://localhost:3005/activegoldenhour/${phone}`);
         
@@ -66,9 +81,19 @@ const VoucherNotification = ({ phone, onVoucherClick }) => {
           console.log("Golden hour vouchers found:", data.vouchers);
           
           // Add golden hour notification
-          setNotifications(prev => [
-            ...prev,
-            {
+          setNotifications(prev => {
+            // Kiểm tra xem đã có thông báo khung giờ vàng trong 30 phút gần đây chưa
+            const recentGoldenHourNotif = prev.find(
+              n => n.type === 'golden-hour' && (Date.now() - n.timestamp) < 30 * 60 * 1000
+            );
+            
+            // Nếu đã có thì không thêm thông báo mới
+            if (recentGoldenHourNotif) {
+              return prev;
+            }
+            
+            // Thêm thông báo mới
+            return [...prev, {
               id: Date.now(),
               type: 'golden-hour',
               title: 'Khung giờ vàng!',
@@ -76,8 +101,8 @@ const VoucherNotification = ({ phone, onVoucherClick }) => {
               vouchers: data.vouchers,
               timestamp: new Date(),
               read: false
-            }
-          ]);
+            }];
+          });
           setVisible(true);
         }
       } catch (error) {
@@ -89,35 +114,15 @@ const VoucherNotification = ({ phone, onVoucherClick }) => {
     checkNewVouchers();
     checkGoldenHourVouchers();
     
-    // For testing only - add a test notification if none found after 3 seconds
-    const testTimer = setTimeout(() => {
-      if (notifications.length === 0) {
-        console.log("Adding test notification for development");
-        setNotifications([
-          {
-            id: Date.now(),
-            type: 'new-voucher',
-            title: 'Mã giảm giá test',
-            message: 'Đây là thông báo test mã giảm giá',
-            vouchers: [{ code: 'TEST123', discount: 10 }],
-            timestamp: new Date(),
-            read: false
-          }
-        ]);
-        setVisible(true);
-      }
-    }, 3000);
-    
-    // Set up polling intervals - real implementation
-    const newVouchersInterval = setInterval(checkNewVouchers, 5 * 60 * 1000); // 5 minutes
-    const goldenHourInterval = setInterval(checkGoldenHourVouchers, 5 * 60 * 1000); // 5 minutes
+    // Set up polling intervals - 10 minutes
+    const newVouchersInterval = setInterval(checkNewVouchers, 10 * 60 * 1000); // 10 minutes
+    const goldenHourInterval = setInterval(checkGoldenHourVouchers, 10 * 60 * 1000); // 10 minutes
     
     return () => {
-      clearTimeout(testTimer);
       clearInterval(newVouchersInterval);
       clearInterval(goldenHourInterval);
     };
-  }, [phone]);
+  }, [phone, lastCheckTime]);
 
   const handleClose = () => {
     setVisible(false);

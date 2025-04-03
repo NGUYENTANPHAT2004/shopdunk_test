@@ -658,6 +658,9 @@ router.post('/settrangthai/:idhoadon', async (req, res) => {
   }
 });
 
+// In webbandienthoai-main/routes/HoaDonRoutes.js
+// Modify the getchitiethd route:
+
 router.get('/getchitiethd/:idhoadon', async (req, res) => {
   try {
     const idhoadon = req.params.idhoadon
@@ -672,8 +675,9 @@ router.get('/getchitiethd/:idhoadon', async (req, res) => {
         const sanpham1 = await SanPham.ChitietSp.findById(sanpham.idsp)
         const dungluong = await DungLuong.dungluong.findById(sanpham.dungluong)
         return {
-          namesanpham: sanpham1.name,
-          dungluong: dungluong.name,
+          idsp: sanpham.idsp, // Add this line to include the product ID
+          namesanpham: sanpham1 ? sanpham1.name : 'Unknown Product',
+          dungluong: dungluong ? dungluong.name : 'Unknown Size',
           mausac: sanpham.mausac,
           soluong: sanpham.soluong,
           price: sanpham.price
@@ -681,7 +685,8 @@ router.get('/getchitiethd/:idhoadon', async (req, res) => {
       })
     )
     const hoadonjson = {
-      nguoinhan : hoadon.nguoinhan,
+      _id: hoadon._id, // Make sure order ID is included
+      nguoinhan: hoadon.nguoinhan,
       name: hoadon.name,
       phone: hoadon.phone,
       sex: hoadon.sex,

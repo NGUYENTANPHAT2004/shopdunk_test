@@ -4,15 +4,17 @@ import moment from 'moment';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faStar, faReceipt, faTimes, faCheck, faCircleInfo } from '@fortawesome/free-solid-svg-icons';
 import ProductRating from '../../components/ProductRating/ProductRating';
+import SimpleRating from './Simplerating';// Import component SimpleRating mới
 
-// This is just the order details section - to be included in your lichsudonhang.js file
+// Sử dụng order details với SimpleRating
 const OrderDetails = ({ 
   selectedDonHang, 
   setSelectedDonHang, 
   handleXacNhan, 
   handleRating, 
   canRateProduct,
-  getStatusClass 
+  getStatusClass,
+  user // Thêm user props
 }) => {
   if (!selectedDonHang) return null;
   
@@ -81,23 +83,18 @@ const OrderDetails = ({
                   <span className="product-price">{sp.price.toLocaleString()}₫</span>
                 </div>
                 
-                {((selectedDonHang.trangthai === 'Hoàn thành' || 
-                   selectedDonHang.trangthai === 'Đã nhận' || 
-                   selectedDonHang.trangthai === 'Đã giao hàng') && 
-                  !sp.hasRated) && (
+                {/* Thay thế phần đánh giá bằng SimpleRating khi đủ điều kiện */}
+                {canRateProduct(sp, selectedDonHang) && (
                   <div className="product-rating-section">
-                    <ProductRating productId={sp.idsp} size="small" showCount={true} />
-                    <button 
-                      className="btn-rating" 
-                      onClick={() => handleRating(sp)}
-                      disabled={sp.hasRated}
-                    >
-                      <FontAwesomeIcon icon={faStar} /> 
-                      {sp.hasRated ? 'Đã đánh giá' : 'Đánh giá'}
-                    </button>
+                    <SimpleRating 
+                      userId={user?._id}
+                      orderId={selectedDonHang._id}
+                      productId={sp.idsp}
+                    />
                   </div>
                 )}
                 
+                {/* Show "rated" badge if product has been rated */}
                 {sp.hasRated && (
                   <div className="product-rating-section completed">
                     <span className="rating-completed">

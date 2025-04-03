@@ -22,6 +22,7 @@ const Header = () => {
   const [username, setUsername] = useState(null)
   const [userPhone, setUserPhone] = useState(null)
   const [hasNewVouchers, setHasNewVouchers] = useState(false)
+  const [lastVoucherCheck, setLastVoucherCheck] = useState(0)
   const navigate = useNavigate()
 
   // Initialize user data
@@ -75,27 +76,39 @@ const Header = () => {
     };
   }, []);
   
-  // Check for new vouchers periodically
+  // Check for new vouchers with reduced frequency
   useEffect(() => {
     if (!userPhone) return;
     
     console.log("Setting up voucher checking for phone:", userPhone);
     
-    // Initial check
-    checkForNewVouchers(userPhone);
+    // Initial check if we haven't checked recently
+    const now = Date.now();
+    if (now - lastVoucherCheck > 15 * 60 * 1000) { // 15 minutes between checks
+      checkForNewVouchers(userPhone);
+    }
     
-    // Set up interval for checking (every 5 minutes)
+    // Set up interval for checking (every 15 minutes instead of 5)
     const intervalId = setInterval(() => {
       checkForNewVouchers(userPhone);
-    }, 5 * 60 * 1000);
+    }, 15 * 60 * 1000);
     
     return () => clearInterval(intervalId);
-  }, [userPhone]);
+  }, [userPhone, lastVoucherCheck]);
   
-  // Check for new vouchers
+  // Check for new vouchers with throttling
   const checkForNewVouchers = async (phone) => {
     try {
+      // Prevent checking too frequently
+      const now = Date.now();
+      if (now - lastVoucherCheck < 15 * 60 * 1000) { // 15 minutes throttle
+        console.log("Skipping voucher check - checked recently");
+        return;
+      }
+      
+      setLastVoucherCheck(now);
       console.log("Checking for new vouchers for phone:", phone);
+      
       const response = await fetch(`http://localhost:3005/checknewvouchers/${phone}`);
       const data = await response.json();
       

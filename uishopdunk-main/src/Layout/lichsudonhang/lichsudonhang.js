@@ -4,7 +4,8 @@ import moment from 'moment';
 import { useUserContext } from '../../context/Usercontext';
 import './lichsudonhang.scss';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faStar, faTrash, faReceipt, faExclamationTriangle } from '@fortawesome/free-solid-svg-icons';
+import { faStar as solidStar, faTrash, faReceipt, faExclamationTriangle } from '@fortawesome/free-solid-svg-icons';
+import { faStar as regularStar } from '@fortawesome/free-regular-svg-icons';
 import ProductRating from '../../components/ProductRating/ProductRating';
 import OrderDetails from './OrderDeatails';
 
@@ -12,7 +13,7 @@ function LichSuDonHangLayout() {
   const { user } = useUserContext();
   const [donHangs, setDonHangs] = useState([]);
   const [selectedDonHang, setSelectedDonHang] = useState(null);
-  const [rating, setRating] = useState(0);
+  const [rating, setRating] = useState(null); // Changed from 0 to null
   const [comment, setComment] = useState('');
   const [showRatingModal, setShowRatingModal] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState(null);
@@ -63,7 +64,7 @@ function LichSuDonHangLayout() {
       }
       
       try {
-        // Nếu đơn hàng có sản phẩm, kiểm tra trạng thái đánh giá cho từng sản phẩm
+        // Nếu đơn hàng có sản phẩm, kiểm tra trạng thái đánh giá cho từng sản phẩm trong đơn hàng này
         if (response.data.hoadonsanpham.length > 0) {
           const ratingStatusPromises = response.data.hoadonsanpham.map(product => 
             axios.get(`http://localhost:3005/order-rating/check`, {
@@ -80,10 +81,11 @@ function LichSuDonHangLayout() {
           
           const ratingResults = await Promise.all(ratingStatusPromises);
           
-          // Cập nhật trạng thái đánh giá cho từng sản phẩm
+          // Cập nhật trạng thái đánh giá cho từng sản phẩm trong đơn hàng hiện tại
           response.data.hoadonsanpham = response.data.hoadonsanpham.map((product, index) => {
             return {
               ...product,
+              idsp: response.data.sanpham?.[index]?.idsp || product.idsp,
               hasRated: ratingResults[index]?.data?.hasRated || false
             };
           });
@@ -164,7 +166,7 @@ function LichSuDonHangLayout() {
     }
   };
 
-  // Hàm kiểm tra xem sản phẩm đã được đánh giá chưa
+  // Hàm kiểm tra xem sản phẩm đã được đánh giá chưa (trong đơn hàng cụ thể)
   const checkRatingStatus = async (product, orderId) => {
     try {
       const response = await axios.get(`http://localhost:3005/order-rating/check`, {
@@ -182,52 +184,90 @@ function LichSuDonHangLayout() {
     }
   };
 
+  // UPDATED: improved opening of rating modal
   const openRatingModal = async (product) => {
-    // Kiểm tra xem sản phẩm đã được đánh giá chưa
-    const hasRated = await checkRatingStatus(product, selectedDonHang._id);
-    
-    if (hasRated) {
-      alert('Bạn đã đánh giá sản phẩm này!');
-      return;
+    try {
+      // Check if product data is valid
+      if (!product || !product.idsp) {
+        alert('Thông tin sản phẩm không hợp lệ');
+        return;
+      }
+      
+      // Check if the product has already been rated for this order
+      const response = await axios.get(`http://localhost:3005/order-rating/check`, {
+        params: {
+          userId: user._id,
+          productId: product.idsp,
+          orderId: selectedDonHang._id
+        }
+      });
+      
+      if (response.data.hasRated) {
+        alert('Bạn đã đánh giá sản phẩm này trong đơn hàng!');
+        return;
+      }
+      
+      // Set the selected product
+      setSelectedProduct(product);
+      
+      // Reset rating state properly - ensure it's null, not 0
+      setRating(null);
+      setComment('');
+      setRatingError('');
+      setRatingModalOpen(true);
+      
+      // Log for debugging
+      console.log('Opening rating modal for product:', product);
+    } catch (error) {
+      console.error('Lỗi kiểm tra trạng thái đánh giá:', error);
+      alert('Có lỗi xảy ra khi kiểm tra trạng thái đánh giá. Vui lòng thử lại sau.');
     }
-    
-    setSelectedProduct(product);
-    setRating(0);
-    setComment('');
-    setRatingError('');
-    setRatingModalOpen(true);
   };
-
+  
   const closeRatingModal = () => {
     setSelectedProduct(null);
-    setRating(0);
+    setRating(null); // Changed from 0 to null
     setComment('');
     setRatingError('');
     setRatingModalOpen(false);
   };
 
+  // UPDATED: enhanced submit rating function
   const submitRating = async () => {
-    if (!selectedProduct || !rating) {
-      setRatingError('Vui lòng chọn số sao đánh giá');
+    // Enhanced validation
+    if (!selectedProduct) {
+      setRatingError('Không tìm thấy thông tin sản phẩm');
+      return;
+    }
+    
+    // Explicitly check that rating is a number between 1-5
+    if (!rating || typeof rating !== 'number' || rating < 1 || rating > 5) {
+      setRatingError('Vui lòng chọn số sao đánh giá (1-5 sao)');
       return;
     }
 
     try {
       setIsSubmitting(true);
       setRatingError('');
+      
+      // Log what's being sent for debugging
+      console.log('Submitting rating data:', {
+        productId: selectedProduct.idsp,
+        rating: rating,
+        userId: user._id
+      });
 
-      // Sử dụng axios thay vì fetch để đồng nhất với phong cách code
       const response = await axios.post('http://localhost:3005/order-rating', {
         userId: user._id,
         orderId: selectedDonHang._id,
-        productId: selectedProduct._id || selectedProduct.idsp,
-        productName: selectedProduct.tenSP || selectedProduct.namesanpham,
-        productImage: selectedProduct.hinhanh || selectedProduct.image,
-        tenkhach: user.tenkhach,
+        productId: selectedProduct.idsp,
+        productName: selectedProduct.namesanpham || 'Sản phẩm',
+        productImage: selectedProduct.image || '',
+        tenkhach: user.tenkhach || user.username || 'Khách hàng',
         content: comment,
-        rating: rating,
-        dungluong: selectedProduct.dungluong,
-        mausac: selectedProduct.mausac,
+        rating: rating, // This is now a valid number 1-5
+        dungluong: selectedProduct.dungluong || '',
+        mausac: selectedProduct.mausac || '',
         verified: true
       });
 
@@ -235,27 +275,29 @@ function LichSuDonHangLayout() {
         alert('Cảm ơn bạn đã đánh giá sản phẩm!');
         closeRatingModal();
         
-        // Cập nhật lại đơn hàng đang xem để hiển thị trạng thái đã đánh giá
+        // Refresh the order details to show updated rating status
         if (selectedDonHang) {
           handleXemChiTiet(selectedDonHang._id);
         }
-        
-        // Cập nhật lại danh sách đơn hàng
-        refreshOrderList();
       } else {
         setRatingError(response.data.message || 'Có lỗi xảy ra khi gửi đánh giá');
       }
     } catch (error) {
       console.error('Lỗi khi đánh giá:', error);
-      setRatingError('Có lỗi xảy ra khi gửi đánh giá. Vui lòng thử lại sau.');
+      if (error.response && error.response.data) {
+        setRatingError(error.response.data.message || 'Lỗi từ máy chủ');
+      } else {
+        setRatingError('Có lỗi xảy ra khi gửi đánh giá. Vui lòng thử lại sau.');
+      }
     } finally {
       setIsSubmitting(false);
     }
   };
 
+  // Kiểm tra xem sản phẩm có đủ điều kiện đánh giá không (đơn hàng hoàn thành và chưa đánh giá)
   const canRateProduct = (product, order) => {
     // Chỉ cho phép đánh giá nếu đơn hàng đã hoàn thành hoặc đã giao
-    const eligibleStatuses = ['Đã giao hàng', 'Hoàn thành', 'Đã nhận'];
+    const eligibleStatuses = ['Hoàn thành', 'Đã nhận'];
     return eligibleStatuses.includes(order.trangthai) && !product.hasRated;
   };
 
@@ -362,64 +404,19 @@ function LichSuDonHangLayout() {
         </div>
       )}
 
-      {selectedDonHang && (
-        <OrderDetails
-          selectedDonHang={selectedDonHang}
-          setSelectedDonHang={setSelectedDonHang}
-          handleXacNhan={handleXacNhan}
-          handleRating={openRatingModal}
-          canRateProduct={canRateProduct}
-          getStatusClass={getStatusClass}
-        />
-      )}
+{selectedDonHang && (
+  <OrderDetails
+    selectedDonHang={selectedDonHang}
+    setSelectedDonHang={setSelectedDonHang}
+    handleXacNhan={handleXacNhan}
+    handleRating={openRatingModal}
+    canRateProduct={canRateProduct}
+    getStatusClass={getStatusClass}
+    user={user} // Thêm prop user vào đây
+  />
+)}
 
-      {ratingModalOpen && (
-        <div className="rating-modal">
-          <div className="rating-content">
-            <h3>Đánh giá sản phẩm</h3>
-            <div className="product-rating-info">
-              <img 
-                src={selectedProduct.hinhanh || selectedProduct.image} 
-                alt={selectedProduct.tenSP || selectedProduct.namesanpham} 
-              />
-              <div>
-                <h4>{selectedProduct.tenSP || selectedProduct.namesanpham}</h4>
-                <p>Dung lượng: {selectedProduct.dungluong}</p>
-                <p>Màu sắc: {selectedProduct.mausac}</p>
-              </div>
-            </div>
-            <div className="rating-stars">
-              <label>Đánh giá của bạn:</label>
-              <div className="stars">
-                {[1, 2, 3, 4, 5].map((star) => (
-                  <FontAwesomeIcon
-                    key={star}
-                    icon={faStar}
-                    className={star <= rating ? 'active' : ''}
-                    onClick={() => setRating(star)}
-                  />
-                ))}
-              </div>
-            </div>
-            <textarea
-              placeholder="Chia sẻ trải nghiệm của bạn về sản phẩm..."
-              value={comment}
-              onChange={(e) => setComment(e.target.value)}
-            />
-            {ratingError && <p className="error-message">{ratingError}</p>}
-            <div className="rating-actions">
-              <button onClick={closeRatingModal} disabled={isSubmitting}>Hủy</button>
-              <button 
-                onClick={submitRating}
-                disabled={!rating || isSubmitting}
-                className={!rating || isSubmitting ? 'disabled' : ''}
-              >
-                {isSubmitting ? 'Đang gửi...' : 'Gửi đánh giá'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+     
 
       {showDeleteConfirm && (
         <div className="confirm-modal">

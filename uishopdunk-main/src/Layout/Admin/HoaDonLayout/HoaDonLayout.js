@@ -42,18 +42,6 @@ function HoaDonLayout () {
     const selectedOrder = data.find(item => item._id === id);
     
     // Check if the order has a restricted status
-    const restrictedStatuses = [
-      'Thanh toán thất bại',
-      'Thanh toán hết hạn',
-      'Hủy Đơn Hàng',
-      'Đã nhận',
-      'Hoàn thành'
-    ];
-    
-    if (restrictedStatuses.includes(selectedOrder.trangthai)) {
-      alert('Không thể chọn đơn hàng có trạng thái này');
-      return;
-    }
 
     let newSelectedIds = [...selectedIds]
     if (newSelectedIds.includes(id)) {

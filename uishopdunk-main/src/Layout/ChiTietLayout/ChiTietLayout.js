@@ -209,12 +209,15 @@ const ChiTietLayout = () => {
     if (!idsanpham) return;
     
     try {
-      const response = await axios.get(`http://localhost:3005/danhgia/product/${idsanpham}`);
+      // Use the correct endpoint path
+      const response = await axios.get(`http://localhost:3005/product-rating/${idsanpham}`);
       if (response.data && response.data.success) {
         setProductRatings(response.data);
       }
     } catch (error) {
       console.error('Lỗi khi lấy đánh giá sản phẩm:', error);
+      // Don't set an error state since we want to gracefully handle this
+      // Just allow productRatings to remain null
     }
   };
 

@@ -27,13 +27,20 @@ router.post(
   }
 )
 
+// Add isDeleted filter to mausac route
 router.get('/mausac/:iddungluong', async (req, res) => {
   try {
     const iddungluong = req.params.iddungluong
     const dungluong = await DungLuong.dungluong.findById(iddungluong)
+    
+    if (!dungluong) {
+      return res.status(404).json({ message: 'Không tìm thấy dung lượng' })
+    }
+    
     const mausac = await Promise.all(
       dungluong.mausac.map(async ms => {
-        const maus = await MauSac.mausac.findById(ms._id)
+        const maus = await MauSac.mausac.findOne({ _id: ms._id, isDeleted: false })
+        if (!maus) return null
         return {
           _id: maus._id,
           name: maus.name,
@@ -41,7 +48,7 @@ router.get('/mausac/:iddungluong', async (req, res) => {
         }
       })
     )
-    res.json(mausac)
+    res.json(mausac.filter(Boolean))
   } catch (error) {
     console.error(error)
     res.status(500).json({ message: `Đã xảy ra lỗi: ${error}` })
@@ -56,10 +63,15 @@ router.post(
       const { name, price } = req.body
       const idmausac = req.params.idmausac
       const mausac = await MauSac.mausac.findById(idmausac)
+      
+      if (!mausac) {
+        return res.status(404).json({ message: 'Không tìm thấy màu sắc' })
+      }
+      
       const domain = 'http://localhost:3005'
 
       const image = req.files.map(file => `${domain}/${file.filename}`)
-      if (image) {
+      if (image.length > 0) {
         mausac.image = mausac.image.concat(image)
       }
       mausac.name = name
@@ -73,16 +85,20 @@ router.post(
   }
 )
 
+// Update to soft delete
 router.post('/deletemausac/:idmausac', async (req, res) => {
   try {
     const idmausac = req.params.idmausac
     const mausac = await MauSac.mausac.findById(idmausac)
-    const dungluong = await DungLuong.dungluong.findById(mausac.dungluong)
-    dungluong.mausac = dungluong.mausac.filter(
-      dungluong => dungluong._id.toString() !== idmausac
-    )
-    await MauSac.mausac.findByIdAndDelete(idmausac)
-    await dungluong.save()
+    
+    if (!mausac) {
+      return res.status(404).json({ message: 'Không tìm thấy màu sắc' })
+    }
+    
+    // Soft delete instead of hard delete
+    mausac.isDeleted = true
+    await mausac.save()
+    
     res.json({ message: 'Xóa thành công' })
   } catch (error) {
     console.error(error)
@@ -97,25 +113,12 @@ router.post('/deletemausachangloat', async (req, res) => {
       return res.status(400).json({ message: 'Danh sách ID không hợp lệ' })
     }
 
-    const mausacList = await MauSac.mausac.find({ _id: { $in: ids } })
-
-    const dungluongIds = [...new Set(mausacList.map(mau => mau.dungluong))]
-
-    await Promise.all(
-      dungluongIds.map(async dungluongId => {
-        const dungluong = await DungLuong.dungluong.findById(dungluongId)
-        if (dungluong) {
-          dungluong.mausac = dungluong.mausac.filter(
-            id => !ids.includes(id.toString())
-          )
-          await dungluong.save()
-        }
-      })
+    await MauSac.mausac.updateMany(
+      { _id: { $in: ids } },
+      { $set: { isDeleted: true } }
     )
 
-    await MauSac.mausac.deleteMany({ _id: { $in: ids } })
-
-    res.json({ message: `Đã xóa thành công ${ids.length} màu sắc` })
+    res.json({ message: `Đã xóa ${ids.length} màu sắc thành công` })
   } catch (error) {
     console.error(error)
     res.status(500).json({ message: `Đã xảy ra lỗi: ${error}` })
@@ -129,6 +132,11 @@ router.post(
     try {
       const idmausac = req.params.idmausac
       const mausac = await MauSac.mausac.findById(idmausac)
+      
+      if (!mausac) {
+        return res.status(404).json({ message: 'Không tìm thấy màu sắc' })
+      }
+      
       const domain = 'http://localhost:3005'
       const image = req.files.map(file => `${domain}/${file.filename}`)
       mausac.image = mausac.image.concat(image)
@@ -136,16 +144,24 @@ router.post(
       res.json(mausac)
     } catch (error) {
       console.error(error)
+      res.status(500).json({ message: `Đã xảy ra lỗi: ${error}` })
     }
   }
 )
+
 router.get('/getanhmausac/:idmausac', async (req, res) => {
   try {
     const idmausac = req.params.idmausac
     const mausac = await MauSac.mausac.findById(idmausac)
+    
+    if (!mausac) {
+      return res.status(404).json({ message: 'Không tìm thấy màu sắc' })
+    }
+    
     res.json(mausac.image)
   } catch (error) {
     console.error(error)
+    res.status(500).json({ message: `Đã xảy ra lỗi: ${error}` })
   }
 })
 
@@ -153,9 +169,82 @@ router.get('/getchitietmausac/:idmausac', async (req, res) => {
   try {
     const idmausac = req.params.idmausac
     const mausac = await MauSac.mausac.findById(idmausac)
+    
+    if (!mausac) {
+      return res.status(404).json({ message: 'Không tìm thấy màu sắc' })
+    }
+    
     res.json(mausac)
   } catch (error) {
     console.error(error)
+    res.status(500).json({ message: `Đã xảy ra lỗi: ${error}` })
+  }
+})
+
+// Fix model naming consistency
+router.get('/mausactrash/:iddungluong', async (req, res) => {
+  try {
+    const iddungluong = req.params.iddungluong
+    const dungluong = await DungLuong.dungluong.findById(iddungluong)
+    
+    if (!dungluong) {
+      return res.status(404).json({ message: 'Không tìm thấy dung lượng' })
+    }
+    
+    const mausac = await Promise.all(
+      dungluong.mausac.map(async ms => {
+        const ms1 = await MauSac.mausac.findOne({ _id: ms._id, isDeleted: true })
+        if (!ms1) return null
+        return {
+          _id: ms1._id,
+          name: ms1.name,
+          price: ms1.price
+        }
+      })
+    )
+    res.json(mausac.filter(Boolean))
+  } catch (error) {
+    console.error(error)
+    res.status(500).json({ message: `Đã xảy ra lỗi: ${error}` })
+  }
+})
+
+// Fix model naming consistency
+router.post('/restore-mausac', async (req, res) => {
+  try {
+    const { ids } = req.body
+    if (!Array.isArray(ids) || ids.length === 0) {
+      return res.status(400).json({ message: 'Danh sách ID không hợp lệ' })
+    }
+
+    await MauSac.mausac.updateMany(
+      { _id: { $in: ids } },
+      { $set: { isDeleted: false } }
+    )
+
+    res.json({ message: 'Hoàn tác màu sắc thành công' })
+  } catch (error) {
+    console.error(error)
+    res.status(500).json({ message: `Đã xảy ra lỗi: ${error}` })
+  }
+})
+
+// Already converted to soft delete, just need to fix model name consistency
+router.post('/deletemausac/:id', async (req, res) => {
+  try {
+    const id = req.params.id
+    const mausac = await MauSac.mausac.findById(id)
+    if (!mausac) {
+      return res.status(404).json({ message: 'Không tìm thấy màu sắc' })
+    }
+
+    mausac.isDeleted = true
+    await mausac.save()
+
+    res.json({ message: 'Xóa thành công' })
+  } catch (error) {
+    console.error(error)
+    res.status(500).json({ message: `Đã xảy ra lỗi: ${error}` })
   }
 })
 
