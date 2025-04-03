@@ -1,113 +1,96 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faStar as solidStar } from '@fortawesome/free-solid-svg-icons';
+import { faStar as solidStar, faCheckCircle } from '@fortawesome/free-solid-svg-icons';
 import { faStar as regularStar } from '@fortawesome/free-regular-svg-icons';
+import moment from 'moment';
+import 'moment/locale/vi';
 import './ProductRating.scss';
 
-const ProductRatingcontainer = ({ productId }) => {
+// Set moment to use Vietnamese locale
+moment.locale('vi');
+
+const ProductRatingsContainer = ({ productId }) => {
+  const [ratings, setRatings] = useState([]);
+  const [averageRating, setAverageRating] = useState(0);
+  const [totalRatings, setTotalRatings] = useState(0);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
-  const [ratingStats, setRatingStats] = useState(null);
-  const [reviews, setReviews] = useState([]);
-  const [currentPage, setCurrentPage] = useState(1);
-  const [totalPages, setTotalPages] = useState(1);
-
-  // Lấy thống kê đánh giá của sản phẩm
+  const [showAllRatings, setShowAllRatings] = useState(false);
+  const [ratingStats, setRatingStats] = useState({ 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 });
+  
   useEffect(() => {
-    const fetchRatingStats = async () => {
+    const fetchRatings = async () => {
       if (!productId) return;
-
+      
       try {
         setLoading(true);
-        // Using the correct endpoint path from our OrderRatingRoutes.js
+        // Use the correct endpoint from our OrderRatingRoutes.js
         const response = await axios.get(`http://localhost:3005/product-rating/${productId}`);
         
-        if (response.data.success) {
-          setRatingStats(response.data);
-        } else {
-          setError('Không thể tải thống kê đánh giá');
+        if (response.data && response.data.success) {
+          // Get the reviews from the correct endpoint
+          const reviewsResponse = await axios.get(`http://localhost:3005/product-reviews/${productId}`);
+          
+          if (reviewsResponse.data && reviewsResponse.data.success) {
+            setRatings(reviewsResponse.data.reviews || []);
+          }
+          
+          // Set average rating
+          setAverageRating(response.data.averageRating || 0);
+          
+          // Set total ratings
+          setTotalRatings(response.data.totalRatings || 0);
+          
+          // Set rating stats
+          setRatingStats(response.data.starCounts || { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 });
         }
-      } catch (err) {
-        console.error('Lỗi khi tải thống kê đánh giá:', err);
-        setError('Đã xảy ra lỗi khi tải thống kê đánh giá');
+      } catch (error) {
+        console.error('Error fetching product ratings:', error);
+        // Set default values on error
+        setRatings([]);
+        setAverageRating(0);
+        setTotalRatings(0);
+        setRatingStats({ 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 });
       } finally {
         setLoading(false);
       }
     };
 
-    fetchRatingStats();
+    fetchRatings();
   }, [productId]);
 
-  // Lấy danh sách đánh giá có phân trang
-  useEffect(() => {
-    const fetchReviews = async () => {
-      if (!productId) return;
-
-      try {
-        // Using the correct endpoint path from our OrderRatingRoutes.js
-        const response = await axios.get(`http://localhost:3005/product-reviews/${productId}`, {
-          params: { page: currentPage, limit: 5 }
-        });
-        
-        if (response.data.success) {
-          setReviews(response.data.reviews || []);
-          setTotalPages(response.data.totalPages || 1);
-        } else {
-          setError('Không thể tải danh sách đánh giá');
-        }
-      } catch (err) {
-        console.error('Lỗi khi tải danh sách đánh giá:', err);
-        setError('Đã xảy ra lỗi khi tải danh sách đánh giá');
-      }
-    };
-
-    fetchReviews();
-  }, [productId, currentPage]);
-
-  const handlePageChange = (newPage) => {
-    if (newPage < 1 || newPage > totalPages) return;
-    setCurrentPage(newPage);
-  };
-
-  // Hiển thị các sao dựa trên số đánh giá
+  // Helper function to render star rating display
   const renderStars = (rating) => {
-    return Array(5).fill(0).map((_, i) => (
-      <FontAwesomeIcon
-        key={i}
-        icon={i < rating ? solidStar : regularStar}
-        className={i < rating ? 'star active' : 'star'}
+    return Array(5).fill(0).map((_, index) => (
+      <FontAwesomeIcon 
+        key={index}
+        icon={index < rating ? solidStar : regularStar}
+        className={index < rating ? 'star-active' : 'star-inactive'}
       />
     ));
   };
 
-  // Hiển thị phân phối đánh giá (biểu đồ thanh)
+  // Render rating distribution bar
   const renderRatingDistribution = () => {
-    if (!ratingStats) return null;
-    
-    const { starCounts, totalRatings } = ratingStats;
+    if (totalRatings === 0) return null;
     
     return (
       <div className="rating-distribution">
-        {[5, 4, 3, 2, 1].map(star => {
-          const count = starCounts[star] || 0;
+        {[5, 4, 3, 2, 1].map(stars => {
+          const count = ratingStats[stars] || 0;
           const percentage = totalRatings > 0 ? (count / totalRatings) * 100 : 0;
           
           return (
-            <div key={star} className="rating-bar">
-              <div className="rating-label">
-                <span>{star}</span>
-                <FontAwesomeIcon icon={solidStar} className="star active" />
-              </div>
+            <div key={stars} className="rating-bar">
+              <span className="rating-star-count">{stars}</span>
+              <FontAwesomeIcon icon={solidStar} className="star-icon" />
               <div className="rating-bar-container">
                 <div 
                   className="rating-bar-fill" 
                   style={{ width: `${percentage}%` }}
                 ></div>
               </div>
-              <div className="rating-count">
-                <span>{count}</span>
-              </div>
+              <span className="rating-count-number">{count}</span>
             </div>
           );
         })}
@@ -115,134 +98,95 @@ const ProductRatingcontainer = ({ productId }) => {
     );
   };
 
-  // Hiển thị danh sách đánh giá
-  const renderReviews = () => {
-    if (reviews.length === 0) {
-      return <p className="no-reviews">Chưa có đánh giá nào cho sản phẩm này</p>;
-    }
-    
-    return (
-      <div className="review-list">
-        {reviews.map(review => (
-          <div key={review._id} className="review-item">
-            <div className="review-header">
-              <div className="reviewer-info">
-                <span className="reviewer-name">{review.tenkhach}</span>
-                <div className="review-rating">
-                  {renderStars(review.rating)}
-                </div>
-              </div>
-              <div className="review-date">
-                {new Date(review.date).toLocaleDateString('vi-VN')}
-              </div>
-            </div>
-            
-            {(review.dungluong || review.mausac) && (
-              <div className="review-variant">
-                Phiên bản: {review.dungluong} {review.mausac ? `- ${review.mausac}` : ''}
-              </div>
-            )}
-            
-            {review.content && (
-              <div className="review-content">
-                {review.content}
-              </div>
-            )}
-            
-            {review.verified && (
-              <div className="verified-badge">
-                <FontAwesomeIcon icon={solidStar} className="verified-icon" />
-                Đã mua hàng
-              </div>
-            )}
-          </div>
-        ))}
-      </div>
-    );
-  };
-
-  // Hiển thị nút phân trang
-  const renderPagination = () => {
-    if (totalPages <= 1) return null;
-    
-    return (
-      <div className="pagination">
-        <button
-          onClick={() => handlePageChange(currentPage - 1)}
-          disabled={currentPage === 1}
-          className={currentPage === 1 ? 'disabled' : ''}
-        >
-          &laquo; Trước
-        </button>
-        
-        <div className="page-info">
-          Trang {currentPage} / {totalPages}
-        </div>
-        
-        <button
-          onClick={() => handlePageChange(currentPage + 1)}
-          disabled={currentPage === totalPages}
-          className={currentPage === totalPages ? 'disabled' : ''}
-        >
-          Sau &raquo;
-        </button>
-      </div>
-    );
-  };
-
   if (loading) {
     return (
-      <div className="product-rating-stats loading">
+      <div className="ratings-loading">
         <div className="loading-spinner"></div>
         <p>Đang tải đánh giá...</p>
       </div>
     );
   }
 
-  if (error) {
+  if (totalRatings === 0) {
     return (
-      <div className="product-rating-stats error">
-        <p className="error-message">{error}</p>
+      <div className="no-ratings">
+        <div className="no-ratings-icon">
+          <FontAwesomeIcon icon={regularStar} size="2x" />
+        </div>
+        <p>Chưa có đánh giá nào cho sản phẩm này</p>
+        <p className="no-ratings-sub">Hãy là người đầu tiên đánh giá sản phẩm</p>
       </div>
     );
   }
 
-  if (!ratingStats) {
-    return (
-      <div className="product-rating-stats empty">
-        <p>Không có thông tin đánh giá</p>
-      </div>
-    );
-  }
-
-  const { averageRating, totalRatings } = ratingStats;
+  // Show limited ratings or all based on state
+  const displayedRatings = showAllRatings ? ratings : ratings.slice(0, 3);
 
   return (
-    <div className="product-rating-stats">
-      <div className="rating-summary">
-        <div className="average-rating">
-          <div className="average-value">{averageRating}</div>
-          <div className="max-value">/ 5</div>
+    <div className="product-ratings-container">
+      <div className="ratings-summary">
+        <div className="rating-overview">
+          <div className="average-rating">
+            <div className="rating-value">{averageRating.toFixed(1)}</div>
+            <div className="rating-max">/ 5</div>
+          </div>
+          <div className="rating-stars-display">
+            {renderStars(Math.round(averageRating))}
+          </div>
+          <div className="total-ratings">
+            ({totalRatings} đánh giá)
+          </div>
         </div>
         
-        <div className="rating-stars-large">
-          {renderStars(Math.round(averageRating))}
-        </div>
-        
-        <div className="rating-total">
-          {totalRatings} đánh giá
-        </div>
+        {renderRatingDistribution()}
       </div>
       
-      {renderRatingDistribution()}
+      <h3 className="ratings-list-title">Đánh giá từ khách hàng</h3>
       
-      <h3 className="reviews-title">Đánh giá từ khách hàng</h3>
+      <div className="product-ratings-list">
+        {displayedRatings.map((rating, index) => (
+          <div key={index} className="rating-item">
+            <div className="rating-header">
+              <div className="rating-user-info">
+                <span className="rating-avatar">
+                  {rating.tenkhach.charAt(0).toUpperCase()}
+                </span>
+                <span className="rating-user">{rating.tenkhach}</span>
+              </div>
+              <span className="rating-date">{moment(rating.date).format('DD/MM/YYYY')}</span>
+            </div>
+            <div className="rating-stars-display">
+              {renderStars(rating.rating)}
+            </div>
+            {(rating.dungluong || rating.mausac) && (
+              <div className="product-variant">
+                <span className="variant-label">Phiên bản:</span> 
+                {rating.dungluong}{rating.mausac ? ` - ${rating.mausac}` : ''}
+              </div>
+            )}
+            {rating.content && (
+              <div className="rating-comment">{rating.content}</div>
+            )}
+            {rating.verified && (
+              <div className="verified-purchase">
+                <FontAwesomeIcon icon={faCheckCircle} />
+                <span>Đã mua hàng</span>
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
       
-      {renderReviews()}
-      
-      {renderPagination()}
+      {ratings.length > 3 && (
+        <button 
+          className="show-more-ratings" 
+          onClick={() => setShowAllRatings(!showAllRatings)}
+        >
+          {showAllRatings ? 'Thu gọn' : `Xem thêm ${ratings.length - 3} đánh giá`}
+        </button>
+      )}
     </div>
   );
 };
 
-export default ProductRatingcontainer;
+export default ProductRatingsContainer;
