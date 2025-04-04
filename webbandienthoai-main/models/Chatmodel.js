@@ -138,8 +138,8 @@ const chatTrainingSchema = new Schema({
   // Câu hỏi
   question: {
     type: String,
-    required: true,
-    text: true // Đánh index text để tìm kiếm
+    required: true
+    // Đã loại bỏ text: true từ đây để tránh xung đột với index tổng hợp
   },
   
   // Câu trả lời
@@ -199,7 +199,7 @@ const chatTrainingSchema = new Schema({
   }
 });
 
-// Tạo text index cho tìm kiếm nhanh
+// Tạo text index cho tìm kiếm nhanh - chỉ định nghĩa một lần
 chatTrainingSchema.index({ question: 'text', keywords: 'text' });
 
 // Plugin tự động tăng updatedAt khi cập nhật

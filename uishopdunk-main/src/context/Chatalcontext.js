@@ -129,7 +129,7 @@ export const ChatAIProvider = ({ children }) => {
     }
   }, [messages]);
 
-  // Check for logged-in user
+  // Check for logged-in user or use guest name
   useEffect(() => {
     const username = getUser();
     if (username) {
@@ -139,6 +139,11 @@ export const ChatAIProvider = ({ children }) => {
       const guestName = localStorage.getItem('chat_guest_name');
       if (guestName) {
         setUserName(guestName);
+      } else {
+        // Generate a random guest name if none exists
+        const randomName = `Guest_${Math.floor(Math.random() * 10000)}`;
+        setUserName(randomName);
+        localStorage.setItem('chat_guest_name', randomName);
       }
     }
   }, [getUser]);
@@ -155,9 +160,8 @@ export const ChatAIProvider = ({ children }) => {
     if (!socket || !isConnected) return;
     
     const userData = {
-      token: localStorage.getItem('token'),
       guestName: userName,
-      guestPhone: getUserPhone()
+      guestPhone: getUserPhone() || null
     };
     
     console.log('Initializing chat with data:', userData);
@@ -174,6 +178,14 @@ export const ChatAIProvider = ({ children }) => {
   };
 
   const setGuestName = (name) => {
+    if (!name || name.trim() === '') {
+      toast.error('Tên khách không được để trống', {
+        position: 'top-right',
+        autoClose: 3000
+      });
+      return;
+    }
+    
     setUserName(name);
     localStorage.setItem('chat_guest_name', name);
     
@@ -186,17 +198,9 @@ export const ChatAIProvider = ({ children }) => {
   const sendMessage = async (text) => {
     if (!text.trim()) return;
     
-    // Get user identifier - either username or guest name
-    const sender = getUser() || userName;
+    // Ensure we have a name to use
+    const sender = userName || `Guest_${Math.floor(Math.random() * 10000)}`;
     
-    if (!sender) {
-      toast.error('Vui lòng nhập tên trước khi gửi tin nhắn', {
-        position: 'top-right',
-        autoClose: 3000
-      });
-      return;
-    }
-
     // Add user message to chat
     const userMessage = {
       text: text,
@@ -208,7 +212,7 @@ export const ChatAIProvider = ({ children }) => {
     setIsLoading(true);
 
     try {
-      // Kiểm tra phiên chat đã được khởi tạo chưa
+      // Initialize chat session if needed
       if (!sessionId && socket && isConnected) {
         initializeChat();
         // Give some time for the session to initialize
@@ -223,17 +227,15 @@ export const ChatAIProvider = ({ children }) => {
         });
       } else {
         // Fallback to REST API if socket is not available
-        const userId = localStorage.getItem('userId');
         const phone = getUserPhone();
         
         const response = await axios.post(`${apiBaseUrl}/api/chat`, {
           message: text,
           sessionId,
-          userId: getUser() ? userId : null,
-          guestInfo: !getUser() ? { 
-            name: userName, 
+          guestInfo: { 
+            name: sender, 
             phone: phone || null
-          } : null
+          }
         }, {
           headers: {
             'x-api-key': CHAT_API_KEY
@@ -241,7 +243,7 @@ export const ChatAIProvider = ({ children }) => {
         });
         
         if (response.data.success) {
-          // Lưu sessionId nếu chưa có
+          // Save sessionId if we don't have one
           if (!sessionId && response.data.sessionId) {
             setSessionId(response.data.sessionId);
           }
@@ -308,6 +310,7 @@ export const ChatAIProvider = ({ children }) => {
     }
     
     setSessionId(null);
+    setMessages([]);
   };
 
   const loadChatHistory = () => {

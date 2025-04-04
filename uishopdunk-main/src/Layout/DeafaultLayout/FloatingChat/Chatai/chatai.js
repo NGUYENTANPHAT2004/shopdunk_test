@@ -192,8 +192,8 @@ const ChatAI = () => {
                           {/* Hiển thị nguồn nếu là tin nhắn AI */}
                           {msg.sender === 'ai' && msg.source && (
                             <div className="message-source">
-                              {msg.source === 'training' && 'từ dữ liệu cửa hàng'}
-                              {msg.source === 'deepseek' && 'từ DeepSeek AI'}
+                              {msg.source === 'training' && 'cửa hàng'}
+                              {msg.source === 'deepseek' && 'DeepSeek AI'}
                               {msg.source === 'claude' && 'từ Claude AI'}
                               {msg.source === 'fallback' && 'từ BeeShop'}
                             </div>
