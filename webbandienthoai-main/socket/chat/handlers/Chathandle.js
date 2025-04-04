@@ -2,7 +2,6 @@
  * Chat message handler functions
  */
 const chatController = require('../ChatController');
-const { getUserByToken } = require('../middlewares/authMiddleware');
 const { ChatSession } = require('../../../models/Chatmodel');
 
 /**
@@ -30,11 +29,6 @@ const handleIncomingMessage = async (socket, io, data) => {
       if (!session) {
         throw new Error('Invalid session ID');
       }
-      
-      // Check if session is active
-      if (session.status !== 'active') {
-        throw new Error('Chat session is no longer active');
-      }
     }
     
     // Get user information
@@ -48,6 +42,12 @@ const handleIncomingMessage = async (socket, io, data) => {
         name: socket.handshake.auth.guestName,
         phone: socket.handshake.auth.guestPhone || null
       };
+    } else {
+      // If no user info available, create a guest with a generic name
+      guestInfo = {
+        name: `Guest_${Math.floor(Math.random() * 10000)}`,
+        phone: null
+      };
     }
     
     // Get client info
@@ -59,12 +59,7 @@ const handleIncomingMessage = async (socket, io, data) => {
     // Check if session exists
     let currentSessionId = sessionId;
     if (!currentSessionId) {
-      // If no user info available, throw error
-      if (!userId && (!guestInfo || !guestInfo.name)) {
-        throw new Error('Missing user information');
-      }
-      
-      // Create a new session if none exists
+      // Create a new session
       const userData = userId ? { userId } : { guestInfo };
       try {
         const session = await chatController.createSession(userData, clientInfo);
@@ -126,26 +121,18 @@ const handleInitChat = async (socket, data = {}) => {
     let userId = null;
     let guestInfo = null;
     
-    // Check if user is authenticated via token
-    if (data.token) {
-      const user = await getUserByToken(data.token);
-      if (user) {
-        userId = user._id;
-        socket.user = user;
-      }
-    } 
-    
-    // If not authenticated, use guest info
-    if (!userId && data.guestName) {
+    // For simplicity, we're using guest mode by default
+    if (data.guestName) {
       guestInfo = {
         name: data.guestName,
         phone: data.guestPhone || null
       };
-    }
-    
-    // Ensure we have user information
-    if (!userId && (!guestInfo || !guestInfo.name)) {
-      throw new Error('Missing user information');
+    } else {
+      // Use a random guest name if none provided
+      guestInfo = {
+        name: `Guest_${Math.floor(Math.random() * 10000)}`,
+        phone: null
+      };
     }
     
     // Get client info

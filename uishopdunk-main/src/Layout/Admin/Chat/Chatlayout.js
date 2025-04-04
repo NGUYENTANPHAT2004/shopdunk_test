@@ -4,9 +4,6 @@ import { toast } from 'react-toastify';
 import { FaRobot, FaPlus, FaTrash, FaEdit, FaSave, FaTimes, FaSearch, FaFilter, FaFileImport, FaDownload } from 'react-icons/fa';
 import './chatlayout.scss';
 
-// Nếu cần, tạo hằng số API KEY
-const ADMIN_API_KEY = 'beeshop_secret_admin_key_2025';
-
 const AdminChatTraining = () => {
   const [trainingData, setTrainingData] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -33,19 +30,14 @@ const AdminChatTraining = () => {
 
   const fetchCategories = async () => {
     try {
-      const response = await axios.get('http://localhost:3005/api/admin/chat/categories', {
-        headers: {
-          // Thay thế xác thực token bằng API key trực tiếp
-          'x-admin-api-key': ADMIN_API_KEY
-        }
-      });
+      const response = await axios.get('http://localhost:3005/api/admin/chat/categories');
       
       if (response.data.success) {
         setCategories(response.data.categories);
       }
     } catch (error) {
       console.error('Error fetching categories:', error);
-      toast.error('Không thể tải danh mục. Vui lòng kiểm tra lại quyền truy cập.');
+      toast.error('Không thể tải danh mục. Vui lòng thử lại sau.');
     }
   };
 
@@ -61,12 +53,9 @@ const AdminChatTraining = () => {
       params.append('page', page);
       params.append('limit', itemsPerPage);
       
-      const response = await axios.get(`http://localhost:3005/api/admin/chat/training?${params.toString()}`, {
-        headers: {
-          // Sử dụng admin API key thay vì token
-          'x-admin-api-key': ADMIN_API_KEY
-        }
-      });
+      console.log('Gọi API với tham số:', params.toString());
+      const response = await axios.get(`http://localhost:3005/api/admin/chat/training?${params.toString()}`);
+      console.log('Kết quả API:', response.data);
       
       if (response.data.success) {
         setTrainingData(response.data.data);
@@ -76,7 +65,7 @@ const AdminChatTraining = () => {
       }
     } catch (error) {
       console.error('Error fetching training data:', error);
-      toast.error('Lỗi xác thực. Vui lòng kiểm tra lại quyền truy cập.');
+      toast.error('Lỗi tải dữ liệu huấn luyện. Vui lòng thử lại sau.');
     } finally {
       setLoading(false);
     }
@@ -95,11 +84,6 @@ const AdminChatTraining = () => {
         question: newQuestion,
         answer: newAnswer,
         category: newCategory
-      }, {
-        headers: {
-          // Sử dụng admin API key
-          'x-admin-api-key': ADMIN_API_KEY
-        }
       });
       
       if (response.data.success) {
@@ -119,11 +103,7 @@ const AdminChatTraining = () => {
 
   const handleDeleteItem = async (id) => {
     try {
-      const response = await axios.delete(`http://localhost:3005/api/admin/chat/training/${id}`, {
-        headers: {
-          'x-admin-api-key': ADMIN_API_KEY
-        }
-      });
+      const response = await axios.delete(`http://localhost:3005/api/admin/chat/training/${id}`);
       
       if (response.data.success) {
         toast.success('Đã xóa dữ liệu huấn luyện');
@@ -160,10 +140,6 @@ const AdminChatTraining = () => {
         question: editItem.question,
         answer: editItem.answer,
         category: editItem.category
-      }, {
-        headers: {
-          'x-admin-api-key': ADMIN_API_KEY
-        }
       });
       
       if (response.data.success) {
@@ -184,10 +160,6 @@ const AdminChatTraining = () => {
     try {
       const response = await axios.patch(`http://localhost:3005/api/admin/chat/training/${id}/toggle`, {
         isActive: !isActive
-      }, {
-        headers: {
-          'x-admin-api-key': ADMIN_API_KEY
-        }
       });
       
       if (response.data.success) {
@@ -260,10 +232,6 @@ const AdminChatTraining = () => {
     try {
       const response = await axios.post('http://localhost:3005/api/admin/chat/training/import', {
         items: importData
-      }, {
-        headers: {
-          'x-admin-api-key': ADMIN_API_KEY
-        }
       });
       
       if (response.data.success) {

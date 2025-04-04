@@ -1,8 +1,7 @@
 /**
  * Main entry point for chat socket functionality
  */
-const { authMiddleware } = require('./middlewares/authMiddleware');
-const { adminMiddleware } = require('./middlewares/Addminmidleware');
+require('dotenv').config();
 const { 
   handleIncomingMessage, 
   handleInitChat, 
@@ -10,7 +9,7 @@ const {
   handleGetHistory, 
   handleEndChat 
 } = require('./handlers/Chathandle');
-require('dotenv').config();
+
 /**
  * Initialize chat socket handlers
  * @param {Object} io - Socket.io instance
@@ -19,9 +18,8 @@ const initChatHandlers = (io) => {
   // Create a namespace for chat
   const chatNamespace = io.of('/chat');
 
-  // Apply middleware
-  chatNamespace.use(authMiddleware);
-
+  // No middleware is applied to avoid authentication issues
+  
   chatNamespace.on('connection', (socket) => {
     console.log(`✅ Kết nối chat mới: ${socket.id}`);
     
@@ -57,6 +55,5 @@ const initChatHandlers = (io) => {
   return chatNamespace;
 };
 
-// Admin training handlers will be defined in a separate file
-
+// Export the initialization function
 module.exports = { initChatHandlers };

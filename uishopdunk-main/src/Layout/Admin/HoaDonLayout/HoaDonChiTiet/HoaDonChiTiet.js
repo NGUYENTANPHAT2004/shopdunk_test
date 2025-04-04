@@ -62,6 +62,10 @@ function HoaDonChiTiet ({ isOpen, onClose, idhoadon }) {
               <h3>Thông tin người nhận</h3>
               <div className="info-item">
                 <span>Họ tên:</span>
+                <span>{hoadon.name}</span>
+              </div>
+              <div className="info-item">
+                <span>người nhận:</span>
                 <span>{hoadon.nguoinhan}</span>
               </div>
               <div className="info-item">
