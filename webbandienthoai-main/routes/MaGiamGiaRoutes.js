@@ -187,6 +187,36 @@ router.post('/validatevoucher', async (req, res) => {
       })
     }
     
+    // Kiểm tra xem đây có phải là mã giảm giá từ chương trình điểm thưởng hay không
+    let isPointsVoucher = false;
+    try {
+      const { RedemptionHistory } = require('../models/RedemptionHistoryModel');
+      const redemptionRecord = await RedemptionHistory.findOne({
+        voucherCode: magiamgia,
+        phone: phone,
+        status: 'active'
+      });
+      
+      if (redemptionRecord) {
+        isPointsVoucher = true;
+        
+        // Kiểm tra xem mã đã hết hạn chưa
+        if (redemptionRecord.expiryDate < new Date()) {
+          // Cập nhật trạng thái thành "hết hạn"
+          redemptionRecord.status = 'expired';
+          await redemptionRecord.save();
+          
+          return res.json({
+            valid: false,
+            message: 'Mã giảm giá đã hết hạn'
+          });
+        }
+      }
+    } catch (err) {
+      console.error('Lỗi khi kiểm tra mã giảm giá từ điểm thưởng:', err);
+      // Tiếp tục xử lý bình thường
+    }
+    
     const voucher = await MaGiamGia.magiamgia.findOne({ magiamgia })
     
     if (!voucher) {
@@ -268,6 +298,30 @@ router.post('/validatevoucher', async (req, res) => {
     
     // Voucher is valid
     const discountAmount = (orderTotal * voucher.sophantram / 100).toFixed(0)
+    
+    // Nếu là voucher từ điểm thưởng, cập nhật trạng thái
+    if (isPointsVoucher) {
+      try {
+        const { RedemptionHistory } = require('../models/RedemptionHistoryModel');
+        const redemptionRecord = await RedemptionHistory.findOne({
+          voucherCode: magiamgia,
+          phone: phone,
+          status: 'active'
+        });
+        
+        if (redemptionRecord) {
+          // Chỉ đánh dấu là sử dụng khi thực sự áp dụng
+          // Thực tế nên cập nhật khi đơn hàng hoàn tất thanh toán
+          redemptionRecord.status = 'used';
+          redemptionRecord.usedDate = new Date();
+          await redemptionRecord.save();
+        }
+      } catch (error) {
+        console.error('Lỗi khi cập nhật trạng thái voucher điểm thưởng:', error);
+        // Không ảnh hưởng đến việc áp dụng mã
+      }
+    }
+    
     return res.json({ 
       valid: true, 
       message: 'Mã giảm giá hợp lệ', 

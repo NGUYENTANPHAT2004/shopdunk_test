@@ -29,7 +29,7 @@ const OrderSuccessRate = ({ data = {} }) => {
     rate: value.rate || 0,
     amount: value.amount || 0
   }));
-
+  
   const dailyData = dailyStats.map(day => ({
     date: day._id,
     totalOrders: day.totalOrders || 0,
@@ -38,6 +38,51 @@ const OrderSuccessRate = ({ data = {} }) => {
       ? (day.statusBreakdown.find(s => s.status === 'Đã thanh toán').count / day.totalOrders * 100)
       : 0
   }));
+  
+  // Điều chỉnh vị trí của label
+  const renderCustomizedLabel = ({ cx, cy, midAngle, innerRadius, outerRadius, percent, name }) => {
+    const RADIAN = Math.PI / 180;
+    
+    // Điều chỉnh bán kính để đặt nhãn ở vị trí tốt hơn
+    const radius = outerRadius * 1.3; // Đặt ra xa hơn một chút
+    
+    // Tính toán tọa độ dựa trên góc
+    const x = cx + radius * Math.cos(-midAngle * RADIAN);
+    const y = cy + radius * Math.sin(-midAngle * RADIAN);
+    
+    // Điều chỉnh canh lề văn bản dựa trên vị trí
+    const textAnchor = x > cx ? 'start' : 'end';
+    
+    // Tính toán điểm bắt đầu và kết thúc cho đường nối
+    const innerX = cx + (outerRadius * 0.95) * Math.cos(-midAngle * RADIAN);
+    const innerY = cy + (outerRadius * 0.95) * Math.sin(-midAngle * RADIAN);
+    
+    // Cải thiện kích thước font và khoảng cách
+    return (
+      <g>
+        {/* Đường nối từ biểu đồ đến nhãn */}
+        <path 
+          d={`M ${innerX},${innerY} L ${x},${y}`} 
+          stroke="#666" 
+          fill="none"
+          strokeWidth={1}
+        />
+        
+        {/* Text hiển thị phần trăm rõ ràng */}
+        <text
+          x={x}
+          y={y}
+          textAnchor={textAnchor}
+          fill="#333"
+          fontSize="12"
+          fontWeight="bold"
+          dominantBaseline="central"
+        >
+          {`${name}: ${(percent * 100).toFixed(0)}%`}
+        </text>
+      </g>
+    );
+  };
 
   return (
     <div className='doanhthu-chart-wrapper'>
@@ -64,7 +109,7 @@ const OrderSuccessRate = ({ data = {} }) => {
         <div style={{ width: '48%', height: '300px' }}>
           <h4 style={{ textAlign: 'center' }}>Phân bố trạng thái đơn hàng</h4>
           <ResponsiveContainer width="100%" height="100%">
-            <PieChart>
+            <PieChart margin={{ top: 20, right: 60, bottom: 20, left: 60 }}>
               <Pie
                 data={pieData}
                 dataKey="value"
@@ -73,7 +118,8 @@ const OrderSuccessRate = ({ data = {} }) => {
                 cy="50%"
                 outerRadius={80}
                 fill="#8884d8"
-                label={({name, rate}) => `${name}: ${rate}%`}
+                label={renderCustomizedLabel}
+                labelLine={false}
               >
                 {pieData.map((entry, index) => (
                   <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
@@ -83,7 +129,7 @@ const OrderSuccessRate = ({ data = {} }) => {
                 const item = pieData.find(d => d.name === name);
                 return [`${value} đơn (${item.rate}%)`, name];
               }} />
-              <Legend />
+              {/* Không cần Legend nếu nhãn đã hiển thị trên biểu đồ */}
             </PieChart>
           </ResponsiveContainer>
         </div>
@@ -135,4 +181,4 @@ const OrderSuccessRate = ({ data = {} }) => {
   );
 };
 
-export default OrderSuccessRate; 
+export default OrderSuccessRate;

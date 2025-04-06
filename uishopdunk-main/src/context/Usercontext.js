@@ -8,7 +8,7 @@ const UserContext = createContext(null);
 export const UserContextProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [welcomeVoucher, setWelcomeVoucher] = useState(null);
-
+  const [userPoints, setUserPoints] = useState(null);
   // Load user from localStorage on initial render
   useEffect(() => {
     const storedUser = localStorage.getItem("user");
@@ -32,7 +32,79 @@ export const UserContextProvider = ({ children }) => {
       }
     }
   }, []);
-
+  const loadUserPoints = async (userData) => {
+    try {
+      if (!userData) return;
+      
+      // Xác định thông tin người dùng
+      const userPhone = userData?.phone || userData?.user?.phone;
+      const userEmail = userData?.email || userData?.user?.email;
+      let userId = null;
+      
+      if (userData?._id) userId = userData._id;
+      else if (userData?.user?._id) userId = userData.user._id;
+      
+      // Không có thông tin nào để tìm kiếm
+      if (!userPhone && !userEmail && !userId) return;
+      
+      // Ưu tiên tìm theo phone
+      if (userPhone) {
+        const response = await axios.get(`http://localhost:3005/loyalty/user-points/${userPhone}`);
+        if (response.data.success && response.data.hasPoints) {
+          setUserPoints(response.data.points);
+          return;
+        }
+      }
+      
+      // Thử tìm theo email
+      if (userEmail) {
+        const response = await axios.get(`http://localhost:3005/loyalty/user-points-by-email/${userEmail}`);
+        if (response.data.success && response.data.hasPoints) {
+          setUserPoints(response.data.points);
+          return;
+        }
+      }
+      
+      // Mặc định không có điểm
+      setUserPoints({
+        totalPoints: 0,
+        availablePoints: 0,
+        tier: 'standard',
+        yearToDatePoints: 0
+      });
+      
+    } catch (error) {
+      console.error('Error loading user points:', error);
+      setUserPoints(null);
+    }
+  };
+  
+  // Cập nhật useEffect để load điểm
+  useEffect(() => {
+    const storedUser = localStorage.getItem("user");
+    if (storedUser) {
+      try {
+        const userData = JSON.parse(storedUser);
+        setUser(userData);
+        loadUserPoints(userData);
+      } catch (error) {
+        console.error("Error parsing stored user data:", error);
+        localStorage.removeItem("user");
+      }
+    }
+    
+    // Check for stored welcome voucher
+    const storedVoucher = localStorage.getItem("welcomeVoucher");
+    if (storedVoucher) {
+      try {
+        setWelcomeVoucher(JSON.parse(storedVoucher));
+      } catch (error) {
+        console.error("Error parsing welcome voucher:", error);
+        localStorage.removeItem("welcomeVoucher");
+      }
+    }
+  }, []);
+  
   const login = async (loginData) => {
     try {
       const { data: responseData } = await axios.post('http://localhost:3005/login_auth', loginData);
@@ -58,7 +130,7 @@ export const UserContextProvider = ({ children }) => {
       // Store user data in localStorage and state
       localStorage.setItem("user", JSON.stringify(userWithPhone));
       setUser(userWithPhone);
-  
+      loadUserPoints(userWithPhone);
       // Redirect after a delay
       setTimeout(() => {
         window.location.href = "/";
@@ -202,7 +274,17 @@ export const UserContextProvider = ({ children }) => {
       });
     }
   };
-
+  const refreshPoints = async () => {
+    const userData = user || JSON.parse(localStorage.getItem("user") || "null");
+    if (userData) {
+      await loadUserPoints(userData);
+    }
+  };
+  
+  // Thêm getUserPoints vào context
+  const getUserPoints = () => {
+    return userPoints;
+  };
   const loginWithSocial = async (provider, token, phone) => {
     try {
       // Add phone parameter for social login
@@ -242,9 +324,12 @@ export const UserContextProvider = ({ children }) => {
       register, 
       getUser, 
       getUserPhone,
+      getUserPoints,
+      refreshPoints,
       logout, 
       loginWithSocial, 
-      user, 
+      user,
+      userPoints,
       welcomeVoucher,
       dismissWelcomeVoucher
     }}>

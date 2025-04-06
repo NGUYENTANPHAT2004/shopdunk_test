@@ -145,8 +145,8 @@ const getAllTraining = async (filters = {}) => {
       .sort(sort)
       .skip(skip)
       .limit(limit)
-      .populate('createdBy', 'username')
-      .populate('updatedBy', 'username')
+      .populate('createdBy', null, 'User') // Chỉ định model name là 'User'
+      .populate('updatedBy', null, 'User')
       .lean();
     
     console.log(`Đã tìm thấy ${data.length}/${count} bản ghi`);

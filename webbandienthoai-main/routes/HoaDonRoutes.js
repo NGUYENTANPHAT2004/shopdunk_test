@@ -401,13 +401,21 @@ router.post('/create_payment_url', async (req, res) => {
 
   for (const sanpham of sanphams) {
     const { idsp, soluong, dungluong, idmausac, price, mausac } = sanpham
+    const productDetails = await SanPham.ChitietSp.findById(idsp);
+    const dungluongDetails = await DungLuong.dungluong.findById(dungluong);
     hoadon.sanpham.push({
       idsp,
       soluong,
       price,
       dungluong,
       idmausac, // Make sure to store idmausac
-      mausac
+      mausac,
+      productSnapshot: {
+        name: productDetails ? productDetails.name : "Sản phẩm không xác định",
+        image: productDetails ? productDetails.image : "",
+        dungluongName: dungluongDetails ? dungluongDetails.name : "",
+        mausacName: mausac || ""
+      }
     })
     tongtien += price * soluong
   }
@@ -531,6 +539,69 @@ router.get('/vnpay_return', async (req, res) => {
       
       await hoadon.save();
       
+      // Tích điểm thưởng cho đơn hàng thành công
+      try {
+        const orderTotal = hoadon.tongtien;
+        const userId = hoadon.userId;
+        const phone = hoadon.phone;
+        let userEmail = null;
+        
+        // Cố gắng lấy email từ thông tin người dùng nếu có userId
+        if (userId) {
+          try {
+            const userInfo = await User.User.findById(userId);
+            if (userInfo && userInfo.email) {
+              userEmail = userInfo.email;
+            }
+          } catch (userError) {
+            console.error('Error fetching user email:', userError);
+            // Tiếp tục mà không cần email
+          }
+        }
+        
+        // Đảm bảo có ít nhất một trong các thông tin định danh
+        if (phone || userId || userEmail) {
+          // Sử dụng axios để gọi API tích điểm
+          const axios = require('axios');
+          
+          // Gọi API tích điểm với tất cả thông tin có sẵn
+          const pointsResponse = await axios.post('http://localhost:3005/loyalty/award-points', {
+            userId: userId,
+            phone: phone,
+            email: userEmail,
+            orderId: hoadon._id.toString(),
+            orderAmount: orderTotal,
+            orderDate: hoadon.ngaymua
+          });
+          
+          if (pointsResponse.data.success) {
+            console.log(`Đã tích ${pointsResponse.data.pointsEarned} điểm thưởng cho đơn hàng ${hoadon._id}`);
+            
+            // Thông báo qua socket cho người dùng về điểm thưởng nếu có socket.io
+            if (typeof io !== 'undefined' && userId) {
+              io.to(userId).emit('pointsEarned', {
+                phone: phone,
+                pointsEarned: pointsResponse.data.pointsEarned,
+                newPointsTotal: pointsResponse.data.newPointsTotal,
+                tier: pointsResponse.data.tier
+              });
+              
+              // Kiểm tra nếu người dùng vừa lên hạng
+              if (pointsResponse.data.previousTier && pointsResponse.data.previousTier !== pointsResponse.data.tier) {
+                io.to(userId).emit('tierUpgrade', {
+                  phone: phone,
+                  newTier: pointsResponse.data.tier,
+                  previousTier: pointsResponse.data.previousTier
+                });
+              }
+            }
+          }
+        }
+      } catch (pointsError) {
+        console.error('Lỗi khi tích điểm thưởng:', pointsError);
+        // Tiếp tục xử lý - không fail đơn hàng chỉ vì lỗi tích điểm
+      }
+      
       // Check for first-time purchase or every third purchase
       try {
         const userPhone = hoadon.phone;
@@ -558,36 +629,7 @@ router.get('/vnpay_return', async (req, res) => {
       hoadon.thanhtoan = false;
       hoadon.trangthai = 'Thanh toán thất bại';
       await hoadon.save();
-      try {
-        const orderTotal = hoadon.tongtien;
-        const userId = hoadon.userId;
-        const phone = hoadon.phone;
-        
-        // Đảm bảo có số điện thoại
-        if (phone) {
-          // Có thể sử dụng axios hoặc node-fetch để gọi API tích điểm
-          const axios = require('axios');
-          
-          // Gọi API tích điểm
-          const pointsResponse = await axios.post('http://localhost:3005/loyalty/award-points', {
-            userId: userId,
-            phone: phone,
-            orderId: hoadon._id.toString(),
-            orderAmount: orderTotal,
-            orderDate: hoadon.ngaymua
-          });
-          
-          if (pointsResponse.data.success) {
-            console.log(`Đã tích ${pointsResponse.data.pointsEarned} điểm thưởng cho đơn hàng ${hoadon._id}`);
-            
-            // Tùy chọn: Thông báo cho người dùng về điểm thưởng đã nhận
-            // VD: io.to(userId).emit('pointsEarned', pointsResponse.data);
-          }
-        }
-      } catch (pointsError) {
-        console.error('Lỗi khi tích điểm thưởng:', pointsError);
-        // Tiếp tục xử lý - không fail đơn hàng chỉ vì lỗi tích điểm
-      }
+      
       console.log(`Payment failed for order ${orderId}, inventory restored`);
       return res.redirect('https://localhost:3000/thanhcong');
     }
@@ -692,29 +734,47 @@ router.post('/settrangthai/:idhoadon', async (req, res) => {
 
 router.get('/getchitiethd/:idhoadon', async (req, res) => {
   try {
-    const idhoadon = req.params.idhoadon
+    const idhoadon = req.params.idhoadon;
 
-    const hoadon = await HoaDon.hoadon.findOne({ _id: idhoadon, isDeleted: { $ne: true } })
+    const hoadon = await HoaDon.hoadon.findOne({ _id: idhoadon, isDeleted: { $ne: true } });
     if (!hoadon) {
-      return res.status(404).json({ message: 'Không tìm thấy hóa đơn' })
+      return res.status(404).json({ message: 'Không tìm thấy hóa đơn' });
     }
     
+    // Use product snapshots if available, otherwise fall back to database lookup
     const hoadonsanpham = await Promise.all(
       hoadon.sanpham.map(async sanpham => {
-        const sanpham1 = await SanPham.ChitietSp.findById(sanpham.idsp)
-        const dungluong = await DungLuong.dungluong.findById(sanpham.dungluong)
-        return {
-          idsp: sanpham.idsp, // Add this line to include the product ID
-          namesanpham: sanpham1 ? sanpham1.name : 'Unknown Product',
-          dungluong: dungluong ? dungluong.name : 'Unknown Size',
-          mausac: sanpham.mausac,
-          soluong: sanpham.soluong,
-          price: sanpham.price
+        // If we have a product snapshot, use it
+        if (sanpham.productSnapshot && sanpham.productSnapshot.name) {
+          return {
+            idsp: sanpham.idsp,
+            namesanpham: sanpham.productSnapshot.name,
+            dungluong: sanpham.productSnapshot.dungluongName || 'Unknown Size',
+            mausac: sanpham.productSnapshot.mausacName || sanpham.mausac,
+            soluong: sanpham.soluong,
+            price: sanpham.price,
+            image: sanpham.productSnapshot.image
+          };
+        } 
+        // Otherwise, fall back to database lookup (for backward compatibility)
+        else {
+          const sanpham1 = await SanPham.ChitietSp.findById(sanpham.idsp);
+          const dungluong = await DungLuong.dungluong.findById(sanpham.dungluong);
+          return {
+            idsp: sanpham.idsp,
+            namesanpham: sanpham1 ? sanpham1.name : 'Unknown Product',
+            dungluong: dungluong ? dungluong.name : 'Unknown Size',
+            mausac: sanpham.mausac,
+            soluong: sanpham.soluong,
+            price: sanpham.price,
+            image: sanpham1 ? sanpham1.image : null
+          };
         }
       })
-    )
+    );
+    
     const hoadonjson = {
-      _id: hoadon._id, // Make sure order ID is included
+      _id: hoadon._id,
       nguoinhan: hoadon.nguoinhan,
       name: hoadon.name,
       phone: hoadon.phone,
@@ -727,13 +787,14 @@ router.get('/getchitiethd/:idhoadon', async (req, res) => {
       trangthai: hoadon.trangthai,
       tongtien: hoadon.tongtien,
       hoadonsanpham: hoadonsanpham
-    }
-    res.json(hoadonjson)
+    };
+    
+    res.json(hoadonjson);
   } catch (error) {
-    console.error(error)
-    res.status(500).json({ message: 'Lỗi khi lấy thông tin hóa đơn' })
+    console.error(error);
+    res.status(500).json({ message: 'Lỗi khi lấy thông tin hóa đơn' });
   }
-})
+});
 
 router.get('/getdoanhthu', async (req, res) => {
   try {
@@ -1516,7 +1577,52 @@ router.post('/gethoadonuser', async (req, res) => {
       });
     }
 
-    res.json({ hoadons });
+    // Process orders to use product snapshots
+    const processedHoadons = await Promise.all(hoadons.map(async (hoadon) => {
+      // Include additional order detail fields as needed
+      const sanitizedHoadon = {
+        _id: hoadon._id,
+        name: hoadon.name,
+        phone: hoadon.phone,
+        nguoinhan: hoadon.nguoinhan,
+        ngaymua: moment(hoadon.ngaymua).format('DD/MM/YYYY'),
+        trangthai: hoadon.trangthai,
+        tongtien: hoadon.tongtien,
+        thanhtoan: hoadon.thanhtoan,
+        // Process sanpham array to use snapshots
+        sanpham: await Promise.all(hoadon.sanpham.map(async item => {
+          // If we have a product snapshot, use it
+          if (item.productSnapshot && item.productSnapshot.name) {
+            return {
+              idsp: item.idsp,
+              name: item.productSnapshot.name,
+              image: item.productSnapshot.image,
+              dungluong: item.productSnapshot.dungluongName,
+              mausac: item.productSnapshot.mausacName || item.mausac,
+              soluong: item.soluong,
+              price: item.price
+            };
+          } 
+          // Otherwise fall back to database lookup
+          else {
+            const sanpham1 = await SanPham.ChitietSp.findById(item.idsp);
+            const dungluong = await DungLuong.dungluong.findById(item.dungluong);
+            return {
+              idsp: item.idsp,
+              name: sanpham1 ? sanpham1.name : 'Sản phẩm không xác định',
+              image: sanpham1 ? sanpham1.image : null,
+              dungluong: dungluong ? dungluong.name : 'Unknown Size',
+              mausac: item.mausac,
+              soluong: item.soluong,
+              price: item.price
+            };
+          }
+        }))
+      };
+      return sanitizedHoadon;
+    }));
+
+    res.json({ hoadons: processedHoadons });
   } catch (error) {
     console.error('Lỗi khi lấy đơn hàng theo user:', error);
     res.status(500).json({ message: 'Lỗi server khi lấy hóa đơn người dùng' });

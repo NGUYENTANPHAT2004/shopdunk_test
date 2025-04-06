@@ -19,7 +19,7 @@ const AdminChatTraining = () => {
   const [sortOrder, setSortOrder] = useState('desc');
   const [page, setPage] = useState(1);
   const [totalItems, setTotalItems] = useState(0);
-  const [itemsPerPage, setItemsPerPage] = useState(10);
+  const [itemsPerPage, setItemsPerPage] = useState(5);
   const [importData, setImportData] = useState(null);
   const [importFile, setImportFile] = useState(null);
 

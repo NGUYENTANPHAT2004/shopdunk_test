@@ -90,7 +90,7 @@ const Navbar = () => {
         {/* Logo for desktop */}
         <div className="logo-container">
           <Link to="/">
-            <img src="/logo.png" alt="Logo" className="navbar-logo" />
+            <img src="/logo1.png" alt="Logo" className="navbar-logo" />
           </Link>
         </div>
         

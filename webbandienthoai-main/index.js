@@ -25,6 +25,7 @@ const adminnotifi = require('./socket/adminnotifi');
 const orderrating = require('./routes/OrderRatingRoutes');
 const chatroutes = require('./routes/ChatRoutes');
 const http = require("http");
+const loyaltyPointsRoutes = require('./routes/LoyaltyPointsRoutes');
 const { initSocket } = require('./config/socket');
 // Tác vụ định kỳ
 const chatAnalyticsService = require('./socket/chat/services/ChatAnalyticsService');
@@ -91,7 +92,7 @@ app.use('/', hoadonrouter);
 app.use('/', stockrouter);
 app.use('/', orderrating);
 app.use('/', chatroutes); // Router cho chat
-
+app.use('/', loyaltyPointsRoutes);
 // Cập nhật thống kê hàng ngày vào lúc 0:00
 const setupDailyAnalytics = () => {
   const now = new Date();

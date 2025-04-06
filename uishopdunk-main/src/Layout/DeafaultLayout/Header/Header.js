@@ -10,7 +10,7 @@ import { ToastContainer, toast } from 'react-toastify'
 import VoucherModal from '../../../components/VoucherModal/VoucherModal'
 import VoucherNotification from '../../../notifi/VoucherNotification'
 import WelcomeVoucher from '../../../notifi/WelcomeVoucher'
-
+import UserPointsInfo from '../../../components/UserPointsInfo/UserPointsInfo';
 const Header = () => {
   const [searchKeyword, setSearchKeyword] = useState('')
   const [itemCount, setItemCount] = useState(0)
@@ -238,7 +238,7 @@ const Header = () => {
             <FaSearch className='search-toggle-icon' />
           </button>
         </div>  
-
+        {userPhone && <UserPointsInfo phone={userPhone} />}
         <Link to="/cart" className='cart-container'>
           <FontAwesomeIcon icon={faBagShopping} className='cart-icon' />
           {itemCount > 0 && <span className='cart-badge'>{itemCount}</span>}

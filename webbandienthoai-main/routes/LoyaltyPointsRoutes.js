@@ -10,38 +10,49 @@ const moment = require('moment');
 // Middleware để kiểm tra user và tạo bản ghi điểm thưởng nếu cần
 const ensureUserPoints = async (req, res, next) => {
   try {
-    const { userId, phone } = req.body;
+    const { userId, phone, email } = req.body;
     
-    if (!userId && !phone) {
+    if (!userId && !phone && !email) {
       return res.status(400).json({ 
         success: false, 
-        message: 'UserId hoặc số điện thoại là bắt buộc' 
+        message: 'UserId, email hoặc số điện thoại là bắt buộc' 
       });
     }
     
     let query = {};
     if (userId) query.userId = userId;
-    else query.phone = phone;
+    else if (phone) query.phone = phone;
+    else if (email) query.email = email;
     
     let userPoints = await UserPoints.findOne(query);
     
     if (!userPoints) {
-      // Lấy thông tin người dùng nếu có userId nhưng không có phone
-      if (userId && !phone) {
-        const user = await User.User.findById(userId);
-        if (!user) {
-          return res.status(404).json({ 
-            success: false, 
-            message: 'Không tìm thấy người dùng' 
-          });
-        }
-        req.body.phone = user.phone;
+      // Lấy thông tin người dùng từ User model nếu có userId/email
+      let userData = null;
+      if (userId) {
+        userData = await User.User.findById(userId);
+      } else if (email) {
+        userData = await User.User.findOne({ email });
+      }
+      
+      // Áp dụng thông tin từ user data nếu có
+      const userPhone = phone || (userData ? userData.phone : null);
+      const userEmail = email || (userData ? userData.email : null);
+      const userUserId = userId || (userData ? userData._id : null);
+      
+      // Kiểm tra xem có đủ thông tin để tạo bản ghi không
+      if (!userPhone) {
+        return res.status(400).json({
+          success: false,
+          message: 'Không thể xác định số điện thoại người dùng'
+        });
       }
       
       // Tạo bản ghi điểm mới
       userPoints = new UserPoints({
-        userId,
-        phone: req.body.phone,
+        userId: userUserId,
+        phone: userPhone,
+        email: userEmail,
         totalPoints: 0,
         availablePoints: 0,
         tier: 'standard',
@@ -328,6 +339,165 @@ router.get('/loyalty/redemption-options', async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Lỗi khi lấy thông tin quà đổi điểm'
+    });
+  }
+});
+router.get('/loyalty/user-points-by-email/:email', async (req, res) => {
+  try {
+    const { email } = req.params;
+    
+    if (!email) {
+      return res.status(400).json({
+        success: false,
+        message: 'Email là bắt buộc'
+      });
+    }
+    
+    const userPoints = await UserPoints.findOne({ email });
+    
+    if (!userPoints) {
+      return res.status(200).json({
+        success: true,
+        hasPoints: false,
+        points: {
+          totalPoints: 0,
+          availablePoints: 0,
+          tier: 'standard',
+          yearToDatePoints: 0
+        }
+      });
+    }
+    
+    // Kiểm tra điểm sắp hết hạn trong 30 ngày tới
+    const now = new Date();
+    const thirtyDaysFromNow = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
+    
+    const soonExpiringPoints = userPoints.expiringPoints
+      .filter(entry => entry.expiryDate <= thirtyDaysFromNow && entry.expiryDate > now)
+      .reduce((total, entry) => total + entry.points, 0);
+    
+    res.json({
+      success: true,
+      hasPoints: true,
+      points: {
+        totalPoints: userPoints.totalPoints,
+        availablePoints: userPoints.availablePoints,
+        tier: userPoints.tier,
+        yearToDatePoints: userPoints.yearToDatePoints,
+        soonExpiringPoints,
+        nextTier: userPoints.tier !== 'platinum' ? getNextTier(userPoints.tier) : null,
+        pointsToNextTier: userPoints.tier !== 'platinum' ? getPointsToNextTier(userPoints.tier, userPoints.yearToDatePoints) : 0,
+        history: userPoints.pointsHistory.slice(0, 10) // Trả về 10 lịch sử gần đây nhất
+      }
+    });
+  } catch (error) {
+    console.error('Lỗi khi lấy điểm người dùng qua email:', error);
+    res.status(500).json({ 
+      success: false, 
+      message: 'Lỗi khi lấy thông tin điểm thưởng' 
+    });
+  }
+});
+router.post('/loyalty/combine-points', async (req, res) => {
+  try {
+    const { targetPhone, sourcePhone, sourceEmail, userId } = req.body;
+    
+    if (!targetPhone || (!sourcePhone && !sourceEmail && !userId)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Thiếu thông tin tài khoản nguồn hoặc đích'
+      });
+    }
+    
+    // Tìm tài khoản đích
+    const targetAccount = await UserPoints.findOne({ phone: targetPhone });
+    if (!targetAccount) {
+      return res.status(404).json({
+        success: false,
+        message: 'Không tìm thấy tài khoản đích'
+      });
+    }
+    
+    // Tìm tài khoản nguồn
+    let sourceQuery = {};
+    if (sourcePhone) sourceQuery.phone = sourcePhone;
+    else if (sourceEmail) sourceQuery.email = sourceEmail;
+    else if (userId) sourceQuery.userId = userId;
+    
+    const sourceAccount = await UserPoints.findOne(sourceQuery);
+    if (!sourceAccount) {
+      return res.status(404).json({
+        success: false,
+        message: 'Không tìm thấy tài khoản nguồn'
+      });
+    }
+    
+    // Đảm bảo hai tài khoản không trùng nhau
+    if (sourceAccount._id.toString() === targetAccount._id.toString()) {
+      return res.status(400).json({
+        success: false,
+        message: 'Không thể kết hợp điểm với cùng một tài khoản'
+      });
+    }
+    
+    // Chuyển điểm từ tài khoản nguồn sang tài khoản đích
+    const pointsToTransfer = sourceAccount.availablePoints;
+    
+    // Cập nhật điểm cho tài khoản đích
+    targetAccount.totalPoints += pointsToTransfer;
+    targetAccount.availablePoints += pointsToTransfer;
+    targetAccount.yearToDatePoints += pointsToTransfer;
+    
+    // Thêm vào lịch sử
+    targetAccount.pointsHistory.push({
+      amount: pointsToTransfer,
+      type: 'adjusted',
+      reason: `Kết hợp điểm từ tài khoản ${sourceAccount.phone || sourceAccount.email}`,
+      date: new Date()
+    });
+    
+    // Chuyển các điểm sắp hết hạn
+    sourceAccount.expiringPoints.forEach(entry => {
+      targetAccount.expiringPoints.push({
+        points: entry.points,
+        expiryDate: entry.expiryDate
+      });
+    });
+    
+    // Cập nhật cấp thành viên
+    targetAccount.tier = calculateUserTier(targetAccount.yearToDatePoints);
+    targetAccount.lastUpdated = new Date();
+    
+    // Xóa điểm trên tài khoản nguồn
+    sourceAccount.totalPoints = 0;
+    sourceAccount.availablePoints = 0;
+    sourceAccount.expiringPoints = [];
+    sourceAccount.pointsHistory.push({
+      amount: -pointsToTransfer,
+      type: 'adjusted',
+      reason: `Đã chuyển điểm đến tài khoản ${targetAccount.phone}`,
+      date: new Date()
+    });
+    sourceAccount.lastUpdated = new Date();
+    
+    // Lưu thay đổi
+    await Promise.all([targetAccount.save(), sourceAccount.save()]);
+    
+    res.json({
+      success: true,
+      message: `Đã chuyển ${pointsToTransfer} điểm thành công`,
+      targetAccount: {
+        phone: targetAccount.phone,
+        newTotal: targetAccount.availablePoints,
+        tier: targetAccount.tier
+      }
+    });
+    
+  } catch (error) {
+    console.error('Lỗi khi kết hợp điểm:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Lỗi khi kết hợp điểm thưởng'
     });
   }
 });
