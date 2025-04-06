@@ -36,7 +36,7 @@ const chatMessageSchema = new Schema({
     text: String,
     source: {
       type: String,
-      enum: ['training', 'deepseek', 'claude', 'fallback'],
+      enum: ['training', 'groq', 'claude', 'fallback'],
       default: 'fallback'
     },
     trainingMatchId: String // ID của dữ liệu huấn luyện nếu sử dụng
@@ -252,7 +252,7 @@ const chatAnalyticsSchema = new Schema({
   // Nguồn phản hồi
   responseSources: {
     training: { type: Number, default: 0 },
-    deepseek: { type: Number, default: 0 },
+    groq: { type: Number, default: 0 },
     claude: { type: Number, default: 0 },
     fallback: { type: Number, default: 0 }
   },

@@ -3,7 +3,18 @@ import axios from 'axios';
 import { toast } from 'react-toastify';
 import { useUserContext } from './Usercontext';
 import io from 'socket.io-client';
-import { API_URL, CHAT_API_KEY, SOCKET_OPTIONS } from './config';
+
+// Import configuration - IMPORTANT FIX: this was missing
+const API_URL = process.env.REACT_APP_API_URL || '';
+const CHAT_API_KEY = process.env.REACT_APP_CHAT_API_KEY || 'beeshop_secret_chat_api_key_2025';
+
+// Socket connection options
+const SOCKET_OPTIONS = {
+  reconnectionAttempts: 5,
+  reconnectionDelay: 1000,
+  reconnectionDelayMax: 5000,
+  timeout: 10000,
+};
 
 const ChatAIContext = createContext(null);
 
@@ -19,7 +30,7 @@ export const ChatAIProvider = ({ children }) => {
   const [reconnectAttempts, setReconnectAttempts] = useState(0);
   const messagesEndRef = useRef(null);
   
-  // Get base URL from environment or fall back to relative path
+  // Define base URL from environment or fall back to relative path
   const apiBaseUrl = API_URL || '';
 
   // Connect to socket on mount
@@ -27,10 +38,11 @@ export const ChatAIProvider = ({ children }) => {
     const MAX_RECONNECT_ATTEMPTS = 5;
     
     const connectToSocket = () => {
-      // Use relative path for socket to work in any environment
+      // Use proper socketUrl construction
       const socketUrl = `${apiBaseUrl}/chat`;
       console.log('Connecting to socket at:', socketUrl);
       
+      // Create socket connection
       const newSocket = io(socketUrl, SOCKET_OPTIONS);
       
       newSocket.on('connect', () => {
@@ -59,7 +71,7 @@ export const ChatAIProvider = ({ children }) => {
         }
       });
 
-      // Xử lý khi nhận được phản hồi từ AI
+      // Handle AI response
       newSocket.on('ai_message', (response) => {
         setMessages(prevMessages => [
           ...prevMessages,
@@ -74,12 +86,12 @@ export const ChatAIProvider = ({ children }) => {
         setIsLoading(false);
       });
 
-      // Xử lý khi AI đang nhập
+      // Handle AI typing
       newSocket.on('ai_typing', () => {
-        // Có thể hiển thị trạng thái "đang nhập" ở đây
+        // Can display typing status here
       });
 
-      // Xử lý lỗi từ server
+      // Handle server errors
       newSocket.on('chat_error', (error) => {
         console.error('Chat error:', error);
         
@@ -91,13 +103,13 @@ export const ChatAIProvider = ({ children }) => {
         setIsLoading(false);
       });
 
-      // Xử lý khi phiên chat được khởi tạo
+      // Handle chat session initialization
       newSocket.on('chat_initialized', (data) => {
         console.log('Chat session initialized:', data);
         setSessionId(data.sessionId);
       });
 
-      // Xử lý khi nhận được lịch sử chat
+      // Handle chat history
       newSocket.on('chat_history', (data) => {
         if (data.messages && Array.isArray(data.messages)) {
           const formattedMessages = data.messages.map(msg => ({
@@ -115,6 +127,7 @@ export const ChatAIProvider = ({ children }) => {
     
     connectToSocket();
     
+    // Clean up function
     return () => {
       if (socket) {
         socket.disconnect();
@@ -155,7 +168,7 @@ export const ChatAIProvider = ({ children }) => {
     }
   }, [isOpen, isConnected, socket, sessionId, userName]);
 
-  // Khởi tạo phiên chat khi mở chat
+  // Initialize chat session
   const initializeChat = () => {
     if (!socket || !isConnected) return;
     
@@ -189,7 +202,7 @@ export const ChatAIProvider = ({ children }) => {
     setUserName(name);
     localStorage.setItem('chat_guest_name', name);
     
-    // Khởi tạo chat sau khi đặt tên khách
+    // Initialize chat after setting guest name
     if (isOpen && socket && isConnected) {
       initializeChat();
     }
@@ -404,3 +417,6 @@ export const useChatAI = () => {
   }
   return context;
 };
+
+// Export the config objects for other components to use
+export { API_URL, CHAT_API_KEY, SOCKET_OPTIONS };

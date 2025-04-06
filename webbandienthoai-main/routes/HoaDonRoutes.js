@@ -558,7 +558,36 @@ router.get('/vnpay_return', async (req, res) => {
       hoadon.thanhtoan = false;
       hoadon.trangthai = 'Thanh toán thất bại';
       await hoadon.save();
-      
+      try {
+        const orderTotal = hoadon.tongtien;
+        const userId = hoadon.userId;
+        const phone = hoadon.phone;
+        
+        // Đảm bảo có số điện thoại
+        if (phone) {
+          // Có thể sử dụng axios hoặc node-fetch để gọi API tích điểm
+          const axios = require('axios');
+          
+          // Gọi API tích điểm
+          const pointsResponse = await axios.post('http://localhost:3005/loyalty/award-points', {
+            userId: userId,
+            phone: phone,
+            orderId: hoadon._id.toString(),
+            orderAmount: orderTotal,
+            orderDate: hoadon.ngaymua
+          });
+          
+          if (pointsResponse.data.success) {
+            console.log(`Đã tích ${pointsResponse.data.pointsEarned} điểm thưởng cho đơn hàng ${hoadon._id}`);
+            
+            // Tùy chọn: Thông báo cho người dùng về điểm thưởng đã nhận
+            // VD: io.to(userId).emit('pointsEarned', pointsResponse.data);
+          }
+        }
+      } catch (pointsError) {
+        console.error('Lỗi khi tích điểm thưởng:', pointsError);
+        // Tiếp tục xử lý - không fail đơn hàng chỉ vì lỗi tích điểm
+      }
       console.log(`Payment failed for order ${orderId}, inventory restored`);
       return res.redirect('https://localhost:3000/thanhcong');
     }
@@ -1533,7 +1562,7 @@ router.get('/order-success-rate', async (req, res) => {
       const count = item.count;
       const amount = item.totalAmount;
 
-      if (status === 'Đã thanh toán' || status === 'Hoàn thành') {
+      if (status === 'Đã thanh toán' || status === 'Hoàn thành' || status === 'Đã nhận') {
         statusStats.success.count += count;
         statusStats.success.amount += amount;
       } else if (status === 'Đang xử lý') {

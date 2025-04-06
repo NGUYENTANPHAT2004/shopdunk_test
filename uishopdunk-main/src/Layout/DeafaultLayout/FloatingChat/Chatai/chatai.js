@@ -11,23 +11,23 @@ const ChatAI = () => {
   const [showGuestForm, setShowGuestForm] = useState(false);
   const [feedbackMessage, setFeedbackMessage] = useState(null);
   const inputRef = useRef(null);
-  
-  const { 
-    messages, 
-    isOpen, 
-    isLoading, 
-    userName, 
+
+  const {
+    messages,
+    isOpen,
+    isLoading,
+    userName,
     sessionId,
-    toggleChat, 
-    sendMessage, 
+    toggleChat,
+    sendMessage,
     clearChat,
     endChat,
     loadChatHistory,
-    sendFeedback, 
+    sendFeedback,
     setGuestName,
     messagesEndRef
   } = useChatAI();
-  
+
   const { getUser, getUserPhone } = useUserContext();
 
   // Khi component được mount, kiểm tra xem người dùng đã đăng nhập hay đã có tên khách
@@ -39,7 +39,7 @@ const ChatAI = () => {
 
   const handleChatAIClick = () => {
     toggleChat();
-    
+
     // Focus the input field after a short delay (for animation)
     setTimeout(() => {
       if (inputRef.current && !showGuestForm) {
@@ -61,7 +61,7 @@ const ChatAI = () => {
     if (guestNameInput.trim()) {
       setGuestName(guestNameInput);
       setShowGuestForm(false);
-      
+
       // Focus vào input tin nhắn sau khi đã nhập tên
       setTimeout(() => {
         if (inputRef.current) {
@@ -74,7 +74,7 @@ const ChatAI = () => {
   const handleFeedback = (messageId, isHelpful) => {
     sendFeedback(messageId, isHelpful);
     setFeedbackMessage(messageId);
-    
+
     // Ẩn feedback sau 3 giây
     setTimeout(() => {
       setFeedbackMessage(null);
@@ -95,7 +95,7 @@ const ChatAI = () => {
     if (sessionId) {
       endChat();
     }
-    
+
     toggleChat();
   };
 
@@ -150,8 +150,8 @@ const ChatAI = () => {
                   </div>
                 ) : (
                   messages.map((msg, index) => (
-                    <div 
-                      key={index} 
+                    <div
+                      key={index}
                       className={`message ${msg.sender === 'user' ? 'user-message' : 'ai-message'}`}
                     >
                       <div className="message-avatar">
@@ -161,19 +161,19 @@ const ChatAI = () => {
                         <div className="message-text">{msg.text}</div>
                         <div className="message-meta">
                           <div className="message-time">{formatTime(msg.timestamp)}</div>
-                          
+
                           {/* Hiện feedback UI cho tin nhắn AI */}
                           {msg.sender === 'ai' && msg.id && feedbackMessage !== msg.id && (
                             <div className="message-feedback">
-                              <button 
-                                onClick={() => handleFeedback(msg.id, true)} 
+                              <button
+                                onClick={() => handleFeedback(msg.id, true)}
                                 title="Hữu ích"
                                 className="feedback-button"
                               >
                                 <FaThumbsUp />
                               </button>
-                              <button 
-                                onClick={() => handleFeedback(msg.id, false)} 
+                              <button
+                                onClick={() => handleFeedback(msg.id, false)}
                                 title="Không hữu ích"
                                 className="feedback-button"
                               >
@@ -181,19 +181,19 @@ const ChatAI = () => {
                               </button>
                             </div>
                           )}
-                          
+
                           {/* Hiển thị thông báo đã gửi feedback */}
                           {msg.id && feedbackMessage === msg.id && (
                             <div className="feedback-sent">
                               Cảm ơn bạn đã đánh giá!
                             </div>
                           )}
-                          
+
                           {/* Hiển thị nguồn nếu là tin nhắn AI */}
                           {msg.sender === 'ai' && msg.source && (
                             <div className="message-source">
                               {msg.source === 'training' && 'cửa hàng'}
-                              {msg.source === 'deepseek' && 'DeepSeek AI'}
+                              {msg.source === 'groq' && 'Groq AI'}
                               {msg.source === 'claude' && 'từ Claude AI'}
                               {msg.source === 'fallback' && 'từ BeeShop'}
                             </div>
@@ -203,7 +203,7 @@ const ChatAI = () => {
                     </div>
                   ))
                 )}
-                
+
                 {isLoading && (
                   <div className="message ai-message">
                     <div className="message-avatar">
@@ -217,7 +217,7 @@ const ChatAI = () => {
                     </div>
                   </div>
                 )}
-                
+
                 <div ref={messagesEndRef} />
               </div>
 
