@@ -14,109 +14,100 @@ import 'moment/locale/vi';
 moment.locale('vi');
 
 const UserPointsPage = () => {
-  const { getUser } = useUserContext();
+  const { getUser, getUserPhone, getUserPoints, refreshPoints } = useUserContext();
   const [loading, setLoading] = useState(true);
   const [userPoints, setUserPoints] = useState(null);
   const [activeTab, setActiveTab] = useState('summary');
   const [redemptionOptions, setRedemptionOptions] = useState([]);
   const [redemptionHistory, setRedemptionHistory] = useState([]);
   const [loadingRedeem, setLoadingRedeem] = useState(false);
-  const [phone, setPhone] = useState('');
   const [user, setUser] = useState(null);
-  const [email, setEmail] = useState('');
-  const [userId, setUserId] = useState(null);
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
 
+  // Get user information from context and localStorage
   useEffect(() => {
-    const username = getUser();
-    
-    // Get user's data
     const storedUser = localStorage.getItem('user');
     if (storedUser) {
       try {
         const userData = JSON.parse(storedUser);
-        // Ưu tiên sử dụng phone nếu có
-        const userPhone = userData?.phone || userData?.user?.phone;
-        const userEmail = userData?.email || userData?.user?.email;
-        let userId = null;
-        
-        // Lấy userId từ cấu trúc dữ liệu phức tạp
-        if (userData?._id) {
-          userId = userData._id;
-        } else if (userData?.user?._id) {
-          userId = userData.user._id;
-        } else if (userData?.id) {
-          userId = userData.id;
-        } else if (userData?.user?.id) {
-          userId = userData.user.id;
-        }
-        
-        setPhone(userPhone);
-        setEmail(userEmail);
-        setUserId(userId);
         setUser(userData);
+        setIsLoggedIn(true);
+        
+        // Refresh points data from user context
+        refreshPoints();
+        
+        // Set initial points data if available in context
+        const contextPoints = getUserPoints();
+        if (contextPoints) {
+          setUserPoints(contextPoints);
+        }
       } catch (e) {
         console.error('Error parsing user data:', e);
       }
     }
-  }, []);
-  
-  // Cập nhật phần fetch user points để sử dụng tất cả thông tin có sẵn
-  const fetchUserPoints = async () => {
-    try {
-      setLoading(true);
-      let response = null;
-      
-      // Thử tìm theo phone trước tiên
-      if (phone) {
-        response = await axios.get(`http://localhost:3005/loyalty/user-points/${phone}`);
-        if (response.data.success && response.data.hasPoints) {
-          setUserPoints(response.data.points);
-          setLoading(false);
-          return;
-        }
-      }
-      
-      // Nếu không có phone hoặc không tìm thấy, thử email
-      if (email) {
-        response = await axios.get(`http://localhost:3005/loyalty/user-points-by-email/${email}`);
-        if (response.data.success && response.data.hasPoints) {
-          setUserPoints(response.data.points);
-          setLoading(false);
-          return;
-        }
-      }
-      
-      // Nếu vẫn không tìm thấy, hiển thị điểm mặc định
-      setUserPoints({
-        totalPoints: 0,
-        availablePoints: 0,
-        tier: 'standard',
-        yearToDatePoints: 0,
-        history: []
-      });
-      
-    } catch (error) {
-      console.error('Error fetching user points:', error);
-      toast.error('Lỗi khi tải thông tin điểm thưởng');
-    } finally {
-      setLoading(false);
-    }
-  };
+  }, [refreshPoints, getUserPoints]);
 
-  // Fetch user points data
+  // Fetch user points data - will be called once user data is available
   useEffect(() => {
-    if (!phone) return;
+    if (!isLoggedIn) return;
     
     const fetchUserPoints = async () => {
       try {
         setLoading(true);
-        const response = await axios.get(`http://localhost:3005/loyalty/user-points/${phone}`);
         
-        if (response.data.success) {
-          setUserPoints(response.data.points);
-        } else {
-          toast.error('Không thể tải thông tin điểm thưởng');
+        // First try to get by phone
+        const phone = getUserPhone();
+        
+        if (phone) {
+          try {
+            const response = await axios.get(`http://localhost:3005/loyalty/user-points/${phone}`);
+            if (response.data.success && response.data.hasPoints) {
+              setUserPoints(response.data.points);
+              setLoading(false);
+              return;
+            }
+          } catch (error) {
+            console.error('Error fetching user points by phone:', error);
+          }
         }
+        
+        // If phone method fails, try by email
+        if (user?.email) {
+          try {
+            const response = await axios.get(`http://localhost:3005/loyalty/user-points-by-email/${user.email}`);
+            if (response.data.success && response.data.hasPoints) {
+              setUserPoints(response.data.points);
+              setLoading(false);
+              return;
+            }
+          } catch (error) {
+            console.error('Error fetching user points by email:', error);
+          }
+        }
+        
+        // If user has userId, try that as last resort
+        const userId = user?._id || user?.user?._id || user?.id || user?.user?.id;
+        if (userId) {
+          try {
+            const response = await axios.get(`http://localhost:3005/loyalty/user-points/${userId}`);
+            if (response.data.success && response.data.hasPoints) {
+              setUserPoints(response.data.points);
+              setLoading(false);
+              return;
+            }
+          } catch (error) {
+            console.error('Error fetching user points by userId:', error);
+          }
+        }
+        
+        // Default points if all methods fail
+        setUserPoints({
+          totalPoints: 0,
+          availablePoints: 0,
+          tier: 'standard',
+          yearToDatePoints: 0,
+          history: []
+        });
       } catch (error) {
         console.error('Error fetching user points:', error);
         toast.error('Lỗi khi tải thông tin điểm thưởng');
@@ -126,15 +117,17 @@ const UserPointsPage = () => {
     };
 
     fetchUserPoints();
-  }, [phone]);
+  }, [isLoggedIn, user, getUserPhone]);
 
   // Fetch redemption options
   useEffect(() => {
-    if (!phone || !userPoints) return;
+    if (!isLoggedIn || !userPoints) return;
     
     const fetchRedemptionOptions = async () => {
       try {
-        const response = await axios.get(`http://localhost:3005/loyalty/redemption-options?phone=${phone}&tier=${userPoints?.tier || 'standard'}`);
+        const phone = getUserPhone();
+        
+        const response = await axios.get(`http://localhost:3005/loyalty/redemption-options?phone=${phone || ''}&tier=${userPoints?.tier || 'standard'}`);
         
         if (response.data.success) {
           setRedemptionOptions(response.data.redemptionOptions || []);
@@ -145,14 +138,17 @@ const UserPointsPage = () => {
     };
 
     fetchRedemptionOptions();
-  }, [phone, userPoints]);
+  }, [isLoggedIn, userPoints, getUserPhone]);
 
   // Fetch redemption history
   useEffect(() => {
-    if (!phone) return;
+    if (!isLoggedIn) return;
     
     const fetchRedemptionHistory = async () => {
       try {
+        const phone = getUserPhone();
+        if (!phone) return;
+        
         const response = await axios.get(`http://localhost:3005/loyalty/redemption-history/${phone}`);
         
         if (response.data.success) {
@@ -164,10 +160,11 @@ const UserPointsPage = () => {
     };
 
     fetchRedemptionHistory();
-  }, [phone]);
+  }, [isLoggedIn, getUserPhone]);
 
   // Handle redeeming points for a voucher
   const handleRedeem = async (redemptionId) => {
+    const phone = getUserPhone();
     if (!phone || loadingRedeem) return;
 
     try {
@@ -182,10 +179,7 @@ const UserPointsPage = () => {
         toast.success('Đổi điểm thành công!');
         
         // Update user points
-        const pointsResponse = await axios.get(`http://localhost:3005/loyalty/user-points/${phone}`);
-        if (pointsResponse.data.success) {
-          setUserPoints(pointsResponse.data.points);
-        }
+        refreshPoints();
         
         // Update redemption history
         const historyResponse = await axios.get(`http://localhost:3005/loyalty/redemption-history/${phone}`);
@@ -277,7 +271,8 @@ const UserPointsPage = () => {
     return Math.min(Math.max(percentage, 0), 100);
   };
 
-  if (!phone) {
+  // If the user is not logged in at all, show the login required message
+  if (!isLoggedIn) {
     return (
       <div className="points-page">
         <Helmet>
@@ -544,53 +539,37 @@ const UserPointsPage = () => {
                                   : `Giảm giá sản phẩm ${option.voucherValue}%`
                                 }
                               </div>
-                              
-                              {option.minOrderValue > 0 && (
-                                <div className="min-order">
-                                  Đơn tối thiểu: {option.minOrderValue.toLocaleString('vi-VN')}đ
-                                </div>
-                              )}
-                            </div>
-                            
-                            <div className="points-cost">
-                              <FontAwesomeIcon icon={faCoins} />
-                              <span>{formatPoints(option.pointsCost)} điểm</span>
+                              <div className="voucher-points">
+                                <span className="points-required">{formatPoints(option.pointsRequired)} điểm</span>
+                                {option.isRedeemed && !option.canRedeem ? (
+                                  <button className="redeem-btn disabled" disabled>
+                                    Đã đổi
+                                  </button>
+                                ) : (
+                                  <button 
+                                    className={`redeem-btn ${userPoints?.availablePoints < option.pointsRequired ? 'disabled' : ''}`}
+                                    onClick={() => handleRedeem(option._id)}
+                                    disabled={userPoints?.availablePoints < option.pointsRequired || loadingRedeem}
+                                  >
+                                    {loadingRedeem ? (
+                                      <>
+                                        <FontAwesomeIcon icon={faSpinner} spin />
+                                        <span>Đang xử lý...</span>
+                                      </>
+                                    ) : (
+                                      'Đổi điểm'
+                                    )}
+                                  </button>
+                                )}
+                              </div>
                             </div>
                           </div>
-                          
-                          <div className="redemption-action">
-                            {option.isRedeemed && !option.canRedeem ? (
-                              <button className="redeem-btn disabled">
-                                Đã đổi
-                              </button>
-                            ) : userPoints?.availablePoints < option.pointsCost ? (
-                              <button className="redeem-btn disabled">
-                                Thiếu điểm
-                              </button>
-                            ) : (
-                              <button 
-                                className="redeem-btn" 
-                                onClick={() => handleRedeem(option._id)}
-                                disabled={loadingRedeem}
-                              >
-                                {loadingRedeem ? (
-                                  <FontAwesomeIcon icon={faSpinner} spin />
-                                ) : 'Đổi ngay'}
-                              </button>
-                            )}
-                          </div>
-                          
-                          {option.availableTiers && option.availableTiers.length > 0 && (
-                            <div className="tier-requirements">
-                              Dành cho: {option.availableTiers.map(tier => getTierName(tier)).join(', ')}
-                            </div>
-                          )}
                         </div>
                       ))}
                     </div>
                   ) : (
-                    <div className="no-options">
-                      <p>Hiện không có quà để đổi điểm</p>
+                    <div className="no-redemption-options">
+                      <p>Hiện không có ưu đãi nào để đổi điểm</p>
                     </div>
                   )}
                 </div>
@@ -599,63 +578,35 @@ const UserPointsPage = () => {
               {activeTab === 'history' && (
                 <div className="tab-content history-tab">
                   {redemptionHistory.length > 0 ? (
-                    <div className="redemption-history">
-                      <table>
-                        <thead>
-                          <tr>
-                            <th>Ngày đổi</th>
-                            <th>Voucher</th>
-                            <th>Giá trị</th>
-                            <th>Điểm đã dùng</th>
-                            <th>Trạng thái</th>
-                            <th>Hết hạn</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {redemptionHistory.map((item) => (
-                            <tr key={item._id}>
-                              <td>{moment(item.redemptionDate).format('DD/MM/YYYY')}</td>
-                              <td>
-                                <div className="voucher-name">{item.voucherName}</div>
-                                <div className="voucher-code">{item.voucherCode}</div>
-                              </td>
-                              <td>
-                                {item.discountType === 'percentage' 
-                                  ? `${item.discountValue}%` 
-                                  : item.discountType === 'fixed'
-                                  ? `${item.discountValue.toLocaleString('vi-VN')}đ`
-                                  : item.discountType === 'shipping'
+                    <div className="history-list">
+                      {redemptionHistory.map((item, index) => (
+                        <div className="history-item" key={index}>
+                          <div className="history-date">
+                            {moment(item.date).format('DD/MM/YYYY HH:mm')}
+                          </div>
+                          <div className="history-details">
+                            <div className="history-voucher">
+                              <span className="voucher-name">{item.voucherName}</span>
+                              <span className="voucher-value">
+                                {item.voucherType === 'percentage' 
+                                  ? `Giảm ${item.voucherValue}%` 
+                                  : item.voucherType === 'fixed'
+                                  ? `Giảm ${item.voucherValue.toLocaleString('vi-VN')}đ`
+                                  : item.voucherType === 'shipping'
                                   ? 'Miễn phí vận chuyển'
-                                  : `Giảm giá sản phẩm ${item.discountValue}%`
-                                }
-                                {item.minOrderValue > 0 && (
-                                  <div className="min-order-history">
-                                    Tối thiểu: {item.minOrderValue.toLocaleString('vi-VN')}đ
-                                  </div>
-                                )}
-                              </td>
-                              <td>{formatPoints(item.pointsSpent)}</td>
-                              <td>
-                                <span className={`status-badge ${item.status}`}>
-                                  {item.status === 'active' ? 'Đang hoạt động' : 
-                                   item.status === 'used' ? 'Đã sử dụng' : 'Hết hạn'}
-                                </span>
-                              </td>
-                              <td>{moment(item.expiryDate).format('DD/MM/YYYY')}</td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
+                                  : `Giảm giá sản phẩm ${item.voucherValue}%`}
+                              </span>
+                            </div>
+                            <div className="history-points">
+                              -{formatPoints(item.pointsUsed)} điểm
+                            </div>
+                          </div>
+                        </div>
+                      ))}
                     </div>
                   ) : (
                     <div className="no-history">
-                      <p>Bạn chưa đổi điểm lần nào</p>
-                      <button 
-                        className="primary-btn"
-                        onClick={() => setActiveTab('redeem')}
-                      >
-                        Đổi điểm ngay
-                      </button>
+                      <p>Chưa có lịch sử đổi điểm</p>
                     </div>
                   )}
                 </div>

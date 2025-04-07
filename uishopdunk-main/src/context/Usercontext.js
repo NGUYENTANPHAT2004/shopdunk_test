@@ -9,77 +9,9 @@ export const UserContextProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [welcomeVoucher, setWelcomeVoucher] = useState(null);
   const [userPoints, setUserPoints] = useState(null);
-  // Load user from localStorage on initial render
-  useEffect(() => {
-    const storedUser = localStorage.getItem("user");
-    if (storedUser) {
-      try {
-        setUser(JSON.parse(storedUser));
-      } catch (error) {
-        console.error("Error parsing stored user data:", error);
-        localStorage.removeItem("user");
-      }
-    }
-    
-    // Check for stored welcome voucher
-    const storedVoucher = localStorage.getItem("welcomeVoucher");
-    if (storedVoucher) {
-      try {
-        setWelcomeVoucher(JSON.parse(storedVoucher));
-      } catch (error) {
-        console.error("Error parsing welcome voucher:", error);
-        localStorage.removeItem("welcomeVoucher");
-      }
-    }
-  }, []);
-  const loadUserPoints = async (userData) => {
-    try {
-      if (!userData) return;
-      
-      // Xác định thông tin người dùng
-      const userPhone = userData?.phone || userData?.user?.phone;
-      const userEmail = userData?.email || userData?.user?.email;
-      let userId = null;
-      
-      if (userData?._id) userId = userData._id;
-      else if (userData?.user?._id) userId = userData.user._id;
-      
-      // Không có thông tin nào để tìm kiếm
-      if (!userPhone && !userEmail && !userId) return;
-      
-      // Ưu tiên tìm theo phone
-      if (userPhone) {
-        const response = await axios.get(`http://localhost:3005/loyalty/user-points/${userPhone}`);
-        if (response.data.success && response.data.hasPoints) {
-          setUserPoints(response.data.points);
-          return;
-        }
-      }
-      
-      // Thử tìm theo email
-      if (userEmail) {
-        const response = await axios.get(`http://localhost:3005/loyalty/user-points-by-email/${userEmail}`);
-        if (response.data.success && response.data.hasPoints) {
-          setUserPoints(response.data.points);
-          return;
-        }
-      }
-      
-      // Mặc định không có điểm
-      setUserPoints({
-        totalPoints: 0,
-        availablePoints: 0,
-        tier: 'standard',
-        yearToDatePoints: 0
-      });
-      
-    } catch (error) {
-      console.error('Error loading user points:', error);
-      setUserPoints(null);
-    }
-  };
+  const [isLoading, setIsLoading] = useState(true);
   
-  // Cập nhật useEffect để load điểm
+  // Load user from localStorage on initial render
   useEffect(() => {
     const storedUser = localStorage.getItem("user");
     if (storedUser) {
@@ -90,7 +22,11 @@ export const UserContextProvider = ({ children }) => {
       } catch (error) {
         console.error("Error parsing stored user data:", error);
         localStorage.removeItem("user");
+      } finally {
+        setIsLoading(false);
       }
+    } else {
+      setIsLoading(false);
     }
     
     // Check for stored welcome voucher
@@ -105,8 +41,87 @@ export const UserContextProvider = ({ children }) => {
     }
   }, []);
   
+  const loadUserPoints = async (userData) => {
+    try {
+      if (!userData) return;
+      
+      // Extract all possible user identifiers
+      const userPhone = userData?.phone || userData?.user?.phone;
+      const userEmail = userData?.email || userData?.user?.email;
+      let userId = null;
+      
+      if (userData?._id) userId = userData._id;
+      else if (userData?.user?._id) userId = userData.user._id;
+      else if (userData?.id) userId = userData.id;
+      else if (userData?.user?.id) userId = userData.user.id;
+      
+      // No identifiers available - can't fetch points
+      if (!userPhone && !userEmail && !userId) {
+        console.log("No identifiers available to fetch user points");
+        return;
+      }
+      
+      // Try fetching points using different methods, in order of priority
+      let pointsData = null;
+      
+      // 1. Try by phone (most reliable)
+      if (userPhone) {
+        try {
+          const response = await axios.get(`http://localhost:3005/loyalty/user-points/${userPhone}`);
+          if (response.data.success && response.data.hasPoints) {
+            pointsData = response.data.points;
+          }
+        } catch (error) {
+          console.error('Error fetching user points by phone:', error);
+        }
+      }
+      
+      // 2. If phone fails, try by email
+      if (!pointsData && userEmail) {
+        try {
+          const response = await axios.get(`http://localhost:3005/loyalty/user-points-by-email/${userEmail}`);
+          if (response.data.success && response.data.hasPoints) {
+            pointsData = response.data.points;
+          }
+        } catch (error) {
+          console.error('Error fetching user points by email:', error);
+        }
+      }
+      
+      // 3. As last resort, try by userId
+      if (!pointsData && userId) {
+        try {
+          const response = await axios.get(`http://localhost:3005/loyalty/user-points/${userId}`);
+          if (response.data.success && response.data.hasPoints) {
+            pointsData = response.data.points;
+          }
+        } catch (error) {
+          console.error('Error fetching user points by userId:', error);
+        }
+      }
+      
+      // Set default points if all methods fail
+      if (!pointsData) {
+        pointsData = {
+          totalPoints: 0,
+          availablePoints: 0,
+          tier: 'standard',
+          yearToDatePoints: 0,
+          history: []
+        };
+      }
+      
+      setUserPoints(pointsData);
+      
+    } catch (error) {
+      console.error('Error loading user points:', error);
+      setUserPoints(null);
+    }
+  };
+  
   const login = async (loginData) => {
     try {
+      setIsLoading(true);
       const { data: responseData } = await axios.post('http://localhost:3005/login_auth', loginData);
       
       // Check for API errors
@@ -114,13 +129,22 @@ export const UserContextProvider = ({ children }) => {
         throw new Error(responseData.message || "Tài khoản hoặc mật khẩu không đúng!");
       }
       
-      // Make sure phone number is included in stored user data
-      const userData = responseData.user || responseData;
-      const userWithPhone = {
-        ...userData,
-        phone: userData.phone || loginData.phone
-      };
-  
+      // Normalize user data structure
+      let userData = {};
+      
+      // Extract from either user object or direct response
+      if (responseData.user) {
+        userData = {
+          ...responseData.user,
+          token: responseData.token
+        };
+      } else {
+        userData = responseData;
+      }
+      
+      // Ensure phone is included (critical for loyalty system)
+      userData.phone = userData.phone || loginData.phone;
+      
       // Success notification
       toast.success("Đăng nhập thành công! Đang chuyển hướng...", {
         position: "top-right",
@@ -128,9 +152,12 @@ export const UserContextProvider = ({ children }) => {
       });
   
       // Store user data in localStorage and state
-      localStorage.setItem("user", JSON.stringify(userWithPhone));
-      setUser(userWithPhone);
-      loadUserPoints(userWithPhone);
+      localStorage.setItem("user", JSON.stringify(userData));
+      setUser(userData);
+      
+      // Load points data
+      await loadUserPoints(userData);
+      
       // Redirect after a delay
       setTimeout(() => {
         window.location.href = "/";
@@ -144,11 +171,14 @@ export const UserContextProvider = ({ children }) => {
       });
   
       console.error("Lỗi đăng nhập:", error);
+    } finally {
+      setIsLoading(false);
     }
   };
   
   const register = async (registerData) => {
     try {
+      setIsLoading(true);
       const { data: responseData } = await axios.post('http://localhost:3005/register_auth', registerData);
       
       if (!responseData || responseData.error) {
@@ -170,14 +200,23 @@ export const UserContextProvider = ({ children }) => {
         autoClose: 2000
       });
   
-      // Ensure phone is stored with user data
-      const userData = {
-        ...responseData.user,
-        phone: registerData.phone
-      };
+      // Normalize user data
+      let userData = {};
+      
+      if (responseData.user) {
+        userData = responseData.user;
+      } else {
+        userData = responseData;
+      }
+      
+      // Ensure phone is stored correctly
+      userData.phone = registerData.phone || userData.phone;
       
       localStorage.setItem("user", JSON.stringify(userData));
       setUser(userData);
+      
+      // Load initial points data
+      await loadUserPoints(userData);
       
       // Don't redirect immediately to allow voucher to show
       setTimeout(() => {
@@ -198,6 +237,8 @@ export const UserContextProvider = ({ children }) => {
       });
   
       console.error("Lỗi đăng ký:", error);
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -224,7 +265,7 @@ export const UserContextProvider = ({ children }) => {
       const parsedUser = JSON.parse(user);
   
       // Check username existence in different possible paths
-      return parsedUser?.username || parsedUser?.user?.username || null;
+      return parsedUser?.username || parsedUser?.user?.username || parsedUser?.name || null;
     } catch (error) {
       console.error("Error parsing user data:", error);
       return null;
@@ -258,6 +299,7 @@ export const UserContextProvider = ({ children }) => {
           localStorage.removeItem("user");
           localStorage.removeItem("welcomeVoucher");
           setUser(null);
+          setUserPoints(null);
           setWelcomeVoucher(null);
           window.dispatchEvent(new Event("userLogout"));
     
@@ -265,6 +307,9 @@ export const UserContextProvider = ({ children }) => {
             position: "top-right",
             autoClose: 2000
           });
+          
+          // Redirect to home page
+          window.location.href = "/";
         }
       });
     } else {
@@ -274,6 +319,7 @@ export const UserContextProvider = ({ children }) => {
       });
     }
   };
+  
   const refreshPoints = async () => {
     const userData = user || JSON.parse(localStorage.getItem("user") || "null");
     if (userData) {
@@ -281,25 +327,39 @@ export const UserContextProvider = ({ children }) => {
     }
   };
   
-  // Thêm getUserPoints vào context
+  // Get user points from context
   const getUserPoints = () => {
     return userPoints;
   };
+  
   const loginWithSocial = async (provider, token, phone) => {
     try {
+      setIsLoading(true);
       // Add phone parameter for social login
       const requestData = phone ? { token, phone } : { token };
       const { data } = await axios.post(`http://localhost:3005/auth/${provider}`, requestData);
       
       if(data) {
-        // Ensure phone is included in stored data
-        const userData = {
-          ...data.user || data,
-          phone: phone || data.user?.phone || data.phone
-        };
+        // Normalize user data
+        let userData = {};
+        
+        if (data.user) {
+          userData = {
+            ...data.user,
+            token: data.token
+          };
+        } else {
+          userData = data;
+        }
+        
+        // Ensure phone is included (critical for loyalty system)
+        userData.phone = phone || userData.phone || userData.user?.phone;
         
         localStorage.setItem('user', JSON.stringify(userData));
         setUser(userData);
+        
+        // Load points data
+        await loadUserPoints(userData);
       }
       
       toast.success("Đăng nhập thành công! Đang chuyển hướng...", {
@@ -315,6 +375,9 @@ export const UserContextProvider = ({ children }) => {
         position: "top-right",
         autoClose: 2000
       });
+      console.error(`Error with ${provider} login:`, error);
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -331,7 +394,8 @@ export const UserContextProvider = ({ children }) => {
       user,
       userPoints,
       welcomeVoucher,
-      dismissWelcomeVoucher
+      dismissWelcomeVoucher,
+      isLoading
     }}>
       {children}
     </UserContext.Provider>

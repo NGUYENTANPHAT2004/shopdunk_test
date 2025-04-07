@@ -1,44 +1,67 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faCoins, faGift } from '@fortawesome/free-solid-svg-icons';
+import { faCoins, faSpinner } from '@fortawesome/free-solid-svg-icons';
 import axios from 'axios';
 import './UserPointsInfo.scss';
+import { useUserContext } from '../../context/Usercontext';
 
-const UserPointsInfo = ({ phone }) => {
+const UserPointsInfo = () => {
   const [points, setPoints] = useState(null);
   const [loading, setLoading] = useState(true);
+  const { getUserPhone, getUserPoints, refreshPoints } = useUserContext();
   
   useEffect(() => {
-    if (!phone) return;
+    // First try to get points from context
+    const contextPoints = getUserPoints();
+    if (contextPoints) {
+      setPoints(contextPoints);
+      setLoading(false);
+      return;
+    }
+    
+    const phone = getUserPhone();
+    if (!phone) {
+      setLoading(false);
+      return;
+    }
     
     const fetchUserPoints = async () => {
       try {
         setLoading(true);
-        // Ưu tiên tìm theo số điện thoại
+        // Try to fetch by phone first
         const response = await axios.get(`http://localhost:3005/loyalty/user-points/${phone}`);
         
         if (response.data.success && response.data.hasPoints) {
           setPoints(response.data.points);
-        } else {
-          // Nếu không tìm thấy theo phone, thử tìm theo email hoặc userId
-          const storedUser = localStorage.getItem("user");
-          if (storedUser) {
-            const userData = JSON.parse(storedUser);
-            if (userData?.email) {
-              const emailResponse = await axios.get(`http://localhost:3005/loyalty/user-points-by-email/${userData.email}`);
-              if (emailResponse.data.success && emailResponse.data.hasPoints) {
-                setPoints(emailResponse.data.points);
-              } else {
-                setPoints({ availablePoints: 0 });
-              }
-            } else {
-              setPoints({ availablePoints: 0 });
+          return;
+        }
+        
+        // If not found by phone, try by email
+        const storedUser = localStorage.getItem("user");
+        if (storedUser) {
+          const userData = JSON.parse(storedUser);
+          if (userData?.email) {
+            const emailResponse = await axios.get(`http://localhost:3005/loyalty/user-points-by-email/${userData.email}`);
+            if (emailResponse.data.success && emailResponse.data.hasPoints) {
+              setPoints(emailResponse.data.points);
+              return;
             }
-          } else {
-            setPoints({ availablePoints: 0 });
+          }
+          
+          // Try by userId as last resort
+          const userId = userData?._id || userData?.user?._id || userData?.id || userData?.user?.id;
+          if (userId) {
+            const userIdResponse = await axios.get(`http://localhost:3005/loyalty/user-points/${userId}`);
+            if (userIdResponse.data.success && userIdResponse.data.hasPoints) {
+              setPoints(userIdResponse.data.points);
+              return;
+            }
           }
         }
+        
+        // Default to 0 points if all methods fail
+        setPoints({ availablePoints: 0 });
       } catch (error) {
         console.error('Error fetching user points:', error);
         setPoints({ availablePoints: 0 });
@@ -49,13 +72,27 @@ const UserPointsInfo = ({ phone }) => {
     
     fetchUserPoints();
     
-    // Tự động cập nhật sau mỗi 5 phút
-    const intervalId = setInterval(fetchUserPoints, 5 * 60 * 1000);
+    // Auto-refresh points every 5 minutes
+    const intervalId = setInterval(() => {
+      refreshPoints();
+      const updatedPoints = getUserPoints();
+      if (updatedPoints) {
+        setPoints(updatedPoints);
+      }
+    }, 5 * 60 * 1000);
     
     return () => clearInterval(intervalId);
-  }, [phone]);
+  }, [getUserPhone, getUserPoints, refreshPoints]);
   
-  if (!phone || loading) {
+  if (loading) {
+    return (
+      <Link to="/diem-thuong" className="user-points-info loading">
+        <FontAwesomeIcon icon={faSpinner} spin />
+      </Link>
+    );
+  }
+  
+  if (!points) {
     return null;
   }
   
