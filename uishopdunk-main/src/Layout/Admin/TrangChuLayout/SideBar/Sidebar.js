@@ -10,7 +10,8 @@ import {
   faBuilding,
   faWarehouse,
   faUser,
-  faChainBroken
+  faChainBroken,
+  faStar
 } from '@fortawesome/free-solid-svg-icons'
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
 import './SideBar.scss'
@@ -30,7 +31,8 @@ function Sidebar ({ activeTab }) {
     { name: 'Hóa đơn', icon: faReceipt },
     { name: 'Kho', icon: faWarehouse },
     { name: 'Người dùng', icon: faUser },
-    { name: 'Chat', icon: faChainBroken }
+    { name: 'Chat', icon: faChainBroken },
+    { name: 'Điểm Thưởng', icon: faStar },
   ]
 
   return (

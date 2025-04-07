@@ -12,6 +12,7 @@ import TonKhoLayout  from '../TonKhoLayout/TonKhoLayout'
 import { useEffect, useState } from 'react'
 import { UserLayout } from '../UserLayout'
 import AdminChatTraining from '../Chat/Chatlayout'
+import LoyaltyPointsAdminLayout from '../Poin/Poin'
 function TrangChuLayout() {
   const [searchParams] = useSearchParams()
   const tabFromUrl = searchParams.get('tab') || 'Trang chủ'
@@ -29,6 +30,7 @@ function TrangChuLayout() {
         {tabFromUrl === 'Kho' && < TonKhoLayout />}
         {tabFromUrl === 'Người dùng' && < UserLayout />}
         {tabFromUrl === 'Chat' && < AdminChatTraining />}
+        {tabFromUrl === 'Điểm Thưởng' && <LoyaltyPointsAdminLayout />}
       </div>
     </div>
   )

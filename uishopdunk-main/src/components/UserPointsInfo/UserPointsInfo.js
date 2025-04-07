@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faCoins, faSpinner } from '@fortawesome/free-solid-svg-icons';
@@ -10,13 +10,19 @@ const UserPointsInfo = () => {
   const [points, setPoints] = useState(null);
   const [loading, setLoading] = useState(true);
   const { getUserPhone, getUserPoints, refreshPoints } = useUserContext();
+  const fetchedRef = useRef(false);
+  const intervalRef = useRef(null);
   
   useEffect(() => {
+    // Tránh fetch nhiều lần nếu đã fetch rồi
+    if (fetchedRef.current) return;
+    
     // First try to get points from context
     const contextPoints = getUserPoints();
     if (contextPoints) {
       setPoints(contextPoints);
       setLoading(false);
+      fetchedRef.current = true;
       return;
     }
     
@@ -29,6 +35,8 @@ const UserPointsInfo = () => {
     const fetchUserPoints = async () => {
       try {
         setLoading(true);
+        fetchedRef.current = true; // Đánh dấu đã fetch một lần
+        
         // Try to fetch by phone first
         const response = await axios.get(`http://localhost:3005/loyalty/user-points/${phone}`);
         
@@ -72,16 +80,23 @@ const UserPointsInfo = () => {
     
     fetchUserPoints();
     
-    // Auto-refresh points every 5 minutes
-    const intervalId = setInterval(() => {
-      refreshPoints();
-      const updatedPoints = getUserPoints();
-      if (updatedPoints) {
-        setPoints(updatedPoints);
-      }
-    }, 5 * 60 * 1000);
+    // Auto-refresh points every 5 minutes, nhưng chỉ tạo một interval
+    if (!intervalRef.current) {
+      intervalRef.current = setInterval(() => {
+        const updatedPoints = getUserPoints();
+        if (updatedPoints) {
+          setPoints(updatedPoints);
+        }
+      }, 5 * 60 * 1000);
+    }
     
-    return () => clearInterval(intervalId);
+    return () => {
+      // Clear interval khi component unmount
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current);
+        intervalRef.current = null;
+      }
+    };
   }, [getUserPhone, getUserPoints, refreshPoints]);
   
   if (loading) {

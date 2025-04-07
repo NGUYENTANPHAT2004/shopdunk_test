@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import './UserPointsPage.scss';
 import { Helmet } from 'react-helmet';
 import ThanhDinhHuong from '../../components/ThanhDinhHuong/ThanhDinhHuong';
@@ -13,290 +13,313 @@ import 'moment/locale/vi';
 
 moment.locale('vi');
 
-const UserPointsPage = () => {
-  const { getUser, getUserPhone, getUserPoints, refreshPoints } = useUserContext();
-  const [loading, setLoading] = useState(true);
-  const [userPoints, setUserPoints] = useState(null);
-  const [activeTab, setActiveTab] = useState('summary');
-  const [redemptionOptions, setRedemptionOptions] = useState([]);
-  const [redemptionHistory, setRedemptionHistory] = useState([]);
-  const [loadingRedeem, setLoadingRedeem] = useState(false);
-  const [user, setUser] = useState(null);
-  const [isLoggedIn, setIsLoggedIn] = useState(false);
 
   // Get user information from context and localStorage
-  useEffect(() => {
-    const storedUser = localStorage.getItem('user');
-    if (storedUser) {
-      try {
-        const userData = JSON.parse(storedUser);
-        setUser(userData);
-        setIsLoggedIn(true);
-        
-        // Refresh points data from user context
-        refreshPoints();
-        
-        // Set initial points data if available in context
-        const contextPoints = getUserPoints();
-        if (contextPoints) {
-          setUserPoints(contextPoints);
+  const UserPointsPage = () => {
+    const { getUser, getUserPhone, getUserPoints, refreshPoints } = useUserContext();
+    const [loading, setLoading] = useState(true);
+    const [userPoints, setUserPoints] = useState(null);
+    const [activeTab, setActiveTab] = useState('summary');
+    const [redemptionOptions, setRedemptionOptions] = useState([]);
+    const [redemptionHistory, setRedemptionHistory] = useState([]);
+    const [loadingRedeem, setLoadingRedeem] = useState(false);
+    const [user, setUser] = useState(null);
+    const [isLoggedIn, setIsLoggedIn] = useState(false);
+    const isFetchingRef = useRef(false);
+    const hasPointsDataRef = useRef(false);
+  
+    // Get user information from context and localStorage
+    useEffect(() => {
+      const storedUser = localStorage.getItem('user');
+      if (storedUser) {
+        try {
+          const userData = JSON.parse(storedUser);
+          setUser(userData);
+          setIsLoggedIn(true);
+          
+          // Kiểm tra và set điểm từ context nếu có
+          const contextPoints = getUserPoints();
+          if (contextPoints) {
+            setUserPoints(contextPoints);
+            hasPointsDataRef.current = true;
+            setLoading(false);
+          } else {
+            // Chỉ refresh points nếu chưa có dữ liệu
+            refreshPoints();
+          }
+        } catch (e) {
+          console.error('Error parsing user data:', e);
         }
-      } catch (e) {
-        console.error('Error parsing user data:', e);
       }
-    }
-  }, [refreshPoints, getUserPoints]);
-
-  // Fetch user points data - will be called once user data is available
-  useEffect(() => {
-    if (!isLoggedIn) return;
-    
-    const fetchUserPoints = async () => {
+    }, []); // Chỉ chạy một lần khi component mount
+  
+    // Fetch user points data - will be called once user data is available
+    useEffect(() => {
+      // Không fetch nếu không đăng nhập hoặc đã có dữ liệu điểm hoặc đang trong quá trình fetch
+      if (!isLoggedIn || hasPointsDataRef.current || isFetchingRef.current) return;
+      
+      const fetchUserPoints = async () => {
+        // Đánh dấu đang fetch để tránh fetch nhiều lần
+        isFetchingRef.current = true;
+        
+        try {
+          setLoading(true);
+          
+          // First try to get by phone
+          const phone = getUserPhone();
+          
+          if (phone) {
+            try {
+              const response = await axios.get(`http://localhost:3005/loyalty/user-points/${phone}`);
+              if (response.data.success && response.data.hasPoints) {
+                setUserPoints(response.data.points);
+                hasPointsDataRef.current = true;
+                setLoading(false);
+                return;
+              }
+            } catch (error) {
+              console.error('Error fetching user points by phone:', error);
+            }
+          }
+          
+          // If phone method fails, try by email
+          if (user?.email) {
+            try {
+              const response = await axios.get(`http://localhost:3005/loyalty/user-points-by-email/${user.email}`);
+              if (response.data.success && response.data.hasPoints) {
+                setUserPoints(response.data.points);
+                hasPointsDataRef.current = true;
+                setLoading(false);
+                return;
+              }
+            } catch (error) {
+              console.error('Error fetching user points by email:', error);
+            }
+          }
+          
+          // If user has userId, try that as last resort
+          const userId = user?._id || user?.user?._id || user?.id || user?.user?.id;
+          if (userId) {
+            try {
+              const response = await axios.get(`http://localhost:3005/loyalty/user-points/${userId}`);
+              if (response.data.success && response.data.hasPoints) {
+                setUserPoints(response.data.points);
+                hasPointsDataRef.current = true;
+                setLoading(false);
+                return;
+              }
+            } catch (error) {
+              console.error('Error fetching user points by userId:', error);
+            }
+          }
+          
+          // Default points if all methods fail
+          setUserPoints({
+            totalPoints: 0,
+            availablePoints: 0,
+            tier: 'standard',
+            yearToDatePoints: 0,
+            history: []
+          });
+          hasPointsDataRef.current = true;
+        } catch (error) {
+          console.error('Error fetching user points:', error);
+          toast.error('Lỗi khi tải thông tin điểm thưởng');
+        } finally {
+          setLoading(false);
+          isFetchingRef.current = false; // Reset flag
+        }
+      };
+  
+      fetchUserPoints();
+    }, [isLoggedIn, user, getUserPhone]); // Phụ thuộc vào các giá trị cần thiết
+  
+    // Fetch redemption options - Chỉ fetch một lần khi có dữ liệu điểm
+    useEffect(() => {
+      if (!isLoggedIn || !userPoints) return;
+      
+      const fetchRedemptionOptions = async () => {
+        try {
+          const phone = getUserPhone();
+          
+          const response = await axios.get(`http://localhost:3005/loyalty/redemption-options?phone=${phone || ''}&tier=${userPoints?.tier || 'standard'}`);
+          
+          if (response.data.success) {
+            setRedemptionOptions(response.data.redemptionOptions || []);
+          }
+        } catch (error) {
+          console.error('Error fetching redemption options:', error);
+        }
+      };
+  
+      fetchRedemptionOptions();
+    }, [isLoggedIn, userPoints, getUserPhone]); // Chỉ chạy khi userPoints thay đổi
+  
+    // Fetch redemption history - Chỉ fetch một lần
+    useEffect(() => {
+      if (!isLoggedIn) return;
+      
+      const phone = getUserPhone();
+      if (!phone) return;
+      
+      const fetchRedemptionHistory = async () => {
+        try {
+          const response = await axios.get(`http://localhost:3005/loyalty/redemption-history/${phone}`);
+          
+          if (response.data.success) {
+            setRedemptionHistory(response.data.history || []);
+          }
+        } catch (error) {
+          console.error('Error fetching redemption history:', error);
+        }
+      };
+  
+      fetchRedemptionHistory();
+    }, [isLoggedIn, getUserPhone]); // Chỉ phụ thuộc vào đăng nhập và số điện thoại
+  
+    // Handle redeeming points for a voucher
+    const handleRedeem = async (redemptionId) => {
+      const phone = getUserPhone();
+      if (!phone || loadingRedeem) return;
+  
       try {
-        setLoading(true);
+        setLoadingRedeem(true);
         
-        // First try to get by phone
-        const phone = getUserPhone();
-        
-        if (phone) {
-          try {
-            const response = await axios.get(`http://localhost:3005/loyalty/user-points/${phone}`);
-            if (response.data.success && response.data.hasPoints) {
-              setUserPoints(response.data.points);
-              setLoading(false);
-              return;
-            }
-          } catch (error) {
-            console.error('Error fetching user points by phone:', error);
-          }
-        }
-        
-        // If phone method fails, try by email
-        if (user?.email) {
-          try {
-            const response = await axios.get(`http://localhost:3005/loyalty/user-points-by-email/${user.email}`);
-            if (response.data.success && response.data.hasPoints) {
-              setUserPoints(response.data.points);
-              setLoading(false);
-              return;
-            }
-          } catch (error) {
-            console.error('Error fetching user points by email:', error);
-          }
-        }
-        
-        // If user has userId, try that as last resort
-        const userId = user?._id || user?.user?._id || user?.id || user?.user?.id;
-        if (userId) {
-          try {
-            const response = await axios.get(`http://localhost:3005/loyalty/user-points/${userId}`);
-            if (response.data.success && response.data.hasPoints) {
-              setUserPoints(response.data.points);
-              setLoading(false);
-              return;
-            }
-          } catch (error) {
-            console.error('Error fetching user points by userId:', error);
-          }
-        }
-        
-        // Default points if all methods fail
-        setUserPoints({
-          totalPoints: 0,
-          availablePoints: 0,
-          tier: 'standard',
-          yearToDatePoints: 0,
-          history: []
+        const response = await axios.post('http://localhost:3005/loyalty/redeem', {
+          phone,
+          redemptionId
         });
-      } catch (error) {
-        console.error('Error fetching user points:', error);
-        toast.error('Lỗi khi tải thông tin điểm thưởng');
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchUserPoints();
-  }, [isLoggedIn, user, getUserPhone]);
-
-  // Fetch redemption options
-  useEffect(() => {
-    if (!isLoggedIn || !userPoints) return;
-    
-    const fetchRedemptionOptions = async () => {
-      try {
-        const phone = getUserPhone();
-        
-        const response = await axios.get(`http://localhost:3005/loyalty/redemption-options?phone=${phone || ''}&tier=${userPoints?.tier || 'standard'}`);
         
         if (response.data.success) {
-          setRedemptionOptions(response.data.redemptionOptions || []);
-        }
-      } catch (error) {
-        console.error('Error fetching redemption options:', error);
-      }
-    };
-
-    fetchRedemptionOptions();
-  }, [isLoggedIn, userPoints, getUserPhone]);
-
-  // Fetch redemption history
-  useEffect(() => {
-    if (!isLoggedIn) return;
-    
-    const fetchRedemptionHistory = async () => {
-      try {
-        const phone = getUserPhone();
-        if (!phone) return;
-        
-        const response = await axios.get(`http://localhost:3005/loyalty/redemption-history/${phone}`);
-        
-        if (response.data.success) {
-          setRedemptionHistory(response.data.history || []);
-        }
-      } catch (error) {
-        console.error('Error fetching redemption history:', error);
-      }
-    };
-
-    fetchRedemptionHistory();
-  }, [isLoggedIn, getUserPhone]);
-
-  // Handle redeeming points for a voucher
-  const handleRedeem = async (redemptionId) => {
-    const phone = getUserPhone();
-    if (!phone || loadingRedeem) return;
-
-    try {
-      setLoadingRedeem(true);
-      
-      const response = await axios.post('http://localhost:3005/loyalty/redeem', {
-        phone,
-        redemptionId
-      });
-      
-      if (response.data.success) {
-        toast.success('Đổi điểm thành công!');
-        
-        // Update user points
-        refreshPoints();
-        
-        // Update redemption history
-        const historyResponse = await axios.get(`http://localhost:3005/loyalty/redemption-history/${phone}`);
-        if (historyResponse.data.success) {
-          setRedemptionHistory(historyResponse.data.history || []);
-        }
-        
-        // Update redemption options
-        const optionsResponse = await axios.get(`http://localhost:3005/loyalty/redemption-options?phone=${phone}&tier=${userPoints?.tier || 'standard'}`);
-        if (optionsResponse.data.success) {
-          setRedemptionOptions(optionsResponse.data.redemptionOptions || []);
-        }
-        
-        // Show voucher details
-        toast.info(
-          <div>
-            <p><strong>Mã voucher:</strong> {response.data.voucher.code}</p>
-            <p><strong>Giá trị:</strong> {response.data.voucher.type === 'percentage' 
-              ? `${response.data.voucher.value}%` 
-              : `${Number(response.data.voucher.value).toLocaleString('vi-VN')}đ`}
-            </p>
-            <p><strong>Hết hạn:</strong> {moment(response.data.voucher.expiryDate).format('DD/MM/YYYY')}</p>
-          </div>,
-          {
-            autoClose: 8000,
-            className: 'voucher-toast'
+          toast.success('Đổi điểm thành công!');
+          
+          // Update user points
+          refreshPoints();
+          
+          // Update redemption history
+          const historyResponse = await axios.get(`http://localhost:3005/loyalty/redemption-history/${phone}`);
+          if (historyResponse.data.success) {
+            setRedemptionHistory(historyResponse.data.history || []);
           }
-        );
-        
-        // Switch to history tab
-        setActiveTab('history');
-      } else {
-        toast.error(response.data.message || 'Đổi điểm thất bại');
+          
+          // Update redemption options
+          const optionsResponse = await axios.get(`http://localhost:3005/loyalty/redemption-options?phone=${phone}&tier=${userPoints?.tier || 'standard'}`);
+          if (optionsResponse.data.success) {
+            setRedemptionOptions(optionsResponse.data.redemptionOptions || []);
+          }
+          
+          // Cập nhật lại dữ liệu điểm từ context
+          setTimeout(() => {
+            const updatedPoints = getUserPoints();
+            if (updatedPoints) {
+              setUserPoints(updatedPoints);
+            }
+          }, 500);
+          
+          // Show voucher details
+          toast.info(
+            <div>
+              <p><strong>Mã voucher:</strong> {response.data.voucher.code}</p>
+              <p><strong>Giá trị:</strong> {response.data.voucher.type === 'percentage' 
+                ? `${response.data.voucher.value}%` 
+                : `${Number(response.data.voucher.value).toLocaleString('vi-VN')}đ`}
+              </p>
+              <p><strong>Hết hạn:</strong> {moment(response.data.voucher.expiryDate).format('DD/MM/YYYY')}</p>
+            </div>,
+            {
+              autoClose: 8000,
+              className: 'voucher-toast'
+            }
+          );
+          
+          // Switch to history tab
+          setActiveTab('history');
+        } else {
+          toast.error(response.data.message || 'Đổi điểm thất bại');
+        }
+      } catch (error) {
+        console.error('Error redeeming points:', error);
+        toast.error(error.response?.data?.message || 'Lỗi khi đổi điểm');
+      } finally {
+        setLoadingRedeem(false);
       }
-    } catch (error) {
-      console.error('Error redeeming points:', error);
-      toast.error(error.response?.data?.message || 'Lỗi khi đổi điểm');
-    } finally {
-      setLoadingRedeem(false);
-    }
-  };
+    };
+    
+    // Get tier name in Vietnamese
+    const getTierName = (tier) => {
+      switch (tier) {
+        case 'silver': return 'Bạc';
+        case 'gold': return 'Vàng';
+        case 'platinum': return 'Bạch Kim';
+        default: return 'Tiêu Chuẩn';
+      }
+    };
+    
+    // Get tier background color
+    const getTierColor = (tier) => {
+      switch (tier) {
+        case 'silver': return 'var(--silver-gradient)';
+        case 'gold': return 'var(--gold-gradient)';
+        case 'platinum': return 'var(--platinum-gradient)';
+        default: return 'var(--standard-gradient)';
+      }
+    };
   
-  // Get tier name in Vietnamese
-  const getTierName = (tier) => {
-    switch (tier) {
-      case 'silver': return 'Bạc';
-      case 'gold': return 'Vàng';
-      case 'platinum': return 'Bạch Kim';
-      default: return 'Tiêu Chuẩn';
-    }
-  };
+    // Format points number with commas
+    const formatPoints = (points) => {
+      return Number(points).toLocaleString('vi-VN');
+    };
   
-  // Get tier background color
-  const getTierColor = (tier) => {
-    switch (tier) {
-      case 'silver': return 'var(--silver-gradient)';
-      case 'gold': return 'var(--gold-gradient)';
-      case 'platinum': return 'var(--platinum-gradient)';
-      default: return 'var(--standard-gradient)';
-    }
-  };
-
-  // Format points number with commas
-  const formatPoints = (points) => {
-    return Number(points).toLocaleString('vi-VN');
-  };
-
-  // Get progress percentage to next tier
-  const getNextTierProgress = () => {
-    if (!userPoints || userPoints.tier === 'platinum') return 100;
-    
-    const pointsToNextTier = userPoints.pointsToNextTier || 0;
-    let percentage = 0;
-    
-    switch (userPoints.tier) {
-      case 'standard':
-        percentage = ((2000 - pointsToNextTier) / 2000) * 100;
-        break;
-      case 'silver':
-        percentage = ((5000 - pointsToNextTier) / 5000) * 100;
-        break;
-      case 'gold':
-        percentage = ((10000 - pointsToNextTier) / 10000) * 100;
-        break;
-      default:
-        percentage = 0;
-    }
-    
-    return Math.min(Math.max(percentage, 0), 100);
-  };
-
-  // If the user is not logged in at all, show the login required message
-  if (!isLoggedIn) {
-    return (
-      <div className="points-page">
-        <Helmet>
-          <title>Điểm Thưởng | ShopDunk</title>
-        </Helmet>
-        
-        <ThanhDinhHuong
-          breadcrumbs={[
-            { label: 'Trang Chủ', link: '/' },
-            { label: 'Điểm Thưởng', link: '/diem-thuong' }
-          ]}
-        />
-        
-        <div className="login-required">
-          <FontAwesomeIcon icon={faInfoCircle} className="icon" />
-          <h2>Vui lòng đăng nhập</h2>
-          <p>Bạn cần đăng nhập để xem thông tin điểm thưởng</p>
-          <button className="primary-btn" onClick={() => window.location.href = '/login'}>
-            Đăng nhập ngay
-          </button>
+    // Get progress percentage to next tier
+    const getNextTierProgress = () => {
+      if (!userPoints || userPoints.tier === 'platinum') return 100;
+      
+      const pointsToNextTier = userPoints.pointsToNextTier || 0;
+      let percentage = 0;
+      
+      switch (userPoints.tier) {
+        case 'standard':
+          percentage = ((2000 - pointsToNextTier) / 2000) * 100;
+          break;
+        case 'silver':
+          percentage = ((5000 - pointsToNextTier) / 5000) * 100;
+          break;
+        case 'gold':
+          percentage = ((10000 - pointsToNextTier) / 10000) * 100;
+          break;
+        default:
+          percentage = 0;
+      }
+      
+      return Math.min(Math.max(percentage, 0), 100);
+    };
+  
+    // If the user is not logged in at all, show the login required message
+    if (!isLoggedIn) {
+      return (
+        <div className="points-page">
+          <Helmet>
+            <title>Điểm Thưởng | ShopDunk</title>
+          </Helmet>
+          
+          <ThanhDinhHuong
+            breadcrumbs={[
+              { label: 'Trang Chủ', link: '/' },
+              { label: 'Điểm Thưởng', link: '/diem-thuong' }
+            ]}
+          />
+          
+          <div className="login-required">
+            <FontAwesomeIcon icon={faInfoCircle} className="icon" />
+            <h2>Vui lòng đăng nhập</h2>
+            <p>Bạn cần đăng nhập để xem thông tin điểm thưởng</p>
+            <button className="primary-btn" onClick={() => window.location.href = '/login'}>
+              Đăng nhập ngay
+            </button>
+          </div>
         </div>
-      </div>
-    );
-  }
+      );
+    }
 
   return (
     <div className="points-page">

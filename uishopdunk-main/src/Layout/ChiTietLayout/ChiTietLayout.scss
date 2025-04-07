@@ -356,14 +356,28 @@ hr {
 }
 
 .divbtn_muagay {
-  padding: 20px;
-  text-align: center;
-  background-color: #06c;
+  background-color: #0066cc;
   color: white;
-  font-size: 17px;
+  text-align: center;
+  padding: 15px;
+  border-radius: 5px;
   font-weight: bold;
-  line-height: 25px;
-  border-radius: 10px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  
+  &:hover {
+    background-color: #004d99;
+  }
+  
+  &.disabled {
+    opacity: 0.7;
+    cursor: not-allowed;
+    background-color: #999;
+    
+    &:hover {
+      background-color: #999;
+    }
+  }
 }
 
 .icontichxanh {
@@ -435,30 +449,48 @@ hr {
   }
 }
 .stock-status {
-  background-color: #f5f5f5;
-  padding: 10px 15px;
-  border-radius: 4px;
   margin-bottom: 15px;
-  font-size: 14px;
+  font-size: 1rem;
   
   .loading-stock {
-    color: #757575;
+    color: #0078d7;
     font-style: italic;
+    position: relative;
+    padding-right: 20px;
+    
+    &:after {
+      content: '...';
+      position: absolute;
+      right: 0;
+      animation: dots 1.5s infinite;
+    }
   }
   
   .out-of-stock {
-    color: #d32f2f;
+    color: #e74c3c;
     font-weight: bold;
   }
   
   .low-stock {
-    color: #f57c00;
+    color: #e67e22;
     font-weight: bold;
   }
   
   .in-stock {
-    color: #2e7d32;
+    color: #27ae60;
     font-weight: bold;
+  }
+}
+
+@keyframes dots {
+  0%, 20% {
+    content: '.';
+  }
+  40% {
+    content: '..';
+  }
+  60%, 100% {
+    content: '...';
   }
 }
 
