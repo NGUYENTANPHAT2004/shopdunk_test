@@ -4,7 +4,7 @@ import { toast } from 'react-toastify';
 import { useUserContext } from './Usercontext';
 import io from 'socket.io-client';
 
-// Import configuration - IMPORTANT FIX: this was missing
+// Import configuration
 const API_URL = process.env.REACT_APP_API_URL || '';
 const CHAT_API_KEY = process.env.REACT_APP_CHAT_API_KEY || 'beeshop_secret_chat_api_key_2025';
 
@@ -14,6 +14,7 @@ const SOCKET_OPTIONS = {
   reconnectionDelay: 1000,
   reconnectionDelayMax: 5000,
   timeout: 10000,
+  transports: ['websocket', 'polling']
 };
 
 const ChatAIContext = createContext(null);
@@ -71,8 +72,15 @@ export const ChatAIProvider = ({ children }) => {
         }
       });
 
+      // Handle AI typing indicator
+      newSocket.on('ai_typing', () => {
+        console.log("AI is typing...");
+        // You can add UI indicator for typing here
+      });
+
       // Handle AI response
-      newSocket.on('ai_message', (response) => {
+      newSocket.on('ai_response', (response) => {
+        console.log("Received AI response:", response);
         setMessages(prevMessages => [
           ...prevMessages,
           {
@@ -80,37 +88,29 @@ export const ChatAIProvider = ({ children }) => {
             text: response.message,
             sender: 'ai',
             source: response.source,
-            timestamp: response.timestamp
+            timestamp: response.timestamp || new Date().toISOString()
           }
         ]);
         setIsLoading(false);
       });
 
-      // Handle AI typing
-      newSocket.on('ai_typing', () => {
-        // Can display typing status here
-      });
-
-      // Handle server errors
-      newSocket.on('chat_error', (error) => {
-        console.error('Chat error:', error);
-        
-        toast.error(error.message || 'Có lỗi xảy ra khi xử lý tin nhắn', {
-          position: 'top-right',
-          autoClose: 3000
-        });
-        
-        setIsLoading(false);
-      });
-
-      // Handle chat session initialization
+      // Handle chat initialization
       newSocket.on('chat_initialized', (data) => {
         console.log('Chat session initialized:', data);
         setSessionId(data.sessionId);
       });
 
+      // Handle session restoration
+      newSocket.on('session_restored', (data) => {
+        console.log('Chat session restored:', data);
+        setSessionId(data.sessionId);
+        // Fetch chat history
+        newSocket.emit('get_history', { sessionId: data.sessionId });
+      });
+
       // Handle chat history
       newSocket.on('chat_history', (data) => {
+        console.log('Received chat history:', data);
         if (data.messages && Array.isArray(data.messages)) {
           const formattedMessages = data.messages.map(msg => ({
             id: msg._id,
@@ -122,6 +122,31 @@ export const ChatAIProvider = ({ children }) => {
           
           setMessages(formattedMessages);
         }
+      });
+
+      // Handle chat ended
+      newSocket.on('chat_ended', (data) => {
+        console.log('Chat session ended:', data);
+        setSessionId(null);
+      });
+
+      // Handle feedback confirmation
+      newSocket.on('feedback_received', (data) => {
+        console.log('Feedback received confirmation:', data);
+        toast.success('Cảm ơn bạn đã đánh giá!', {
+          position: 'top-right',
+          autoClose: 2000
+        });
+      });
+
+      // Handle errors
+      newSocket.on('chat_error', (error) => {
+        console.error('Chat error:', error);
+        toast.error(error.message || 'Có lỗi xảy ra khi xử lý tin nhắn', {
+          position: 'top-right',
+          autoClose: 3000
+        });
+        setIsLoading(false);
       });
     };
     
@@ -172,9 +197,12 @@ export const ChatAIProvider = ({ children }) => {
   const initializeChat = () => {
     if (!socket || !isConnected) return;
     
+    // Prepare user data for initialization
     const userData = {
-      guestName: userName,
-      guestPhone: getUserPhone() || null
+      guestInfo: {
+        name: userName,
+        phone: getUserPhone() || null
+      }
     };
     
     console.log('Initializing chat with data:', userData);
@@ -211,9 +239,6 @@ export const ChatAIProvider = ({ children }) => {
   const sendMessage = async (text) => {
     if (!text.trim()) return;
     
-    // Ensure we have a name to use
-    const sender = userName || `Guest_${Math.floor(Math.random() * 10000)}`;
-    
     // Add user message to chat
     const userMessage = {
       text: text,
@@ -227,27 +252,32 @@ export const ChatAIProvider = ({ children }) => {
     try {
       // Initialize chat session if needed
       if (!sessionId && socket && isConnected) {
-        initializeChat();
+        await initializeChat();
         // Give some time for the session to initialize
         await new Promise(resolve => setTimeout(resolve, 500));
       }
       
       // If socket is connected, use it for real-time communication
       if (socket && isConnected) {
-        socket.emit('user_message', {
+        // Prepare message data
+        const messageData = {
           message: text,
-          sessionId
-        });
+          sessionId: sessionId,
+          guestInfo: {
+            name: userName,
+            phone: getUserPhone() || null
+          }
+        };
+        
+        socket.emit('user_message', messageData);
       } else {
         // Fallback to REST API if socket is not available
-        const phone = getUserPhone();
-        
         const response = await axios.post(`${apiBaseUrl}/api/chat`, {
           message: text,
           sessionId,
           guestInfo: { 
-            name: sender, 
-            phone: phone || null
+            name: userName, 
+            phone: getUserPhone() || null
           }
         }, {
           headers: {
@@ -330,7 +360,7 @@ export const ChatAIProvider = ({ children }) => {
     if (!sessionId) return;
     
     if (socket && isConnected) {
-      socket.emit('get_history');
+      socket.emit('get_history', { sessionId });
     } else {
       // Fallback to REST API
       axios.get(`${apiBaseUrl}/api/chat/history/${sessionId}`, {

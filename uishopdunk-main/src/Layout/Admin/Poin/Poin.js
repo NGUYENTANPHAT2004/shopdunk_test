@@ -1,13 +1,20 @@
+// Poin.js - Main admin dashboard for loyalty program
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
-import { toast } from 'react-toastify';
+import { toast, ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faStar, faGift, faChartLine, faUser, faSync, faPlus, faEdit, faTrash, faSearch } from '@fortawesome/free-solid-svg-icons';
-import moment from 'moment';
+import { 
+  faStar, 
+  faGift, 
+  faChartLine, 
+  faUser, 
+  faSync, 
+  faTrash
+} from '@fortawesome/free-solid-svg-icons';
 import './Poin.scss';
 
-// Import các component con
+// Import components
 import UserPointsManagement from './UserPointsManagement';
 import RedemptionOptions from './RedemptionOptions';
 import LoyaltyStats from './LoyaltyStats';
@@ -17,12 +24,12 @@ function LoyaltyPointsAdminLayout() {
   const [isLoading, setIsLoading] = useState(false);
   const [stats, setStats] = useState(null);
 
-  // Lấy thống kê chung khi component mount
+  // Get overview stats when component mounts
   useEffect(() => {
     fetchOverviewStats();
   }, []);
 
-  // Lấy thống kê tổng quan về chương trình điểm thưởng
+  // Fetch overview stats from API
   const fetchOverviewStats = async () => {
     try {
       setIsLoading(true);
@@ -41,7 +48,7 @@ function LoyaltyPointsAdminLayout() {
     }
   };
 
-  // Xử lý đặt lại điểm YTD hàng năm
+  // Handle resetting YTD points yearly
   const handleResetYTDPoints = async () => {
     if (!window.confirm('Bạn có chắc chắn muốn đặt lại điểm YTD của tất cả thành viên? Hành động này không thể hoàn tác và chỉ nên thực hiện một lần mỗi năm.')) {
       return;
@@ -65,7 +72,7 @@ function LoyaltyPointsAdminLayout() {
     }
   };
 
-  // Xử lý xóa điểm hết hạn
+  // Handle processing expired points
   const handleProcessExpiredPoints = async () => {
     if (!window.confirm('Bạn có chắc chắn muốn xử lý các điểm đã hết hạn?')) {
       return;
@@ -91,10 +98,11 @@ function LoyaltyPointsAdminLayout() {
 
   return (
     <div className="loyalty-admin-container">
+      <ToastContainer position="top-right" />
       <div className="loyalty-admin-header">
         <h2>Quản lý Điểm thưởng ShopDunk</h2>
         
-        {/* Dashboard dạng thẻ */}
+        {/* Stats dashboard */}
         <div className="loyalty-stats-cards">
           <div className="stats-card">
             <div className="card-icon users">
@@ -127,14 +135,14 @@ function LoyaltyPointsAdminLayout() {
           </div>
         </div>
 
-        {/* Menu các tab */}
+        {/* Tab menu */}
         <div className="loyalty-admin-tabs">
           <button 
             className={activeTab === 'users' ? 'active' : ''}
             onClick={() => setActiveTab('users')}
           >
             <FontAwesomeIcon icon={faUser} />
-            <span>Quản lý Điểm</span>
+            <span>Thành viên</span>
           </button>
           
           <button 
@@ -142,7 +150,7 @@ function LoyaltyPointsAdminLayout() {
             onClick={() => setActiveTab('redemptions')}
           >
             <FontAwesomeIcon icon={faGift} />
-            <span>Tùy chọn Đổi điểm</span>
+            <span>Quà đổi điểm</span>
           </button>
           
           <button 
@@ -154,7 +162,7 @@ function LoyaltyPointsAdminLayout() {
           </button>
         </div>
         
-        {/* Các action buttons */}
+        {/* Action buttons */}
         <div className="loyalty-admin-actions">
           <button 
             className="action-button refresh"

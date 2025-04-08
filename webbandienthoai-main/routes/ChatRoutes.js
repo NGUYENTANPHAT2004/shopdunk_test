@@ -1,17 +1,24 @@
 const express = require('express');
 const router = express.Router();
 const chatController = require('../socket/chat/ChatController');
-const trainingController = require('../socket/chat/trainingController');
+const trainingController = require('../socket/chat/TrainingController'); // Fixed capitalization
 const { ChatSession, ChatMessage, ChatTraining, ChatAnalytics } = require('../models/Chatmodel');
 
 /**
- * API endpoint cho chatbot (phục vụ môi trường không hỗ trợ WebSocket)
+ * ==============================================
+ * USER-FACING CHAT API ENDPOINTS
+ * ==============================================
+ */
+
+/**
+ * Process a user message and get AI response
+ * For environments that don't support WebSockets
  */
 router.post('/api/chat', async (req, res) => {
   try {
     const { message, sessionId, userId, guestInfo = null } = req.body;
     
-    // Kiểm tra dữ liệu đầu vào
+    // Validate input
     if (!message) {
       return res.status(400).json({
         success: false,
@@ -19,13 +26,13 @@ router.post('/api/chat', async (req, res) => {
       });
     }
     
-    // Thông tin client
+    // Collect client info
     const clientInfo = {
       ip: req.ip,
       userAgent: req.headers['user-agent']
     };
     
-    // Nếu chưa có sessionId, tạo phiên mới
+    // Create new session if needed
     let currentSessionId = sessionId;
     if (!currentSessionId) {
       const userData = userId ? { userId } : { guestInfo };
@@ -33,7 +40,7 @@ router.post('/api/chat', async (req, res) => {
       currentSessionId = session._id.toString();
     }
     
-    // Xử lý tin nhắn
+    // Process the message
     const response = await chatController.processMessage(
       currentSessionId,
       message,
@@ -42,7 +49,7 @@ router.post('/api/chat', async (req, res) => {
       clientInfo
     );
     
-    // Trả về kết quả
+    // Return successful response
     res.json({
       success: true,
       sessionId: currentSessionId,
@@ -64,13 +71,13 @@ router.post('/api/chat', async (req, res) => {
 });
 
 /**
- * Lấy lịch sử chat của một phiên
+ * Retrieve chat history for a session
  */
 router.get('/api/chat/history/:sessionId', async (req, res) => {
   try {
     const { sessionId } = req.params;
     
-    // Kiểm tra phiên chat
+    // Verify session exists
     const session = await ChatSession.findById(sessionId);
     if (!session) {
       return res.status(404).json({
@@ -79,7 +86,7 @@ router.get('/api/chat/history/:sessionId', async (req, res) => {
       });
     }
     
-    // Lấy lịch sử tin nhắn
+    // Get message history
     const messages = await chatController.getSessionHistory(sessionId);
     
     res.json({
@@ -99,7 +106,7 @@ router.get('/api/chat/history/:sessionId', async (req, res) => {
 });
 
 /**
- * Gửi phản hồi về chất lượng tin nhắn
+ * Submit feedback for an AI message
  */
 router.post('/api/chat/feedback', async (req, res) => {
   try {
@@ -134,7 +141,7 @@ router.post('/api/chat/feedback', async (req, res) => {
 });
 
 /**
- * Kết thúc phiên chat
+ * End a chat session
  */
 router.post('/api/chat/end/:sessionId', async (req, res) => {
   try {
@@ -159,19 +166,19 @@ router.post('/api/chat/end/:sessionId', async (req, res) => {
 });
 
 /**
- * Tạo phiên chat mới
+ * Create a new chat session
  */
 router.post('/api/chat/session', async (req, res) => {
   try {
     const { userId, guestInfo } = req.body;
     
-    // Thông tin client
+    // Collect client info
     const clientInfo = {
       ip: req.ip,
       userAgent: req.headers['user-agent']
     };
     
-    // Tạo phiên chat mới
+    // Create new session
     const userData = userId ? { userId } : { guestInfo };
     const session = await chatController.createSession(userData, clientInfo);
     
@@ -192,15 +199,18 @@ router.post('/api/chat/session', async (req, res) => {
 });
 
 /**
- * API ROUTES CHO ADMIN (Đã bỏ xác thực admin)
+ * ==============================================
+ * ADMIN APIs FOR TRAINING DATA MANAGEMENT
+ * (Authentication disabled)
+ * ==============================================
  */
 
 /**
- * Lấy tất cả dữ liệu training
+ * Get all training data with filters and pagination
  */
 router.get('/api/admin/chat/training', async (req, res) => {
   try {
-    // Lấy và truyền tất cả các tham số từ query string
+    // Pass all query parameters to controller
     const result = await trainingController.getAllTraining(req.query);
     
     res.json({
@@ -219,7 +229,7 @@ router.get('/api/admin/chat/training', async (req, res) => {
 });
 
 /**
- * Thêm dữ liệu huấn luyện mẫu (để kiểm tra)
+ * Add sample training data (for testing)
  */
 router.post('/api/admin/chat/training/samples', async (req, res) => {
   try {
@@ -241,7 +251,7 @@ router.post('/api/admin/chat/training/samples', async (req, res) => {
 });
 
 /**
- * Lấy chi tiết dữ liệu training
+ * Get details of a specific training item
  */
 router.get('/api/admin/chat/training/:id', async (req, res) => {
   try {
@@ -264,11 +274,11 @@ router.get('/api/admin/chat/training/:id', async (req, res) => {
 });
 
 /**
- * Tạo dữ liệu training mới
+ * Create new training data
  */
 router.post('/api/admin/chat/training', async (req, res) => {
   try {
-    // Bỏ qua UserId vì không cần xác thực người dùng
+    // Skip user authentication
     const userId = null;
     
     const result = await trainingController.createTraining(req.body, userId);
@@ -289,12 +299,12 @@ router.post('/api/admin/chat/training', async (req, res) => {
 });
 
 /**
- * Cập nhật dữ liệu training
+ * Update existing training data
  */
 router.put('/api/admin/chat/training/:id', async (req, res) => {
   try {
     const { id } = req.params;
-    const userId = null; // Bỏ qua UserId
+    const userId = null; // Skip user authentication
     
     const result = await trainingController.updateTraining(id, req.body, userId);
     
@@ -314,7 +324,7 @@ router.put('/api/admin/chat/training/:id', async (req, res) => {
 });
 
 /**
- * Xóa dữ liệu training
+ * Delete training data
  */
 router.delete('/api/admin/chat/training/:id', async (req, res) => {
   try {
@@ -338,12 +348,12 @@ router.delete('/api/admin/chat/training/:id', async (req, res) => {
 });
 
 /**
- * Import dữ liệu training từ file
+ * Import multiple training items
  */
 router.post('/api/admin/chat/training/import', async (req, res) => {
   try {
     const { items } = req.body;
-    const userId = null; // Bỏ qua UserId
+    const userId = null; // Skip user authentication
     
     if (!items || !Array.isArray(items)) {
       return res.status(400).json({
@@ -370,7 +380,7 @@ router.post('/api/admin/chat/training/import', async (req, res) => {
 });
 
 /**
- * Cập nhật trạng thái kích hoạt của dữ liệu training
+ * Toggle active status of training data
  */
 router.patch('/api/admin/chat/training/:id/toggle', async (req, res) => {
   try {
@@ -402,7 +412,7 @@ router.patch('/api/admin/chat/training/:id/toggle', async (req, res) => {
 });
 
 /**
- * Lấy tất cả danh mục trong dữ liệu training
+ * Get all available training categories
  */
 router.get('/api/admin/chat/categories', async (req, res) => {
   try {

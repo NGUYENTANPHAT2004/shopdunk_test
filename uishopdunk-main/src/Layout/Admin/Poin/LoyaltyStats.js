@@ -1,3 +1,4 @@
+// LoyaltyStats.js - Statistics and analytics for loyalty program
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
@@ -13,8 +14,8 @@ import {
 } from '@fortawesome/free-solid-svg-icons';
 import moment from 'moment';
 
-const LoyaltyStats = () => {
-  const [stats, setStats] = useState(null);
+const LoyaltyStats = ({ stats: initialStats, refreshStats }) => {
+  const [stats, setStats] = useState(initialStats);
   const [chartData, setChartData] = useState(null);
   const [dateRange, setDateRange] = useState({
     startDate: moment().subtract(30, 'days').format('YYYY-MM-DD'),
@@ -23,10 +24,15 @@ const LoyaltyStats = () => {
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    fetchStats();
-  }, []);
+    if (initialStats) {
+      setStats(initialStats);
+      generateChartData(initialStats);
+    } else {
+      fetchStats();
+    }
+  }, [initialStats]);
 
-  // Lấy thống kê từ API
+  // Fetch statistics from API
   const fetchStats = async () => {
     try {
       setLoading(true);
@@ -43,7 +49,7 @@ const LoyaltyStats = () => {
     }
   };
 
-  // Tạo dữ liệu biểu đồ từ dữ liệu thực tế
+  // Generate chart data from actual data
   const generateChartData = (statsData) => {
     if (!statsData || !statsData.pointsHistory) return;
     
@@ -64,7 +70,7 @@ const LoyaltyStats = () => {
     setChartData(chartData);
   };
 
-  // Lấy thống kê theo khoảng thời gian
+  // Fetch statistics by date range
   const fetchStatsByDateRange = async () => {
     try {
       setLoading(true);
@@ -86,7 +92,7 @@ const LoyaltyStats = () => {
     }
   };
 
-  // Xử lý thay đổi khoảng thời gian
+  // Handle date range change
   const handleDateRangeChange = (e) => {
     const { name, value } = e.target;
     setDateRange(prev => ({
@@ -95,13 +101,13 @@ const LoyaltyStats = () => {
     }));
   };
 
-  // Xử lý tìm kiếm theo khoảng thời gian
+  // Handle date range search
   const handleDateRangeSubmit = (e) => {
     e.preventDefault();
     fetchStatsByDateRange();
   };
 
-  // Phân phối thành viên theo cấp
+  // Render tier distribution
   const renderTierDistribution = () => {
     if (!stats || !stats.tierDistribution) return null;
     
@@ -153,7 +159,7 @@ const LoyaltyStats = () => {
     );
   };
 
-  // Hiển thị tên cấp thành viên
+  // Display tier name
   const getTierName = (tier) => {
     switch (tier) {
       case 'silver': return 'Bạc';
@@ -163,7 +169,7 @@ const LoyaltyStats = () => {
     }
   };
 
-  // Hiển thị các quà đổi điểm phổ biến
+  // Render top redemption options
   const renderTopRedemptions = () => {
     if (!stats || !stats.topRedemptions || stats.topRedemptions.length === 0) {
       return (
@@ -201,7 +207,7 @@ const LoyaltyStats = () => {
     );
   };
 
-  // Hiển thị tên loại voucher
+  // Display voucher type name
   const getVoucherTypeName = (type) => {
     switch (type) {
       case 'percentage': return 'Giảm %';
@@ -212,7 +218,7 @@ const LoyaltyStats = () => {
     }
   };
 
-  // Nếu không có dữ liệu thống kê
+  // If no statistics data
   if (!stats) {
     return (
       <div className="loyalty-stats">
@@ -270,7 +276,7 @@ const LoyaltyStats = () => {
         </form>
       </div>
 
-      {/* Thống kê tổng quan */}
+      {/* Points statistics */}
       <div className="stats-section">
         <h4>
           <FontAwesomeIcon icon={faStar} />
@@ -297,7 +303,7 @@ const LoyaltyStats = () => {
         </div>
       </div>
 
-      {/* Thống kê thành viên */}
+      {/* Member statistics */}
       <div className="stats-section">
         <h4>
           <FontAwesomeIcon icon={faUsers} />
@@ -307,7 +313,7 @@ const LoyaltyStats = () => {
         {renderTierDistribution()}
       </div>
 
-      {/* Top quà đổi điểm */}
+      {/* Top redemption options */}
       <div className="stats-section">
         <h4>
           <FontAwesomeIcon icon={faTrophy} />
@@ -317,7 +323,7 @@ const LoyaltyStats = () => {
         {renderTopRedemptions()}
       </div>
 
-      {/* Biểu đồ điểm theo thời gian */}
+      {/* Points trend chart */}
       <div className="stats-section">
         <h4>
           <FontAwesomeIcon icon={faExchangeAlt} />
@@ -373,7 +379,7 @@ const LoyaltyStats = () => {
         )}
       </div>
 
-      {/* Thống kê đổi điểm */}
+      {/* Redemption statistics */}
       <div className="stats-section">
         <h4>
           <FontAwesomeIcon icon={faGift} />

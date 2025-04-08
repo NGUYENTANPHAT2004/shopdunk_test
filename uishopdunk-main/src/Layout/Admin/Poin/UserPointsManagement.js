@@ -1,8 +1,9 @@
+// UserPointsManagement.js - For viewing member information and history
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { toast } from 'react-toastify';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faSearch, faEdit, faPlus, faSpinner, faTimes, faHistory } from '@fortawesome/free-solid-svg-icons';
+import { faSearch, faHistory, faSpinner, faTimes } from '@fortawesome/free-solid-svg-icons';
 import moment from 'moment';
 
 const UserPointsManagement = () => {
@@ -10,23 +11,18 @@ const UserPointsManagement = () => {
   const [loading, setLoading] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [searchResults, setSearchResults] = useState([]);
-  const [editModalOpen, setEditModalOpen] = useState(false);
   const [historyModalOpen, setHistoryModalOpen] = useState(false);
   const [selectedUser, setSelectedUser] = useState(null);
-  const [pointsAdjustment, setPointsAdjustment] = useState({
-    amount: 0,
-    reason: ''
-  });
   const [pointsHistory, setPointsHistory] = useState([]);
   const [page, setPage] = useState(1);
   const itemsPerPage = 10;
 
-  // Lấy danh sách tài khoản điểm thưởng khi component mount
+  // Fetch users when component mounts
   useEffect(() => {
     fetchUsers();
   }, []);
 
-  // Lọc kết quả tìm kiếm khi searchTerm thay đổi
+  // Filter search results when searchTerm changes
   useEffect(() => {
     if (searchTerm.trim() === '') {
       setSearchResults(users);
@@ -39,7 +35,7 @@ const UserPointsManagement = () => {
     }
   }, [searchTerm, users]);
 
-  // Lấy danh sách tài khoản điểm thưởng
+  // Fetch user points accounts
   const fetchUsers = async () => {
     try {
       setLoading(true);
@@ -59,7 +55,7 @@ const UserPointsManagement = () => {
     }
   };
 
-  // Xử lý tìm kiếm
+  // Handle search
   const handleSearch = (e) => {
     e.preventDefault();
     
@@ -68,18 +64,18 @@ const UserPointsManagement = () => {
       return;
     }
     
-    // Nếu searchTerm giống SĐT, tìm chính xác
+    // If searchTerm looks like a phone number, search for exact match
     if (/^\d{10,11}$/.test(searchTerm.trim())) {
       const exactResult = users.find(user => user.phone === searchTerm.trim());
       
       if (exactResult) {
         setSearchResults([exactResult]);
       } else {
-        // Thử tìm qua API nếu không tìm thấy trong danh sách hiện tại
+        // Try searching via API if not found in current list
         searchUserByPhone(searchTerm.trim());
       }
     } else {
-      // Tìm theo từng phần với các trường khác
+      // Search by partial match for other fields
       const results = users.filter(user => 
         (user.phone && user.phone.includes(searchTerm)) || 
         (user.email && user.email.toLowerCase().includes(searchTerm.toLowerCase()))
@@ -87,19 +83,19 @@ const UserPointsManagement = () => {
       setSearchResults(results);
       
       if (results.length === 0) {
-        // Thử tìm qua API nếu không tìm thấy trong danh sách hiện tại
+        // Try searching via API if not found in current list
         searchUserByEmail(searchTerm.trim());
       }
     }
   };
 
-  // Tìm kiếm người dùng theo số điện thoại qua API
+  // Search user by phone number via API
   const searchUserByPhone = async (phone) => {
     try {
       setLoading(true);
       const response = await axios.get(`http://localhost:3005/loyalty/user-points/${phone}`);
       
-      if (response.data && response.data.success) {
+      if (response.data && response.data.success && response.data.hasPoints) {
         const user = response.data.data;
         setUsers(prevUsers => [...prevUsers, user]);
         setSearchResults([user]);
@@ -116,13 +112,13 @@ const UserPointsManagement = () => {
     }
   };
 
-  // Tìm kiếm người dùng theo email qua API
+  // Search user by email via API
   const searchUserByEmail = async (email) => {
     try {
       setLoading(true);
       const response = await axios.get(`http://localhost:3005/loyalty/user-points-by-email/${email}`);
       
-      if (response.data && response.data.success) {
+      if (response.data && response.data.success && response.data.hasPoints) {
         const user = response.data.data;
         setUsers(prevUsers => [...prevUsers, user]);
         setSearchResults([user]);
@@ -139,24 +135,14 @@ const UserPointsManagement = () => {
     }
   };
 
-  // Mở modal chỉnh sửa điểm thưởng
-  const openEditModal = (user) => {
-    setSelectedUser(user);
-    setPointsAdjustment({
-      amount: 0,
-      reason: ''
-    });
-    setEditModalOpen(true);
-  };
-
-  // Mở modal lịch sử điểm thưởng
+  // Open points history modal
   const openHistoryModal = async (user) => {
     setSelectedUser(user);
     fetchPointsHistory(user);
     setHistoryModalOpen(true);
   };
 
-  // Lấy lịch sử điểm thưởng
+  // Fetch points history
   const fetchPointsHistory = async (user) => {
     try {
       setLoading(true);
@@ -175,54 +161,7 @@ const UserPointsManagement = () => {
     }
   };
 
-  // Điều chỉnh điểm thưởng
-  const handleAdjustPoints = async () => {
-    if (!selectedUser) return;
-    
-    if (!pointsAdjustment.reason) {
-      toast.error('Vui lòng nhập lý do điều chỉnh điểm');
-      return;
-    }
-    
-    try {
-      setLoading(true);
-      const response = await axios.post('http://localhost:3005/admin/loyalty/adjust-points', {
-        userId: selectedUser._id,
-        pointsAdjustment: parseInt(pointsAdjustment.amount),
-        reason: pointsAdjustment.reason
-      });
-      
-      if (response.data && response.data.success) {
-        const updatedUser = response.data.data;
-        
-        // Cập nhật danh sách người dùng
-        setUsers(prevUsers => 
-          prevUsers.map(user => 
-            user._id === selectedUser._id ? updatedUser : user
-          )
-        );
-        
-        // Cập nhật kết quả tìm kiếm
-        setSearchResults(prevResults => 
-          prevResults.map(user => 
-            user._id === selectedUser._id ? updatedUser : user
-          )
-        );
-        
-        toast.success(`Đã điều chỉnh ${pointsAdjustment.amount} điểm cho thành viên`);
-        setEditModalOpen(false);
-      } else {
-        toast.error('Không thể điều chỉnh điểm thưởng');
-      }
-    } catch (error) {
-      console.error('Lỗi khi điều chỉnh điểm thưởng:', error);
-      toast.error('Không thể điều chỉnh điểm thưởng');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // Tính toán phân trang
+  // Calculate pagination
   const paginatedResults = searchResults.slice(
     (page - 1) * itemsPerPage,
     page * itemsPerPage
@@ -230,7 +169,7 @@ const UserPointsManagement = () => {
   
   const totalPages = Math.ceil(searchResults.length / itemsPerPage);
 
-  // Hiển thị tên cấp thành viên
+  // Display tier name
   const getTierName = (tier) => {
     switch (tier) {
       case 'silver': return 'Bạc';
@@ -240,7 +179,7 @@ const UserPointsManagement = () => {
     }
   };
 
-  // Hiển thị loại giao dịch điểm
+  // Display transaction type
   const getTransactionType = (type) => {
     switch (type) {
       case 'earned': return 'Tích điểm';
@@ -315,12 +254,6 @@ const UserPointsManagement = () => {
                       <td>{moment(user.lastUpdated).format('DD/MM/YYYY')}</td>
                       <td>
                         <button 
-                          className="action-button edit"
-                          onClick={() => openEditModal(user)}
-                        >
-                          <FontAwesomeIcon icon={faEdit} />
-                        </button>
-                        <button 
                           className="action-button history"
                           onClick={() => openHistoryModal(user)}
                         >
@@ -333,7 +266,7 @@ const UserPointsManagement = () => {
               </table>
             </div>
             
-            {/* Phân trang */}
+            {/* Pagination */}
             {totalPages > 1 && (
               <div className="pagination">
                 <button 
@@ -377,71 +310,7 @@ const UserPointsManagement = () => {
         )}
       </div>
 
-      {/* Modal điều chỉnh điểm */}
-      {editModalOpen && selectedUser && (
-        <div className="modal-backdrop">
-          <div className="modal-content">
-            <div className="modal-header">
-              <h3>Điều chỉnh điểm thưởng</h3>
-              <button 
-                className="close-button"
-                onClick={() => setEditModalOpen(false)}
-              >
-                <FontAwesomeIcon icon={faTimes} />
-              </button>
-            </div>
-            
-            <div className="modal-body">
-              <div className="user-info">
-                <p><strong>Thành viên:</strong> {selectedUser.phone}</p>
-                <p><strong>Email:</strong> {selectedUser.email}</p>
-                <p><strong>Điểm hiện tại:</strong> {selectedUser.availablePoints.toLocaleString('vi-VN')}</p>
-                <p><strong>Hạng thành viên:</strong> {getTierName(selectedUser.tier)}</p>
-              </div>
-              
-              <div className="form-group">
-                <label>Số điểm điều chỉnh:</label>
-                <input
-                  type="number"
-                  value={pointsAdjustment.amount}
-                  onChange={(e) => setPointsAdjustment({...pointsAdjustment, amount: e.target.value})}
-                  placeholder="Nhập số điểm (dương hoặc âm)"
-                />
-                <small>Nhập số âm để trừ điểm</small>
-              </div>
-              
-              <div className="form-group">
-                <label>Lý do điều chỉnh:</label>
-                <textarea
-                  value={pointsAdjustment.reason}
-                  onChange={(e) => setPointsAdjustment({...pointsAdjustment, reason: e.target.value})}
-                  placeholder="Nhập lý do điều chỉnh điểm"
-                />
-              </div>
-            </div>
-            
-            <div className="modal-footer">
-              <button 
-                className="cancel"
-                onClick={() => setEditModalOpen(false)}
-              >
-                Hủy
-              </button>
-              <button 
-                className="submit"
-                onClick={handleAdjustPoints}
-                disabled={loading}
-              >
-                {loading ? (
-                  <FontAwesomeIcon icon={faSpinner} spin />
-                ) : 'Cập nhật'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Modal lịch sử điểm */}
+      {/* Points history modal */}
       {historyModalOpen && selectedUser && (
         <div className="modal-backdrop">
           <div className="modal-content">
@@ -460,6 +329,7 @@ const UserPointsManagement = () => {
                 <p><strong>Thành viên:</strong> {selectedUser.phone}</p>
                 <p><strong>Email:</strong> {selectedUser.email}</p>
                 <p><strong>Điểm hiện tại:</strong> {selectedUser.availablePoints.toLocaleString('vi-VN')}</p>
+                <p><strong>Hạng thành viên:</strong> {getTierName(selectedUser.tier)}</p>
               </div>
               
               {loading ? (

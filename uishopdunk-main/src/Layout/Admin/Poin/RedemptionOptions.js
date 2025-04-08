@@ -1,3 +1,4 @@
+// RedemptionOptions.js - For managing reward options that users can redeem with points
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { toast } from 'react-toastify';
@@ -42,7 +43,7 @@ const RedemptionOptions = () => {
     fetchVouchers();
   }, []);
 
-  // Lấy danh sách tùy chọn đổi điểm
+  // Fetch redemption options
   const fetchOptions = async () => {
     try {
       setLoading(true);
@@ -61,12 +62,15 @@ const RedemptionOptions = () => {
     }
   };
 
-  // Lấy danh sách voucher có sẵn
+  // Fetch available vouchers
   const fetchVouchers = async () => {
     try {
       const response = await axios.get('http://localhost:3005/getmagg');
       
-      if (response.data && response.data.success) {
+      // Kiểm tra xem response.data có phải là mảng không
+      if (Array.isArray(response.data)) {
+        setVouchers(response.data);
+      } else if (response.data && response.data.success && Array.isArray(response.data.data)) {
         setVouchers(response.data.data);
       } else {
         toast.error('Không thể tải danh sách voucher');
@@ -77,7 +81,7 @@ const RedemptionOptions = () => {
     }
   };
 
-  // Mở modal tạo mới
+  // Open create modal
   const openCreateModal = () => {
     setEditMode(false);
     setFormData({
@@ -98,7 +102,7 @@ const RedemptionOptions = () => {
     setModalOpen(true);
   };
 
-  // Mở modal chỉnh sửa
+  // Open edit modal
   const openEditModal = (option) => {
     setEditMode(true);
     setFormData({
@@ -122,12 +126,12 @@ const RedemptionOptions = () => {
     setModalOpen(true);
   };
 
-  // Xử lý thay đổi form
+  // Handle form changes
   const handleChange = (e) => {
     const { name, value, type, checked } = e.target;
     
     if (name === 'availableTiers') {
-      // Xử lý cho multi-select checkbox
+      // Handle multi-select checkbox
       let updatedTiers = [...formData.availableTiers];
       
       if (checked) {
@@ -141,7 +145,7 @@ const RedemptionOptions = () => {
         availableTiers: updatedTiers
       }));
     } else {
-      // Xử lý cho các trường input thông thường
+      // Handle regular input fields
       setFormData(prev => ({
         ...prev,
         [name]: value
@@ -149,11 +153,11 @@ const RedemptionOptions = () => {
     }
   };
 
-  // Lưu tùy chọn đổi điểm
+  // Save redemption option
   const handleSubmit = async (e) => {
     e.preventDefault();
     
-    // Kiểm tra các trường bắt buộc
+    // Validate required fields
     if (!formData.name || !formData.pointsCost || !formData.voucherValue || !formData.voucherId) {
       toast.error('Vui lòng điền đầy đủ thông tin bắt buộc');
       return;
@@ -195,7 +199,7 @@ const RedemptionOptions = () => {
     }
   };
 
-  // Xử lý xóa tùy chọn đổi điểm
+  // Handle delete redemption option
   const handleDelete = async (id) => {
     if (!window.confirm('Bạn có chắc chắn muốn xóa tùy chọn đổi điểm này?')) {
       return;
@@ -219,7 +223,7 @@ const RedemptionOptions = () => {
     }
   };
 
-  // Xử lý kích hoạt/vô hiệu hóa tùy chọn đổi điểm
+  // Handle activate/deactivate redemption option
   const handleToggleActive = async (id, currentStatus) => {
     try {
       setLoading(true);
@@ -244,7 +248,7 @@ const RedemptionOptions = () => {
     }
   };
 
-  // Hiển thị icon tương ứng với loại voucher
+  // Display voucher type icon
   const getVoucherTypeIcon = (type) => {
     switch (type) {
       case 'percentage': return <FontAwesomeIcon icon={faPercent} />;
@@ -255,7 +259,7 @@ const RedemptionOptions = () => {
     }
   };
 
-  // Hiển thị tên loại voucher
+  // Display voucher type name
   const getVoucherTypeName = (type) => {
     switch (type) {
       case 'percentage': return 'Giảm %';
@@ -266,7 +270,7 @@ const RedemptionOptions = () => {
     }
   };
 
-  // Hiển thị tên cấp thành viên
+  // Display tier name
   const getTierName = (tier) => {
     switch (tier) {
       case 'silver': return 'Bạc';
@@ -378,7 +382,7 @@ const RedemptionOptions = () => {
         </div>
       )}
 
-      {/* Modal tạo/chỉnh sửa tùy chọn đổi điểm */}
+      {/* Create/Edit redemption option modal */}
       {modalOpen && (
         <div className="modal-backdrop">
           <div className="modal-content">
@@ -393,8 +397,130 @@ const RedemptionOptions = () => {
             </div>
             
             <form onSubmit={handleSubmit} className="modal-body">
+              <div className="form-group">
+                <label>Tên quà đổi điểm:</label>
+                <input
+                  type="text"
+                  name="name"
+                  value={formData.name}
+                  onChange={handleChange}
+                  placeholder="Nhập tên quà đổi điểm"
+                  required
+                />
+              </div>
+              
+              <div className="form-group">
+                <label>Mô tả:</label>
+                <textarea
+                  name="description"
+                  value={formData.description}
+                  onChange={handleChange}
+                  placeholder="Nhập mô tả (tùy chọn)"
+                />
+              </div>
+              
               <div className="form-row">
                 <div className="form-group">
+                  <label>Số điểm cần để đổi:</label>
+                  <input
+                    type="number"
+                    name="pointsCost"
+                    value={formData.pointsCost}
+                    onChange={handleChange}
+                    placeholder="Ví dụ: 500"
+                    min="1"
+                    required
+                  />
+                </div>
+
+                <div className="form-group">
+                  <label>Giá trị tối thiểu đơn hàng:</label>
+                  <input
+                    type="number"
+                    name="minOrderValue"
+                    value={formData.minOrderValue}
+                    onChange={handleChange}
+                    placeholder="Ví dụ: 100000"
+                    min="0"
+                  />
+                </div>
+              </div>
+              
+              <div className="form-row">
+                <div className="form-group">
+                  <label>Loại voucher:</label>
+                  <select
+                    name="voucherType"
+                    value={formData.voucherType}
+                    onChange={handleChange}
+                    required
+                  >
+                    <option value="percentage">Giảm theo %</option>
+                    <option value="fixed">Giảm số tiền cố định</option>
+                    <option value="shipping">Miễn phí vận chuyển</option>
+                    <option value="product">Giảm giá sản phẩm</option>
+                  </select>
+                </div>
+                
+                <div className="form-group">
+                  <label>Giá trị voucher:</label>
+                  <input
+                    type="number"
+                    name="voucherValue"
+                    value={formData.voucherValue}
+                    onChange={handleChange}
+                    placeholder={formData.voucherType === 'percentage' ? 'Ví dụ: 10 (%)' : 'Ví dụ: 50000 (đ)'}
+                    min="1"
+                    required
+                  />
+                  <small>
+                    {formData.voucherType === 'percentage' || formData.voucherType === 'product' 
+                      ? '% giảm giá' 
+                      : 'Số tiền giảm (đ)'}
+                  </small>
+                </div>
+              </div>
+              
+              <div className="form-group">
+                <label>Voucher:</label>
+                <select
+                  name="voucherId"
+                  value={formData.voucherId}
+                  onChange={handleChange}
+                  required
+                >
+                  <option value="">-- Chọn voucher --</option>
+                  {vouchers.map(voucher => (
+                    <option key={voucher._id} value={voucher._id}>
+                      {voucher.magiamgia} - {voucher.sophantram}% (hết hạn: {voucher.ngayketthuc})
+                    </option>
+                  ))}
+                </select>
+              </div>
+              
+              <div className="form-group">
+                <label>Cấp thành viên có thể đổi:</label>
+                <div className="checkbox-group">
+                  <label>
+                    <input
+                      type="checkbox"
+                      name="availableTiers"
+                      value="standard"
+                      checked={formData.availableTiers.includes('standard')}
+                      onChange={handleChange}
+                    />
+                    Tiêu Chuẩn
+                  </label>
+                  <label>
+                    <input
+                      type="checkbox"
+                      name="availableTiers"
+                      value="silver"
+                      checked={formData.availableTiers.includes('silver')}
+                      onChange={handleChange}
+                    />
+                    Bạc
+                  </label>
                   <label>
                     <input
                       type="checkbox"
