@@ -184,39 +184,47 @@ router.get('/stock/:productId/:dungluongId/:mausacId', async (req, res) => {
     res.status(500).json({ message: 'Lỗi lấy tồn kho', error });
   }
 });
+// Thay đổi trong routes/stockrouter.js
+// Cập nhật route /stock/update
 router.post('/stock/update', async (req, res) => {
   try {
     const { productId, dungluongId, mausacId, quantity } = req.body;
 
-    // Kiểm tra dữ liệu đầu vào
     if (!productId) {
       return res.status(400).json({ message: "Thiếu productId" });
     }
 
-    // Nếu dungluongId hoặc mausacId là rỗng (""), đặt thành null
-    if (!dungluongId) dungluongId = null;
-    if (!mausacId) mausacId = null;
+    // Thực hiện atomic update - kiểm tra và cập nhật trong cùng một thao tác
+    const result = await ProductSizeStock.findOneAndUpdate(
+      { 
+        productId, 
+        dungluongId: dungluongId || null, 
+        mausacId: mausacId || null,
+        $or: [
+          { unlimitedStock: true },
+          { quantity: { $gte: quantity } }
+        ]
+      },
+      { 
+        $inc: { quantity: -quantity } 
+      },
+      { 
+        new: true,  // Trả về document đã cập nhật
+        runValidators: true  // Đảm bảo ràng buộc vẫn được áp dụng
+      }
+    );
 
-    // Tìm sản phẩm trong kho
-    let existingStock = await ProductSizeStock.findOne({ productId, dungluongId, mausacId });
-
-    if (!existingStock) {
-      return res.status(404).json({ message: "Không tìm thấy sản phẩm trong kho" });
+    if (!result) {
+      return res.status(400).json({ message: "Hàng tồn kho không đủ hoặc không tìm thấy" });
     }
 
-    // Kiểm tra nếu tồn kho không đủ số lượng
-    if (existingStock.quantity < quantity) {
-      return res.status(400).json({ message: "Hàng tồn kho không đủ" });
-    }
-
-    // Giảm số lượng tồn kho
-    existingStock.quantity -= quantity;
-    await existingStock.save();
-
-    res.status(200).json({ message: "Cập nhật tồn kho thành công", stock: existingStock });
+    res.status(200).json({ 
+      message: "Cập nhật tồn kho thành công", 
+      stock: result.unlimitedStock ? 'Không giới hạn' : result.quantity
+    });
   } catch (error) {
-    console.error(error);
-    res.status(500).json({ message: "Lỗi cập nhật tồn kho", error });
+    console.error("Lỗi cập nhật tồn kho:", error);
+    res.status(500).json({ message: "Lỗi cập nhật tồn kho", error: error.message });
   }
 });
 
