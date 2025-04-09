@@ -33,25 +33,57 @@ function ModalNhapThongTin ({
     setLoading(true)
     setStockError(null)
     setIsStockChecked(false)
-
+  
     try {
+      const missingStockItems = [];
+      
       for (const item of sanphams) {
-        const response = await fetch(`http://localhost:3005/stock/${item.idsp}/${item.dungluong}/${item.idmausac}`)
-        const stockInfo = await response.json()
-
-        if (!stockInfo.unlimitedStock && stockInfo.stock !== 'Không giới hạn' && stockInfo.stock < item.soluong) {
-          setStockError({
-            productId: item.idsp,
-            available: stockInfo.stock,
-            requested: item.soluong,
-            message: `Sản phẩm không đủ số lượng trong kho. Hiện chỉ còn ${stockInfo.stock} sản phẩm.`
-          })
-          setIsStockChecked(true)
-          setLoading(false)
-          return
+        if (!item.idsp || !item.dungluong || !item.idmausac) {
+          console.warn('Thiếu thông tin sản phẩm:', item);
+          
+          // Thêm thông tin lỗi chi tiết hơn
+          missingStockItems.push({
+            productId: item.idsp || 'unknown',
+            dungluongId: item.dungluong || 'unknown',
+            mausacId: item.idmausac || 'unknown'
+          });
+          continue;
+        }
+        
+        try {
+          const response = await fetch(`http://localhost:3005/stock/${item.idsp}/${item.dungluong}/${item.idmausac}`);
+          
+          if (!response.ok) {
+            const errorText = await response.text();
+            console.warn(`Lỗi kiểm tra tồn kho (${response.status}): ${errorText}`);
+            continue; // Bỏ qua và tiếp tục với sản phẩm khác
+          }
+          
+          const stockInfo = await response.json();
+  
+          if (!stockInfo.unlimitedStock && stockInfo.stock !== 'Không giới hạn' && stockInfo.stock < item.soluong) {
+            setStockError({
+              productId: item.idsp,
+              available: stockInfo.stock,
+              requested: item.soluong,
+              message: `Sản phẩm không đủ số lượng trong kho. Hiện chỉ còn ${stockInfo.stock} sản phẩm.`
+            })
+            setIsStockChecked(true)
+            setLoading(false)
+            return;
+          }
+        } catch (error) {
+          console.error(`Lỗi xử lý sản phẩm ${item.idsp}:`, error);
+          missingStockItems.push(item);
         }
       }
-
+      
+      // Nếu có sản phẩm bị thiếu thông tin
+      if (missingStockItems.length > 0) {
+        console.warn('Các sản phẩm thiếu thông tin:', missingStockItems);
+        // Nhưng không dừng quá trình - cho phép thanh toán tiếp
+      }
+  
       setIsStockChecked(true)
       setLoading(false)
     } catch (error) {
@@ -69,11 +101,29 @@ function ModalNhapThongTin ({
       await checkStockAvailability()
       if (stockError) return
     }
-
+  
     if (stockError) {
       alert(stockError.message)
       return
     }
+    
+    // Kiểm tra thông tin sanphams trước khi gửi
+    const validSanphams = sanphams.map(item => {
+      if (!item.idmausac) {
+        console.warn('Thiếu idmausac cho sản phẩm:', item);
+      }
+      return {
+        ...item,
+        // Đảm bảo tất cả các trường đều có giá trị
+        idsp: item.idsp,
+        soluong: item.soluong || 1,
+        price: item.price || 0,
+        dungluong: item.dungluong,
+        mausac: item.mausac || '',
+        idmausac: item.idmausac
+      };
+    });
+    
     setLoading(true)
     try {
       const response = await fetch('http://localhost:3005/create_payment_url', {
@@ -90,21 +140,21 @@ function ModalNhapThongTin ({
           magiamgia,
           bankCode,
           amount,
-          sanphams,
+          sanphams: validSanphams, // Gửi danh sách đã kiểm tra
           language: 'vn',
-          userId: userId || null // ✅ Gửi userId nếu có
+          userId: userId || null
         })
       })
-
+  
       const data = await response.json()
-
+  
       if (data.message) {
         alert(data.message)
       } else {
         window.location.href = data
       }
     } catch (error) {
-      console.log(error)
+      console.error('Lỗi khi thanh toán:', error)
       alert('Đã xảy ra lỗi khi thanh toán. Vui lòng thử lại sau.')
     } finally {
       setLoading(false)

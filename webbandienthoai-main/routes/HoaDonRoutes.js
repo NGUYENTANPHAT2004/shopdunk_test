@@ -70,56 +70,73 @@ router.post('/deletehoaddon', async (req, res) => {
     res.status(500).json({ message: 'Lỗi trong quá trình xóa' })
   }
 })
-
-// Helper function to restore inventory
-// Improved helper function to restore inventory
-async function restoreInventory(sanphams) {
+async function restoreInventory(sanphams, session = null) {
   if (!sanphams || !Array.isArray(sanphams) || sanphams.length === 0) {
-    console.log('No products to restore in inventory');
+    console.log('Không có sản phẩm để khôi phục tồn kho');
     return;
   }
   
-  const failedRestores = [];
+  const options = session ? { session } : {};
+  const restoredItems = [];
   
-  for (const sanpham of sanphams) {
-    try {
-      if (!sanpham || !sanpham.idsp || !sanpham.dungluong || !sanpham.soluong) {
-        console.warn('Invalid product data for inventory restore:', sanpham);
-        continue;
+  try {
+    for (const sanpham of sanphams) {
+      try {
+        if (!sanpham || !sanpham.idsp || !sanpham.dungluong || !sanpham.soluong) {
+          console.warn('Dữ liệu sản phẩm không hợp lệ:', sanpham);
+          continue;
+        }
+        
+        const { idsp, soluong, dungluong, idmausac } = sanpham;
+        
+        // Tìm sản phẩm trong kho với atomic update
+        const result = await ProductSizeStock.findOneAndUpdate(
+          {
+            productId: idsp,
+            dungluongId: dungluong,
+            mausacId: idmausac,
+            unlimitedStock: { $ne: true } // Chỉ cập nhật nếu không phải hàng không giới hạn
+          },
+          {
+            $inc: { quantity: soluong }
+          },
+          {
+            new: true,
+            ...options
+          }
+        );
+        
+        if (result) {
+          restoredItems.push({
+            productId: idsp,
+            dungluongId: dungluong, 
+            mausacId: idmausac,
+            quantity: soluong,
+            newQuantity: result.quantity
+          });
+          console.log(`Đã khôi phục ${soluong} sản phẩm ${idsp} vào kho, số lượng mới: ${result.quantity}`);
+        } else {
+          console.log(`Không tìm thấy hoặc là hàng không giới hạn: ${idsp}, size: ${dungluong}, color: ${idmausac}`);
+        }
+      } catch (error) {
+        console.error(`Lỗi khi khôi phục sản phẩm ${sanpham?.idsp} vào kho:`, error);
       }
-      
-      const { idsp, soluong, dungluong, idmausac } = sanpham;
-      
-      const stockItem = await ProductSizeStock.findOne({
-        productId: idsp,
-        dungluongId: dungluong,
-        mausacId: idmausac
-      });
-      
-      if (stockItem && !stockItem.unlimitedStock) {
-        stockItem.quantity += soluong;
-        await stockItem.save();
-        console.log(`Restored ${soluong} items to inventory for product ${idsp}`);
-      } else {
-        console.log(`Stock item not found or has unlimited stock for product ${idsp}, dungluong: ${dungluong}, mausac: ${idmausac}`);
-      }
-    } catch (error) {
-      console.error(`Error restoring inventory for product ${sanpham?.idsp}:`, error);
-      failedRestores.push(sanpham);
     }
-  }
-  
-  // Log if any items failed to be restored
-  if (failedRestores.length > 0) {
-    console.error(`Failed to restore ${failedRestores.length} product(s) to inventory`);
+    
+    console.log(`Đã khôi phục ${restoredItems.length}/${sanphams.length} sản phẩm vào kho`);
+    return restoredItems;
+  } catch (error) {
+    console.error('Lỗi khi khôi phục tồn kho:', error);
+    throw error;
   }
 }
-
-// Improved helper function to reduce inventory
 async function reduceInventory(sanphams) {
   if (!sanphams || !Array.isArray(sanphams) || sanphams.length === 0) {
     throw new Error('No products to reduce in inventory');
   }
+  
+  const session = await db.mongoose.startSession();
+  session.startTransaction();
   
   const reducedItems = [];
   
@@ -131,56 +148,55 @@ async function reduceInventory(sanphams) {
       
       const { idsp, soluong, dungluong, idmausac } = sanpham;
       
+      // Lấy bản ghi và version hiện tại
       const stockItem = await ProductSizeStock.findOne({
         productId: idsp,
         dungluongId: dungluong,
         mausacId: idmausac
-      });
+      }).session(session);
       
-      if (stockItem) {
-        if (!stockItem.unlimitedStock) {
-          if (stockItem.quantity < soluong) {
-            // Roll back any inventory reductions made so far
-            for (const item of reducedItems) {
-              await ProductSizeStock.findByIdAndUpdate(
-                item.stockId,
-                { $inc: { quantity: item.quantity } }
-              );
-            }
-            
-            throw new Error(`Sản phẩm không đủ số lượng trong kho. Hiện chỉ còn ${stockItem.quantity} sản phẩm.`);
-          }
-          
-          stockItem.quantity -= soluong;
-          await stockItem.save();
-          reducedItems.push({ 
-            stockId: stockItem._id, 
-            quantity: soluong 
-          });
-        }
-      } else {
-        console.log(`Không tìm thấy thông tin tồn kho cho sản phẩm: ${idsp}, dungluong: ${dungluong}, mausac: ${idmausac}`);
+      if (!stockItem) {
+        throw new Error(`Không tìm thấy thông tin tồn kho cho sản phẩm: ${idsp} ${dungluong} ${idmausac}`);
       }
-    }
-  } catch (error) {
-    // If there's an error during reduction and we already reduced some items,
-    // restore those items before propagating the error
-    if (reducedItems.length > 0) {
-      console.error('Error during inventory reduction, rolling back changes:', error);
       
-      for (const item of reducedItems) {
-        try {
-          await ProductSizeStock.findByIdAndUpdate(
-            item.stockId,
-            { $inc: { quantity: item.quantity } }
-          );
-        } catch (restoreErr) {
-          console.error(`Critical error: Failed to restore inventory for stock item ${item.stockId}:`, restoreErr);
-          // Continue to try restoring other items even if this one failed
+      if (!stockItem.unlimitedStock && stockItem.quantity < soluong) {
+        throw new Error(`Sản phẩm không đủ số lượng trong kho. Hiện chỉ còn ${stockItem.quantity} sản phẩm.`);
+      }
+      
+      if (!stockItem.unlimitedStock) {
+        const result = await ProductSizeStock.findOneAndUpdate(
+          {
+            _id: stockItem._id,
+            __v: stockItem.__v  
+          },
+          {
+            $inc: { quantity: -soluong }
+          },
+          {
+            new: true,
+            session
+          }
+        );
+        
+        if (!result) {
+          throw new Error(`Xung đột version khi cập nhật tồn kho cho sản phẩm: ${idsp}`);
         }
+        
+        reducedItems.push({
+          stockId: result._id,
+          quantity: soluong
+        });
       }
     }
     
+    await session.commitTransaction();
+    session.endSession();
+    return true;
+  } catch (error) {
+    await session.abortTransaction();
+    session.endSession();
+    
+    console.error('Lỗi khi giảm tồn kho:', error);
     throw error;
   }
 }
@@ -710,36 +726,95 @@ router.post('/settrangthai/:idhoadon', async (req, res) => {
   try {
     const idhoadon = req.params.idhoadon;
     const { trangthai, thanhtoan } = req.body;
+    
+    // Tìm đơn hàng hiện tại
     const hoadon = await HoaDon.hoadon.findById(idhoadon);
     
     if (!hoadon) {
       return res.status(404).json({ message: 'Không tìm thấy hóa đơn' });
     }
     
-    // Check if the order is being canceled
-    if (trangthai === 'Hủy Đơn Hàng' && hoadon.trangthai !== 'Hủy Đơn Hàng') {
-      // Only restore inventory if the order was not already canceled and payment was successful
-      // For unpaid orders, we've already reduced inventory so need to restore it
-      if (hoadon.thanhtoan) {
-        // Paid orders also need inventory restoration when canceled
-        await restoreInventory(hoadon.sanpham);
-      } else if (hoadon.trangthai !== 'Thanh toán thất bại' && hoadon.trangthai !== 'Thanh toán hết hạn') {
-        // Unpaid orders (except those marked as failed/expired) need inventory restoration
+    const oldTrangthai = hoadon.trangthai;
+    const oldThanhtoan = hoadon.thanhtoan; // false = chưa thanh toán/thất bại
+    
+    // Trường hợp 1: Hủy đơn hàng
+    if (trangthai === 'Hủy Đơn Hàng' && oldTrangthai !== 'Hủy Đơn Hàng') {
+      // Kiểm tra xem đơn hàng đã giảm tồn kho chưa
+      // Đã giảm kho nếu: đã thanh toán HOẶC trạng thái không phải thất bại/hết hạn
+      const inventoryWasReduced = oldThanhtoan || 
+                                  (!oldThanhtoan && 
+                                   oldTrangthai !== 'Thanh toán thất bại' && 
+                                   oldTrangthai !== 'Thanh toán hết hạn');
+      
+      if (inventoryWasReduced) {
+        console.log(`Khôi phục tồn kho khi hủy đơn hàng ${idhoadon}`);
         await restoreInventory(hoadon.sanpham);
       }
     }
     
-    // Update order status and payment status
+    // Trường hợp 2: Đánh dấu thất bại thanh toán (nếu chưa hủy và đã giảm tồn kho)
+    if (trangthai === 'Thanh toán thất bại' && 
+        oldTrangthai !== 'Thanh toán thất bại' && 
+        oldTrangthai !== 'Hủy Đơn Hàng' &&
+        oldTrangthai !== 'Thanh toán hết hạn') {
+      
+      console.log(`Khôi phục tồn kho khi đánh dấu thất bại thanh toán ${idhoadon}`);
+      await restoreInventory(hoadon.sanpham);
+    }
+    
+    // Trường hợp 3: Trả hàng sau khi đã nhận
+    if (oldTrangthai === 'Đã nhận' && trangthai === 'Trả hàng/Hoàn tiền') {
+      console.log(`Khôi phục tồn kho khi trả hàng ${idhoadon}`);
+      await restoreInventory(hoadon.sanpham);
+    }
+    
+    // Trường hợp 4: Từ trạng thái thất bại/hết hạn/hủy sang trạng thái thành công
+    // (trường hợp khách hàng quyết định thanh toán lại sau khi thất bại)
+    if ((oldTrangthai === 'Thanh toán thất bại' || 
+         oldTrangthai === 'Thanh toán hết hạn' || 
+         oldTrangthai === 'Hủy Đơn Hàng') && 
+        trangthai === 'Đã thanh toán' && 
+        thanhtoan === true) {
+      
+      console.log(`Giảm tồn kho khi đơn hàng được thanh toán lại ${idhoadon}`);
+      try {
+        await reduceInventory(hoadon.sanpham);
+      } catch (error) {
+        // Nếu không đủ tồn kho, không cho chuyển trạng thái
+        return res.status(400).json({ 
+          message: 'Không thể thanh toán lại đơn hàng do tồn kho không đủ',
+          error: error.message
+        });
+      }
+    }
+    
+    // Cập nhật trạng thái đơn hàng
     hoadon.trangthai = trangthai;
     if (typeof thanhtoan === 'boolean') {
       hoadon.thanhtoan = thanhtoan;
     }
     
+    // Ghi lại lịch sử thay đổi trạng thái (nếu cần)
+    if (!hoadon.statusHistory) {
+      hoadon.statusHistory = [];
+    }
+    
+    hoadon.statusHistory.push({
+      from: oldTrangthai,
+      to: trangthai,
+      thanhtoan: hoadon.thanhtoan,
+      date: new Date(),
+      note: req.body.note || ''
+    });
+    
     await hoadon.save();
     res.json(hoadon);
   } catch (error) {
-    console.error(error);
-    res.status(500).json({ message: 'Lỗi khi cập nhật trạng thái đơn hàng' });
+    console.error('Lỗi khi cập nhật trạng thái đơn hàng:', error);
+    res.status(500).json({ 
+      message: 'Lỗi khi cập nhật trạng thái đơn hàng', 
+      error: error.message 
+    });
   }
 });
 

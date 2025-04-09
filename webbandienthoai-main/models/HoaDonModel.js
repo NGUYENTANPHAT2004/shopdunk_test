@@ -16,6 +16,7 @@ const hoadonSchema = new db.mongoose.Schema({
     {
       idsp: { type: db.mongoose.Schema.Types.ObjectId, ref: 'sanpham' },
       dungluong: { type: db.mongoose.Schema.Types.ObjectId, ref: 'dungluong' },
+      idmausac: { type: db.mongoose.Schema.Types.ObjectId, ref: 'mausac' },
       mausac: { type: String },
       soluong: { type: Number },
       price: { type: Number },
