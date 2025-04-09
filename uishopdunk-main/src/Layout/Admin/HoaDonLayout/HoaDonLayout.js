@@ -53,11 +53,47 @@ function HoaDonLayout () {
 
     setSelectAll(newSelectedIds.length === data.length)
   }
+  
+  // Kiểm tra xem đơn hàng có thể thay đổi trạng thái không
+  const canChangeStatus = (order) => {
+    return !['Thanh toán thất bại', 'Thanh toán hết hạn', 'Hủy Đơn Hàng', 'Hoàn thành'].includes(order.trangthai);
+  }
+  
+  // Hiển thị màu sắc cho từng trạng thái
+  const getStatusClass = (status) => {
+    switch (status) {
+      case 'Hủy Đơn Hàng':
+        return 'status-cancelled';
+      case 'Thanh toán thất bại':
+        return 'status-failed';
+      case 'Thanh toán hết hạn':
+        return 'status-expired';
+      case 'Hoàn thành':
+        return 'status-completed';
+      case 'Đã nhận':
+        return 'status-completed';
+      default:
+        return '';
+    }
+  }
 
+ 
   const handleStatusChange = async (id, value) => {
     try {
       // Find the current order
       const currentOrder = data.find(item => item._id === id);
+      
+      // Ngăn chặn thay đổi trạng thái cho các đơn hàng thanh toán thất bại
+      if (currentOrder.trangthai === 'Thanh toán thất bại') {
+        alert('Không thể thay đổi trạng thái của đơn hàng thanh toán thất bại');
+        return;
+      }
+      
+      // Ngăn chặn thay đổi trạng thái cho các đơn hàng thanh toán hết hạn
+      if (currentOrder.trangthai === 'Thanh toán hết hạn') {
+        alert('Không thể thay đổi trạng thái của đơn hàng thanh toán hết hạn');
+        return;
+      }
       
       // Prevent invalid status transitions
       if (currentOrder.trangthai === 'Hủy Đơn Hàng' && value !== 'Hủy Đơn Hàng') {
@@ -87,20 +123,6 @@ function HoaDonLayout () {
            value === 'Đang xử lý' || value === 'Đã thanh toán' || 
            value === 'Đang vận chuyển')) {
         alert('Không thể thay đổi trạng thái của đơn hàng đã nhận');
-        return;
-      }
-
-      // Prevent invalid status transitions for failed payment orders
-      if (currentOrder.trangthai === 'Thanh toán thất bại' && 
-          (value === 'Đã nhận' || value === 'Hoàn thành')) {
-        alert('Không thể chuyển đơn hàng thanh toán thất bại sang trạng thái này');
-        return;
-      }
-
-      // Prevent invalid status transitions for expired payment orders
-      if (currentOrder.trangthai === 'Thanh toán hết hạn' && 
-          (value === 'Đã nhận' || value === 'Hoàn thành')) {
-        alert('Không thể chuyển đơn hàng thanh toán hết hạn sang trạng thái này');
         return;
       }
 
@@ -238,7 +260,7 @@ function HoaDonLayout () {
                 onChange={handleSelectAll}
               />
             </th>
-            <th>STT</th>
+            <th>Mã hóa đơn</th>
             <th>Tên khách hàng</th>
             <th>Số điện thoại</th>
             <th>Địa chỉ</th>
@@ -258,7 +280,7 @@ function HoaDonLayout () {
                   onChange={() => handleSelectItem(item._id)}
                 />
               </td>
-              <td>{index + 1}</td>
+              <td>{item.maHDL}</td>
               <td>{item.name}</td>
               <td>{item.phone}</td>
               <td>{item.address}</td>
@@ -266,20 +288,35 @@ function HoaDonLayout () {
               <td>{item.tongtien.toLocaleString()}đ </td>
               <td>{item.thanhtoan ? 'Đã thanh toán' : 'Chưa thanh toán'}</td>
               <td>
-                <select
-                  value={item.trangthai}
-                  onChange={e => handleStatusChange(item._id, e.target.value)}
-                  className='custom-select'
-                >
-                  <option value='Đang xử lý'>🕒 Đang xử lý</option>
-                  <option value='Đã thanh toán'>💳 Đã thanh toán</option>
-                  <option value='Đang vận chuyển'>🚚 Đang vận chuyển</option>
-                  <option value='Đã nhận'>✅ Đã nhận</option>
-                  <option value='Hoàn thành'>✨ Hoàn thành</option>
-                  <option value='Thanh toán thất bại'>❌ Thanh toán thất bại</option>
-                  <option value='Thanh toán hết hạn'>⏰ Thanh toán hết hạn</option>
-                  <option value='Hủy Đơn Hàng'>🗑️ Hủy đơn hàng</option>
-                </select>
+                <div className="select-container">
+                  <select
+                    value={item.trangthai}
+                    onChange={e => handleStatusChange(item._id, e.target.value)}
+                    className={`custom-select ${getStatusClass(item.trangthai)}`}
+                    disabled={!canChangeStatus(item)}
+                  >
+                    <option value='Đang xử lý'>🕒 Đang xử lý</option>
+                    <option value='Đã thanh toán'>💳 Đã thanh toán</option>
+                    <option value='Đang vận chuyển'>🚚 Đang vận chuyển</option>
+                    <option value='Đã nhận'>✅ Đã nhận</option>
+                    <option value='Hoàn thành'>✨ Hoàn thành</option>
+                    <option value='Thanh toán thất bại'>❌ Thanh toán thất bại</option>
+                    <option value='Thanh toán hết hạn'>⏰ Thanh toán hết hạn</option>
+                    <option value='Hủy Đơn Hàng'>🗑️ Hủy đơn hàng</option>
+                  </select>
+                  {item.trangthai === 'Thanh toán thất bại' && 
+                    <div className="custom-tooltip">Không thể thay đổi trạng thái của đơn hàng thanh toán thất bại</div>
+                  }
+                  {item.trangthai === 'Thanh toán hết hạn' && 
+                    <div className="custom-tooltip">Không thể thay đổi trạng thái của đơn hàng thanh toán hết hạn</div>
+                  }
+                  {item.trangthai === 'Hủy Đơn Hàng' && 
+                    <div className="custom-tooltip">Không thể thay đổi trạng thái của đơn hàng đã hủy</div>
+                  }
+                  {item.trangthai === 'Hoàn thành' && 
+                    <div className="custom-tooltip">Không thể thay đổi trạng thái của đơn hàng đã hoàn thành</div>
+                  }
+                </div>
               </td>
             </tr>
           ))}

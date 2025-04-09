@@ -35,7 +35,7 @@ function sortObject (obj) {
 
 router.get('/gethoadon', async (req, res) => {
   try {
-    const hoadon = await HoaDon.hoadon.find({ isDeleted: { $ne: true } }).lean()
+    const hoadon = await HoaDon.hoadon.find({}).lean()
     res.json(hoadon)
   } catch (error) {
     console.error(error)
@@ -357,11 +357,11 @@ router.post('/create_payment_url', async (req, res) => {
   let vnpUrl = config.get('vnp_Url')
   let returnUrl = config.get('vnp_ReturnUrl')
   let orderId = moment(date).format('DDHHmmss')
-  let amount = req.body.amount
+  let amount = req.body.amount  // Lấy amount từ frontend (đã bao gồm phí vận chuyển)
   let bankCode = req.body.bankCode
 
   let locale = req.body.language || 'vn'
-  const { name,nguoinhan, phone, sex, giaotannoi, address, ghichu, magiamgia, sanphams, userId } =
+  const { name, nguoinhan, phone, sex, giaotannoi, address, ghichu, magiamgia, sanphams, userId } =
     req.body
 
   let currCode = 'VND'
@@ -374,7 +374,7 @@ router.post('/create_payment_url', async (req, res) => {
   vnp_Params['vnp_TxnRef'] = orderId
   vnp_Params['vnp_OrderInfo'] = 'Thanh toan cho ma GD:' + orderId
   vnp_Params['vnp_OrderType'] = 'other'
-  vnp_Params['vnp_Amount'] = amount * 100
+  vnp_Params['vnp_Amount'] = amount * 100  // Sử dụng amount từ frontend
   vnp_Params['vnp_ReturnUrl'] = returnUrl
   vnp_Params['vnp_IpAddr'] = ipAddr
   vnp_Params['vnp_CreateDate'] = createDate
@@ -390,14 +390,16 @@ router.post('/create_payment_url', async (req, res) => {
     giaotannoi,
     ngaymua,
     trangthai: 'Đang xử lý',
-    tongtien: 0,
+    tongtien: amount,  // Lưu amount vào tongtien thay vì tính lại
     orderId,
     thanhtoan: false,
-    userId: userId || null // Explicitly set to false initially
+    userId: userId || null
   })
 
   hoadon.maHDL = 'HD' + hoadon._id.toString().slice(-4)
-  let tongtien = 0
+  
+  // Vẫn cần tính tongtien_sanpham để lưu thông tin sản phẩm vào hóa đơn
+  let tongtien_sanpham = 0
 
   for (const sanpham of sanphams) {
     const { idsp, soluong, dungluong, idmausac, price, mausac } = sanpham
@@ -408,7 +410,7 @@ router.post('/create_payment_url', async (req, res) => {
       soluong,
       price,
       dungluong,
-      idmausac, // Make sure to store idmausac
+      idmausac,
       mausac,
       productSnapshot: {
         name: productDetails ? productDetails.name : "Sản phẩm không xác định",
@@ -417,14 +419,12 @@ router.post('/create_payment_url', async (req, res) => {
         mausacName: mausac || ""
       }
     })
-    tongtien += price * soluong
+    tongtien_sanpham += price * soluong
   }
-  
-  hoadon.tongtien = tongtien
 
   if (magiamgia) {
-    // Use the enhanced validation function
-    const validationResult = await validateVoucher(magiamgia, phone, tongtien);
+    // Sử dụng amount làm cơ sở tính mã giảm giá (bao gồm cả phí vận chuyển)
+    const validationResult = await validateVoucher(magiamgia, phone, amount);
     
     if (!validationResult.valid) {
       return res.json({ message: validationResult.message });
@@ -434,17 +434,15 @@ router.post('/create_payment_url', async (req, res) => {
     
     hoadon.magiamgia = magiamgia;
     const giamGia = magiamgia1.sophantram / 100;
-    hoadon.tongtien = tongtien - tongtien * giamGia;
-    vnp_Params['vnp_Amount'] = hoadon.tongtien * 100;
+    // Áp dụng giảm giá vào amount
+    const discountedAmount = amount - amount * giamGia;
+    hoadon.tongtien = discountedAmount;
+    vnp_Params['vnp_Amount'] = discountedAmount * 100;
     
-    // If this is a one-time-per-user voucher, add user to appliedUsers array
     if (magiamgia1.isOneTimePerUser && !magiamgia1.appliedUsers.includes(phone)) {
       magiamgia1.appliedUsers.push(phone);
       await magiamgia1.save();
     }
-  } else {
-    hoadon.tongtien = tongtien;
-    vnp_Params['vnp_Amount'] = tongtien * 100;
   }
 
   if (giaotannoi) {
@@ -462,8 +460,6 @@ router.post('/create_payment_url', async (req, res) => {
     await hoadon.save();
     
     // Create an expiration timeout for the order payment
-    // If payment is not completed within 15 minutes, inventory will be restored 
-    // and order status updated
     setTimeout(async () => {
       try {
         const order = await HoaDon.hoadon.findById(hoadon._id);
@@ -736,7 +732,7 @@ router.get('/getchitiethd/:idhoadon', async (req, res) => {
   try {
     const idhoadon = req.params.idhoadon;
 
-    const hoadon = await HoaDon.hoadon.findOne({ _id: idhoadon, isDeleted: { $ne: true } });
+    const hoadon = await HoaDon.hoadon.findOne({ _id: idhoadon });
     if (!hoadon) {
       return res.status(404).json({ message: 'Không tìm thấy hóa đơn' });
     }
@@ -775,6 +771,7 @@ router.get('/getchitiethd/:idhoadon', async (req, res) => {
     
     const hoadonjson = {
       _id: hoadon._id,
+      maHDL: hoadon.maHDL,
       nguoinhan: hoadon.nguoinhan,
       name: hoadon.name,
       phone: hoadon.phone,
@@ -1568,7 +1565,7 @@ router.post('/gethoadonuser', async (req, res) => {
       return res.status(400).json({ message: 'Thiếu userId' });
     }
 
-    const hoadons = await HoaDon.hoadon.find({ userId }).sort({ ngaymua: -1 });
+    const hoadons = await HoaDon.hoadon.find({ userId, isDeleted: { $ne: true } }).sort({ ngaymua: -1 });
 
     if (!hoadons || hoadons.length === 0) {
       return res.status(200).json({
@@ -1582,6 +1579,7 @@ router.post('/gethoadonuser', async (req, res) => {
       // Include additional order detail fields as needed
       const sanitizedHoadon = {
         _id: hoadon._id,
+        maHDL: hoadon.maHDL,
         name: hoadon.name,
         phone: hoadon.phone,
         nguoinhan: hoadon.nguoinhan,

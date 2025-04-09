@@ -4,7 +4,7 @@ import moment from 'moment';
 import { useUserContext } from '../../context/Usercontext';
 import './lichsudonhang.scss';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faStar as solidStar, faTrash, faReceipt, faExclamationTriangle } from '@fortawesome/free-solid-svg-icons';
+import { faStar as solidStar, faTrash, faReceipt, faExclamationTriangle, faTimes, faBan } from '@fortawesome/free-solid-svg-icons';
 import { faStar as regularStar } from '@fortawesome/free-regular-svg-icons';
 import ProductRating from '../../components/ProductRating/ProductRating';
 import OrderDetails from './OrderDeatails';
@@ -21,6 +21,8 @@ function LichSuDonHangLayout() {
   const [error, setError] = useState(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deleteOrderId, setDeleteOrderId] = useState(null);
+  const [showCancelConfirm, setShowCancelConfirm] = useState(false);
+  const [cancelOrderId, setCancelOrderId] = useState(null);
   const [ratingModalOpen, setRatingModalOpen] = useState(false);
   const [ratingError, setRatingError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -132,6 +134,51 @@ function LichSuDonHangLayout() {
     }
   };
 
+  // Xác nhận trước khi hủy đơn hàng
+  const confirmCancelOrder = (idhoadon) => {
+    setCancelOrderId(idhoadon);
+    setShowCancelConfirm(true);
+  };
+
+  // Xử lý hủy đơn hàng
+  const handleCancelOrder = async () => {
+    if (!cancelOrderId) return;
+    
+    try {
+      setLoading(true);
+      await axios.post(`http://localhost:3005/settrangthai/${cancelOrderId}`, {
+        trangthai: 'Hủy Đơn Hàng',
+      });
+      
+      // Cập nhật đơn hàng trên giao diện
+      setDonHangs(prevDonHangs => 
+        prevDonHangs.map(order => 
+          order._id === cancelOrderId 
+            ? {...order, trangthai: 'Hủy Đơn Hàng'} 
+            : order
+        )
+      );
+      
+      // Nếu đang xem chi tiết đơn hàng bị hủy, đóng chi tiết
+      if (selectedDonHang && selectedDonHang._id === cancelOrderId) {
+        setSelectedDonHang(null);
+      }
+      
+      // Đóng cửa sổ xác nhận
+      setShowCancelConfirm(false);
+      setCancelOrderId(null);
+      
+      alert('Đơn hàng đã được hủy thành công');
+      refreshOrderList();
+      
+    } catch (error) {
+      console.error('Lỗi hủy đơn hàng:', error);
+      alert('Có lỗi xảy ra khi hủy đơn hàng.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const confirmDeleteOrder = (idhoadon) => {
     setDeleteOrderId(idhoadon);
     setShowDeleteConfirm(true);
@@ -157,6 +204,8 @@ function LichSuDonHangLayout() {
       // Close the dialog and reset state
       setShowDeleteConfirm(false);
       setDeleteOrderId(null);
+      
+      alert('Đơn hàng đã được xóa khỏi lịch sử của bạn');
       
     } catch (error) {
       console.error('Lỗi xóa đơn hàng:', error);
@@ -305,6 +354,7 @@ function LichSuDonHangLayout() {
     switch (status) {
       case 'Đã thanh toán':
       case 'Hoàn thành':
+      case 'Đã nhận':
         return 'status-success';
       case 'Đang xử lý':
       case 'Đang vận chuyển':
@@ -318,15 +368,36 @@ function LichSuDonHangLayout() {
     }
   };
 
-  // Check if the order is eligible for deletion (not completed or paid)
-  const canDeleteOrder = (order) => {
-    const nonDeletableStatuses = [
-      'Hoàn thành',
-      'Đã nhận',
+  // Kiểm tra đơn hàng có thể hủy không (đang xử lý, chưa thanh toán hoặc mới thanh toán)
+  const canCancelOrder = (order) => {
+    const cancellableStatuses = [
+      'Đang xử lý',
       'Đã thanh toán'
     ];
     
-    return !nonDeletableStatuses.includes(order.trangthai) || !order.thanhtoan;
+    // Không cho phép hủy đơn hàng đã hoàn thành hoặc đã hủy
+    const nonCancellableStatuses = [
+      'Hoàn thành',
+      'Đã nhận', 
+      'Hủy Đơn Hàng',
+      'Thanh toán thất bại',
+      'Thanh toán hết hạn'
+    ];
+    
+    return cancellableStatuses.includes(order.trangthai) && 
+           !nonCancellableStatuses.includes(order.trangthai);
+  };
+
+  // Check if the order is eligible for deletion (not completed or paid)
+  const canDeleteOrder = (order) => {
+    const deletableStatuses = [
+      'Hủy Đơn Hàng',
+      'Thanh toán thất bại',
+      'Thanh toán hết hạn'
+    ];
+    
+    // Đơn hàng đã hủy, thanh toán thất bại hoặc hết hạn có thể xóa
+    return deletableStatuses.includes(order.trangthai) || !order.thanhtoan;
   };
 
   if (loading && donHangs.length === 0) {
@@ -386,14 +457,22 @@ function LichSuDonHangLayout() {
                     <button className="btn-view" onClick={() => handleXemChiTiet(hd._id)}>
                       <FontAwesomeIcon icon={faReceipt} /> Chi tiết
                     </button>
+                    
                     {hd.trangthai === 'Đã thanh toán' && (
                       <button className="btn-confirm" onClick={() => handleXacNhan(hd._id)}>
                         Xác nhận
                       </button>
                     )}
+                    
+                    {canCancelOrder(hd) && (
+                      <button className="btn-cancel" onClick={() => confirmCancelOrder(hd._id)}>
+                        <FontAwesomeIcon icon={faBan} /> Hủy
+                      </button>
+                    )}
+                    
                     {canDeleteOrder(hd) && (
                       <button className="btn-delete" onClick={() => confirmDeleteOrder(hd._id)}>
-                        <FontAwesomeIcon icon={faTrash} />
+                        <FontAwesomeIcon icon={faTrash} /> Xóa
                       </button>
                     )}
                   </td>
@@ -404,25 +483,39 @@ function LichSuDonHangLayout() {
         </div>
       )}
 
-{selectedDonHang && (
-  <OrderDetails
-    selectedDonHang={selectedDonHang}
-    setSelectedDonHang={setSelectedDonHang}
-    handleXacNhan={handleXacNhan}
-    handleRating={openRatingModal}
-    canRateProduct={canRateProduct}
-    getStatusClass={getStatusClass}
-    user={user} // Thêm prop user vào đây
-  />
-)}
+      {selectedDonHang && (
+        <OrderDetails
+          selectedDonHang={selectedDonHang}
+          setSelectedDonHang={setSelectedDonHang}
+          handleXacNhan={handleXacNhan}
+          handleRating={openRatingModal}
+          canRateProduct={canRateProduct}
+          getStatusClass={getStatusClass}
+          user={user} // Thêm prop user vào đây
+        />
+      )}
 
-     
+      {/* Modal xác nhận hủy đơn hàng */}
+      {showCancelConfirm && (
+        <div className="confirm-modal">
+          <div className="confirm-content">
+            <h3>Xác nhận hủy đơn hàng</h3>
+            <p>Bạn có chắc chắn muốn hủy đơn hàng này?</p>
+            <p className="warning-text">Lưu ý: Sau khi hủy, bạn sẽ không thể khôi phục đơn hàng này.</p>
+            <div className="confirm-buttons">
+              <button className="btn-confirm-cancel" onClick={handleCancelOrder}>Hủy đơn hàng</button>
+              <button className="btn-cancel" onClick={() => setShowCancelConfirm(false)}>Đóng</button>
+            </div>
+          </div>
+        </div>
+      )}
 
+      {/* Modal xác nhận xóa đơn hàng */}
       {showDeleteConfirm && (
         <div className="confirm-modal">
           <div className="confirm-content">
             <h3>Xác nhận xóa</h3>
-            <p>Bạn có chắc chắn muốn xóa đơn hàng này?</p>
+            <p>Bạn có chắc chắn muốn xóa đơn hàng này khỏi lịch sử?</p>
             <p className="warning-text">Lưu ý: Hành động này không thể hoàn tác.</p>
             <div className="confirm-buttons">
               <button className="btn-confirm-delete" onClick={handleDeleteOrder}>Xóa đơn hàng</button>

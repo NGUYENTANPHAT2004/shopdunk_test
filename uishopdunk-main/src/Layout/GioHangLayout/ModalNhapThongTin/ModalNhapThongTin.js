@@ -74,7 +74,6 @@ function ModalNhapThongTin ({
       alert(stockError.message)
       return
     }
-
     setLoading(true)
     try {
       const response = await fetch('http://localhost:3005/create_payment_url', {
@@ -112,6 +111,7 @@ function ModalNhapThongTin ({
     }
   }
 
+  
   return (
     <Modal isOpen={isOpen} onClose={onClose}>
       <div className='bodythanhtoan'>

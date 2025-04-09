@@ -51,7 +51,7 @@ function HoaDonChiTiet ({ isOpen, onClose, idhoadon }) {
       ) : (
         <div className="chi-tiet-hoa-don">
           <div className="header">
-            <h1>Đơn hàng #{idhoadon}</h1>
+            <h1>Đơn hàng #{hoadon.maHDL}</h1>
             <div className={`status ${getStatusClass(hoadon.trangthai)}`}>
               {hoadon.trangthai}
             </div>
@@ -86,7 +86,7 @@ function HoaDonChiTiet ({ isOpen, onClose, idhoadon }) {
               </div>
               <div className="info-item">
                 <span>Mã đơn hàng:</span>
-                <span>#{idhoadon}</span>
+                <span>#{hoadon.maHDL}</span>
               </div>
               <div className="info-item">
                 <span>Phương thức thanh toán:</span>

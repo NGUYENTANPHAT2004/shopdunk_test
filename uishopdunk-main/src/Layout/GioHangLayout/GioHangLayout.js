@@ -801,7 +801,6 @@ useEffect(() => {
             magiamgia={magiamgia}
             sanphams={sanphams}
             userId={user?._id || null}
-            shippingFee={shippingFee}
           />
         </>
       ) : (
