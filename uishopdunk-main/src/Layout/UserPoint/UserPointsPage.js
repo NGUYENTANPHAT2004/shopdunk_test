@@ -59,6 +59,7 @@ const UserPointsPage = () => {
     if (!isLoggedIn || hasPointsDataRef.current || isFetchingRef.current) return;
 
    // Hàm fetchUserPoints cập nhật để hỗ trợ đăng nhập social
+// Hàm fetchUserPoints cập nhật để hỗ trợ đăng nhập social
 const fetchUserPoints = async () => {
   // Đánh dấu đang fetch để tránh fetch nhiều lần
   isFetchingRef.current = true;
@@ -206,6 +207,7 @@ const fetchUserPoints = async () => {
   // Handle redeeming points for a voucher
   // Improved handleRedeem function for UserPointsPage.js
  // Cập nhật hàm handleRedeem để hỗ trợ đăng nhập bằng social
+// Cập nhật hàm handleRedeem để hỗ trợ đăng nhập bằng social
 const handleRedeem = async (redemptionId) => {
   // Lấy các định danh người dùng có thể có
   const phone = getUserPhone();

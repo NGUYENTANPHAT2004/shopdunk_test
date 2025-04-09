@@ -19,7 +19,12 @@ const magiamgiaSchema = new db.mongoose.Schema({
   intended_users: [{ type: String }], // For soft delete functionality
   deletedAt: { type: Date }, // When the voucher was soft deleted
   deletedBy: { type: String }, // Who deleted the voucher (admin username)
-  deletionReason: { type: String } // Optional reason for deletion
+  deletionReason: { type: String },
+  userId: {
+    type: db.mongoose.Schema.Types.ObjectId,
+    ref: 'User',
+    default: null
+  } // Optional reason for deletion
 })
 
 const magiamgia = db.mongoose.model('magiamgia', magiamgiaSchema)

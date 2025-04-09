@@ -17,6 +17,7 @@ const generateToken = (user) => {
 };
 
 // 🔹 Đăng ký tài khoản
+// Sửa lại phần xử lý voucher chào mừng trong phần đăng ký
 router.post('/register_auth', async (req, res) => {
   try {
     const { username, email, password, role, phone } = req.body;
@@ -56,9 +57,9 @@ router.post('/register_auth', async (req, res) => {
     
     await user.save();
     
-    // Generate a welcome voucher for the new user
+    // Generate a welcome voucher for the new user - Chỉ phát cho user đã đăng ký
     try {
-      const welcomeVoucher = await generateVoucherForUser(phone, 'new-account', 14); // 14 days expiry
+      const welcomeVoucher = await generateVoucherForUser(user._id, 'new-account', 14); // 14 days expiry
       
       res.json({ 
         message: 'Đăng ký thành công', 

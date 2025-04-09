@@ -122,14 +122,28 @@ const ChiTietLayout = () => {
     }
   }, [loaisp]);
 
-  // Thêm useEffect mới để theo dõi idmausac thay đổi
+  // Monitor changes to product selection and fetch stock accordingly
   useEffect(() => {
-    // Chỉ gọi fetchStock khi idmausac đã được thiết lập (không phải lần render đầu tiên)
-    if (idmausac) {
-      console.log('useEffect phát hiện idmausac thay đổi:', idmausac);
-      fetchStock();
-    }
-  }, [idmausac, fetchStock]);
+    const fetchStockIfReady = async () => {
+      // Only fetch if we have all required IDs
+      if (idsanpham && iddungluong && idmausac) {
+        console.log('Tất cả ID đã sẵn sàng, lấy thông tin tồn kho:', {
+          idsanpham,
+          iddungluong, 
+          idmausac
+        });
+        await fetchStock();
+      } else {
+        console.log('Chưa đủ thông tin để lấy tồn kho:', {
+          idsanpham: idsanpham || 'chưa có',
+          iddungluong: iddungluong || 'chưa có',
+          idmausac: idmausac || 'chưa có'
+        });
+      }
+    };
+
+    fetchStockIfReady();
+  }, [idsanpham, iddungluong, idmausac, fetchStock]);
 
   // Set initial selection when dungluong data loads
   useEffect(() => {
@@ -175,13 +189,8 @@ const ChiTietLayout = () => {
       setgiagoc(dungLuongMoi.mausac[0].giagoc);
     }
     
-    // Kiểm tra xem ID dung lượng hoặc ID màu sắc có thay đổi không
-    if (oldDungLuongId !== id) {
-      setTimeout(() => {
-        fetchStock(); // Gọi lại fetchStock sau khi state đã cập nhật
-      }, 0);
-    }
-  }, [dungluong, mausac1, iddungluong, fetchStock]);
+    // Không cần gọi fetchStock ở đây vì useEffect sẽ xử lý khi idmausac thay đổi
+  }, [dungluong, mausac1, iddungluong]);
 
   const fetchdungluong = useCallback(async () => {
     try {
@@ -249,7 +258,26 @@ const ChiTietLayout = () => {
     }
   }, [idsanpham]);
 
-  // Khởi tạo dữ liệu ban đầu
+  // Test API connectivity when component mounts
+  useEffect(() => {
+    const testApiConnectivity = async () => {
+      try {
+        console.log('Testing API connectivity...');
+        const response = await fetch('http://localhost:3005/api-status');
+        if (response.ok) {
+          console.log('API server is responding correctly');
+        } else {
+          console.warn('API server responded with status:', response.status);
+        }
+      } catch (error) {
+        console.error('Could not connect to API server:', error);
+      }
+    };
+    
+    testApiConnectivity();
+  }, []);
+  
+  // Fetch initial data
   useEffect(() => {
     fetchdungluong();
     fetchProduct();
@@ -463,6 +491,7 @@ const ChiTietLayout = () => {
                               setpricemausac(mau.price);
                               setkhuyenmai(mau.khuyenmai);
                               setgiagoc(mau.giagoc);
+                              // Không cần gọi fetchStock ở đây vì useEffect sẽ xử lý khi idmausac thay đổi
                             }}
                           >
                             <div

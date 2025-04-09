@@ -90,7 +90,6 @@ const ensureUserPoints = async (req, res, next) => {
       message: 'Lỗi server khi xử lý thông tin điểm thưởng' 
     });
   }
-};
 
 // Tính toán cấp thành viên dựa trên điểm YTD
 const calculateUserTier = (yearToDatePoints) => {
@@ -99,64 +98,57 @@ const calculateUserTier = (yearToDatePoints) => {
   if (yearToDatePoints >= 2000) return 'silver';
   return 'standard';
 };
-
+}
 // 1. Lấy điểm của người dùng
-router.get('/loyalty/user-points/:identifier', async (req, res) => {
+// Cập nhật route GET /loyalty/redemption-history/:identifier trong LoyaltyPointsRoutes.js
+router.get('/loyalty/redemption-history/:identifier', async (req, res) => {
   try {
     const { identifier } = req.params;
     
-    // Kiểm tra xem identifier là một ObjectId (userId) hay số điện thoại
+    // Kiểm tra xem identifier là gì (ObjectId, email hay số điện thoại)
     const isObjectId = /^[0-9a-fA-F]{24}$/.test(identifier);
+    const isEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(identifier);
     
     let query = {};
     if (isObjectId) {
       query.userId = identifier;
+    } else if (isEmail) {
+      query.email = identifier;
     } else {
       query.phone = identifier;
     }
     
-    const userPoints = await UserPoints.findOne(query);
+    const redemptionHistory = await RedemptionHistory.find(query)
+      .sort({ redemptionDate: -1 })
+      .populate('redemptionId', 'name description voucherType voucherValue')
+      .populate('voucherId', 'magiamgia sophantram minOrderValue ngayketthuc')
+      .lean();
     
-    if (!userPoints) {
-      return res.status(200).json({
-        success: true,
-        hasPoints: false,
-        points: {
-          totalPoints: 0,
-          availablePoints: 0,
-          tier: 'standard',
-          yearToDatePoints: 0
-        }
-      });
-    }
-    
-    // Kiểm tra điểm sắp hết hạn trong 30 ngày tới
-    const now = new Date();
-    const thirtyDaysFromNow = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
-    
-    const soonExpiringPoints = userPoints.expiringPoints
-      .filter(entry => entry.expiryDate <= thirtyDaysFromNow && entry.expiryDate > now)
-      .reduce((total, entry) => total + entry.points, 0);
+    // Format lại kết quả để dễ sử dụng
+    const formattedHistory = redemptionHistory.map(item => ({
+      _id: item._id,
+      voucherCode: item.voucherCode,
+      voucherName: item.redemptionId?.name || 'Phần thưởng đã xóa',
+      voucherDescription: item.redemptionId?.description || '',
+      discountType: item.redemptionId?.voucherType || 'percentage',
+      discountValue: item.redemptionId?.voucherValue || 0,
+      minOrderValue: item.voucherId?.minOrderValue || 0,
+      pointsSpent: item.pointsSpent,
+      redemptionDate: item.redemptionDate,
+      expiryDate: item.expiryDate,
+      status: item.status,
+      usedDate: item.usedDate
+    }));
     
     res.json({
       success: true,
-      hasPoints: true,
-      points: {
-        totalPoints: userPoints.totalPoints,
-        availablePoints: userPoints.availablePoints,
-        tier: userPoints.tier,
-        yearToDatePoints: userPoints.yearToDatePoints,
-        soonExpiringPoints,
-        nextTier: userPoints.tier !== 'platinum' ? getNextTier(userPoints.tier) : null,
-        pointsToNextTier: userPoints.tier !== 'platinum' ? getPointsToNextTier(userPoints.tier, userPoints.yearToDatePoints) : 0,
-        history: userPoints.pointsHistory.slice(0, 10) // Trả về 10 lịch sử gần đây nhất
-      }
+      history: formattedHistory
     });
   } catch (error) {
-    console.error('Lỗi khi lấy điểm người dùng:', error);
-    res.status(500).json({ 
-      success: false, 
-      message: 'Lỗi khi lấy thông tin điểm thưởng' 
+    console.error('Lỗi khi lấy lịch sử đổi điểm:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Lỗi khi lấy lịch sử đổi điểm'
     });
   }
 });

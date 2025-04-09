@@ -26,44 +26,54 @@ const UserPointsInfo = () => {
       return;
     }
     
-    const phone = getUserPhone();
-    if (!phone) {
-      setLoading(false);
-      return;
-    }
-    
     const fetchUserPoints = async () => {
       try {
         setLoading(true);
         fetchedRef.current = true; // Đánh dấu đã fetch một lần
         
         // Try to fetch by phone first
-        const response = await axios.get(`http://localhost:3005/loyalty/user-points/${phone}`);
-        
-        if (response.data.success && response.data.hasPoints) {
-          setPoints(response.data.points);
-          return;
+        const phone = getUserPhone();
+        if (phone) {
+          try {
+            const response = await axios.get(`http://localhost:3005/loyalty/user-points/${phone}`);
+            
+            if (response.data.success && response.data.hasPoints) {
+              setPoints(response.data.points);
+              return;
+            }
+          } catch (error) {
+            console.error('Error fetching user points by phone:', error);
+          }
         }
         
         // If not found by phone, try by email
         const storedUser = localStorage.getItem("user");
         if (storedUser) {
           const userData = JSON.parse(storedUser);
-          if (userData?.email) {
-            const emailResponse = await axios.get(`http://localhost:3005/loyalty/user-points-by-email/${userData.email}`);
-            if (emailResponse.data.success && emailResponse.data.hasPoints) {
-              setPoints(emailResponse.data.points);
-              return;
+          if (userData?.email || userData?.user?.email) {
+            const email = userData?.email || userData?.user?.email;
+            try {
+              const emailResponse = await axios.get(`http://localhost:3005/loyalty/user-points-by-email/${email}`);
+              if (emailResponse.data.success && emailResponse.data.hasPoints) {
+                setPoints(emailResponse.data.points);
+                return;
+              }
+            } catch (error) {
+              console.error('Error fetching user points by email:', error);
             }
           }
           
           // Try by userId as last resort
           const userId = userData?._id || userData?.user?._id || userData?.id || userData?.user?.id;
           if (userId) {
-            const userIdResponse = await axios.get(`http://localhost:3005/loyalty/user-points/${userId}`);
-            if (userIdResponse.data.success && userIdResponse.data.hasPoints) {
-              setPoints(userIdResponse.data.points);
-              return;
+            try {
+              const userIdResponse = await axios.get(`http://localhost:3005/loyalty/user-points/${userId}`);
+              if (userIdResponse.data.success && userIdResponse.data.hasPoints) {
+                setPoints(userIdResponse.data.points);
+                return;
+              }
+            } catch (error) {
+              console.error('Error fetching user points by userId:', error);
             }
           }
         }

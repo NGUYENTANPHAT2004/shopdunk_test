@@ -1,20 +1,35 @@
 import React, { useState, useEffect } from 'react';
 import { FaTicketAlt, FaTimes, FaGift, FaClock } from 'react-icons/fa';
 import './VoucherNotification.scss';
+import { useUserContext } from '../context/Usercontext';
 
-const VoucherNotification = ({ phone, onVoucherClick }) => {
+const VoucherNotification = ({ onVoucherClick }) => {
   const [notifications, setNotifications] = useState([]);
   const [visible, setVisible] = useState(false);
   const [lastCheckTime, setLastCheckTime] = useState(0);
+  
+  // Lấy thông tin người dùng từ context
+  const { user } = useUserContext();
+
+  // Lấy userId từ thông tin người dùng
+  const getUserId = () => {
+    // Kiểm tra user có tồn tại không
+    if (!user) return null;
+    
+    // Trả về userId, có thể nằm trực tiếp trong user hoặc trong user.user
+    return user._id || (user.user && user.user._id);
+  };
 
   // Check for new vouchers
   useEffect(() => {
-    if (!phone) {
-      console.log("No phone provided to VoucherNotification");
+    const userId = getUserId();
+    // Chỉ tiếp tục nếu có userId
+    if (!userId) {
+      console.log("Không có userId - VoucherNotification");
       return;
     }
 
-    console.log("VoucherNotification initialized with phone:", phone);
+    console.log("VoucherNotification initialized with userId:", userId);
 
     const checkNewVouchers = async () => {
       // Kiểm tra xem đã đủ thời gian giữa các lần check chưa
@@ -27,7 +42,8 @@ const VoucherNotification = ({ phone, onVoucherClick }) => {
       
       try {
         console.log("Checking for new vouchers at:", new Date().toLocaleTimeString());
-        const response = await fetch(`http://localhost:3005/checknewvouchers/${phone}`);
+        // Sử dụng userId để kiểm tra voucher mới
+        const response = await fetch(`http://localhost:3005/checknewvouchers/${userId}`);
         
         if (!response.ok) {
           console.error('Failed to fetch voucher data: ', response.status);
@@ -68,7 +84,8 @@ const VoucherNotification = ({ phone, onVoucherClick }) => {
       }
       
       try {
-        const response = await fetch(`http://localhost:3005/activegoldenhour/${phone}`);
+        // Sử dụng userId thay vì phone
+        const response = await fetch(`http://localhost:3005/activegoldenhour/${userId}`);
         
         if (!response.ok) {
           console.error('Failed to fetch golden hour data: ', response.status);
@@ -122,7 +139,7 @@ const VoucherNotification = ({ phone, onVoucherClick }) => {
       clearInterval(newVouchersInterval);
       clearInterval(goldenHourInterval);
     };
-  }, [phone, lastCheckTime]);
+  }, [lastCheckTime, user]);
 
   const handleClose = () => {
     setVisible(false);

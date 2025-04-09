@@ -56,7 +56,17 @@ function HoaDonLayout () {
   
   // Kiểm tra xem đơn hàng có thể thay đổi trạng thái không
   const canChangeStatus = (order) => {
-    return !['Thanh toán thất bại', 'Thanh toán hết hạn', 'Hủy Đơn Hàng', 'Hoàn thành'].includes(order.trangthai);
+    // Không cho phép thay đổi trạng thái của các đơn hàng đã hoàn thành hoặc hủy
+    if (['Thanh toán thất bại', 'Thanh toán hết hạn', 'Hủy Đơn Hàng', 'Hoàn thành'].includes(order.trangthai)) {
+      return false;
+    }
+    
+    // Không cho phép thay đổi trạng thái từ "Đã thanh toán" sang các trạng thái thanh toán thất bại
+    if (order.trangthai === 'Đã thanh toán') {
+      return true; // Vẫn cho phép thay đổi sang các trạng thái hợp lệ khác
+    }
+    
+    return true;
   }
   
   // Hiển thị màu sắc cho từng trạng thái
@@ -123,6 +133,13 @@ function HoaDonLayout () {
            value === 'Đang xử lý' || value === 'Đã thanh toán' || 
            value === 'Đang vận chuyển')) {
         alert('Không thể thay đổi trạng thái của đơn hàng đã nhận');
+        return;
+      }
+
+      // Prevent changing status from "Đã thanh toán" to payment failure or cancellation
+      if (currentOrder.trangthai === 'Đã thanh toán' && 
+          (value === 'Thanh toán thất bại' || value === 'Thanh toán hết hạn' || value === 'Hủy Đơn Hàng')) {
+        alert('Không thể chuyển đơn hàng đã thanh toán sang trạng thái thanh toán thất bại, hết hạn hoặc hủy đơn hàng');
         return;
       }
 
@@ -300,9 +317,9 @@ function HoaDonLayout () {
                     <option value='Đang vận chuyển'>🚚 Đang vận chuyển</option>
                     <option value='Đã nhận'>✅ Đã nhận</option>
                     <option value='Hoàn thành'>✨ Hoàn thành</option>
-                    <option value='Thanh toán thất bại'>❌ Thanh toán thất bại</option>
-                    <option value='Thanh toán hết hạn'>⏰ Thanh toán hết hạn</option>
-                    <option value='Hủy Đơn Hàng'>🗑️ Hủy đơn hàng</option>
+                    <option value='Thanh toán thất bại' disabled={item.trangthai === 'Đã thanh toán'}>❌ Thanh toán thất bại</option>
+                    <option value='Thanh toán hết hạn' disabled={item.trangthai === 'Đã thanh toán'}>⏰ Thanh toán hết hạn</option>
+                    <option value='Hủy Đơn Hàng' disabled={item.trangthai === 'Đã thanh toán'}>🗑️ Hủy đơn hàng</option>
                   </select>
                   {item.trangthai === 'Thanh toán thất bại' && 
                     <div className="custom-tooltip">Không thể thay đổi trạng thái của đơn hàng thanh toán thất bại</div>
@@ -315,6 +332,9 @@ function HoaDonLayout () {
                   }
                   {item.trangthai === 'Hoàn thành' && 
                     <div className="custom-tooltip">Không thể thay đổi trạng thái của đơn hàng đã hoàn thành</div>
+                  }
+                  {item.trangthai === 'Đã thanh toán' && 
+                    <div className="custom-tooltip">Không thể chuyển đơn hàng đã thanh toán sang trạng thái thanh toán thất bại, hết hạn hoặc hủy đơn hàng</div>
                   }
                 </div>
               </td>

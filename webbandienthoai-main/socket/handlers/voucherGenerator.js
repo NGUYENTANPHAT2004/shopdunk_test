@@ -3,45 +3,61 @@
 const moment = require('moment');
 const MaGiamGia = require('../../models/MaGiamGiaModel');
 const HoaDon = require('../../models/HoaDonModel');
+const User = require('../../models/user.model');
 
 /**
- * Generates a random voucher for a user
- * @param {string} phone - User phone number
- * @param {string} reason - Reason for voucher generation (first-order, third-order, new-account)
- * @param {number} expiryDays - Number of days until voucher expires
- * @returns {Promise<object>} - Created voucher object
+ * Tạo voucher ngẫu nhiên cho người dùng đã đăng nhập (yêu cầu userId)
+ * @param {string} userId - ID người dùng đã đăng nhập
+ * @param {string} reason - Lý do tạo voucher (first-order, third-order, new-account)
+ * @param {number} expiryDays - Số ngày đến khi voucher hết hạn
+ * @returns {Promise<object>} - Đối tượng voucher đã tạo
  */
-async function generateVoucherForUser(phone, reason = 'reward', expiryDays = 30) {
+async function generateVoucherForUser(userId, reason = 'reward', expiryDays = 30) {
   try {
-    if (!phone) {
-      console.error('Cannot generate voucher: Phone number is required');
-      throw new Error('Phone number is required');
+    // Đảm bảo rằng chỉ xử lý userId hợp lệ
+    if (!userId || !/^[0-9a-fA-F]{24}$/.test(userId)) {
+      console.error('Không thể tạo voucher: userId không hợp lệ', userId);
+      throw new Error('userId không hợp lệ');
     }
 
-    // Validate phone number format
-    if (!/^\d{10,12}$/.test(phone.toString().trim())) {
-      console.error(`Invalid phone number format: ${phone}`);
-      throw new Error('Invalid phone number format');
+    console.log(`Đang tạo voucher ${reason} cho userId ${userId}`);
+
+    // Lấy thông tin người dùng từ bảng User
+    const user = await User.User.findById(userId);
+    if (!user) {
+      console.error(`Không tìm thấy thông tin người dùng với userId ${userId}`);
+      throw new Error('Không tìm thấy người dùng');
     }
 
-    console.log(`Attempting to generate ${reason} voucher for user ${phone}`);
+    // Lấy thông tin liên hệ của người dùng
+    const phone = user.phone;
+    const email = user.email;
+
+    if (!phone && !email) {
+      console.error(`Người dùng ${userId} không có thông tin liên hệ (điện thoại hoặc email)`);
+      throw new Error('Người dùng không có thông tin liên hệ');
+    }
 
     // Kiểm tra xem người dùng đã có bao nhiêu voucher còn hiệu lực
+    const queryConditions = [];
+    if (phone) queryConditions.push({ intended_users: phone });
+    if (email) queryConditions.push({ intended_users: email });
+
     const activeVouchers = await MaGiamGia.magiamgia.find({
       ngayketthuc: { $gte: new Date() },
       soluong: { $gt: 0 },
-      intended_users: phone,
+      $or: queryConditions,
       isDeleted: { $ne: true }
     });
 
-    // Giới hạn số lượng voucher mà một người có thể có
+    // Giới hạn số lượng voucher người dùng có thể có
     const userSpecificVouchers = activeVouchers.filter(v => !v.isServerWide);
-    const VOUCHER_LIMIT = 5; // Người dùng chỉ có thể có tối đa 5 voucher cá nhân cùng lúc
+    const VOUCHER_LIMIT = 5; // Tối đa 5 voucher cá nhân cùng lúc
     
     if (userSpecificVouchers.length >= VOUCHER_LIMIT && reason !== 'new-account') {
-      console.log(`User ${phone} already has ${userSpecificVouchers.length} active vouchers. Limit is ${VOUCHER_LIMIT}`);
+      console.log(`Người dùng ${userId} đã có ${userSpecificVouchers.length} voucher đang hoạt động. Giới hạn là ${VOUCHER_LIMIT}`);
       
-      // Nếu không phải là voucher chào mừng, không tạo thêm
+      // Nếu không phải voucher chào mừng, không tạo thêm
       if (reason !== 'new-account') {
         return {
           code: userSpecificVouchers[0].magiamgia,
@@ -54,18 +70,19 @@ async function generateVoucherForUser(phone, reason = 'reward', expiryDays = 30)
       }
     }
 
-    // Check if user already has an active voucher of this type
+    // Kiểm tra xem người dùng đã có voucher loại này chưa
+    const voucherRegex = new RegExp(`^${getVoucherPrefix(reason)}`);
     const existingVoucher = await MaGiamGia.magiamgia.findOne({
-      magiamgia: { $regex: new RegExp(`^${getVoucherPrefix(reason)}`) },
+      magiamgia: { $regex: voucherRegex },
       ngayketthuc: { $gte: new Date() },
       soluong: { $gt: 0 },
-      intended_users: phone,
+      $or: queryConditions,
       isDeleted: { $ne: true }
     });
     
-    // If user already has this type of voucher, don't create another one
+    // Nếu người dùng đã có voucher loại này, không tạo thêm
     if (existingVoucher && reason !== 'reward') {
-      console.log(`User ${phone} already has an active ${reason} voucher: ${existingVoucher.magiamgia}`);
+      console.log(`Người dùng ${userId} đã có voucher ${reason} đang hoạt động: ${existingVoucher.magiamgia}`);
       return {
         code: existingVoucher.magiamgia,
         discount: existingVoucher.sophantram,
@@ -77,36 +94,42 @@ async function generateVoucherForUser(phone, reason = 'reward', expiryDays = 30)
       };
     }
 
-    // Define voucher configuration based on reason
+    // Cấu hình voucher dựa trên lý do
     const voucherConfig = getVoucherConfig(reason);
     
-    // Create start and end dates
+    // Tạo ngày bắt đầu và kết thúc
     const ngaybatdau = moment();
     const ngayketthuc = moment().add(expiryDays, 'days');
     
-    // Generate a unique voucher code
-    const randomCode = Math.floor(1000 + Math.random() * 9000); // 4-digit random number
+    // Tạo mã giảm giá duy nhất
+    const randomCode = Math.floor(1000 + Math.random() * 9000); // 4 chữ số ngẫu nhiên
     const voucherCode = `${voucherConfig.prefix}-${randomCode}`;
     
-    // Create the voucher
+    // Tạo danh sách người dùng được chỉ định
+    const intendedUsers = [];
+    if (phone) intendedUsers.push(phone);
+    if (email) intendedUsers.push(email);
+    
+    // Tạo voucher
     const magg = new MaGiamGia.magiamgia({
       magiamgia: voucherCode,
-      soluong: 1, // One-time use only
+      soluong: 1, // Chỉ sử dụng một lần
       sophantram: voucherConfig.discount,
       ngaybatdau: ngaybatdau.toDate(),
       ngayketthuc: ngayketthuc.toDate(),
       minOrderValue: voucherConfig.minOrderValue,
-      maxOrderValue: null, // No upper limit
+      maxOrderValue: null, // Không giới hạn trên
       isServerWide: false,
       isOneTimePerUser: true,
-      intended_users: [phone], // Specify who this voucher is for
-      appliedUsers: [], // No users have used it yet
-      description: voucherConfig.description
+      intended_users: intendedUsers,
+      appliedUsers: [], // Chưa ai sử dụng
+      description: voucherConfig.description,
+      userId: userId  // Lưu userId tạo voucher này
     });
     
     await magg.save();
     
-    console.log(`Generated ${reason} voucher ${voucherCode} for user ${phone}`);
+    console.log(`Đã tạo voucher ${reason} ${voucherCode} cho người dùng ${userId}`);
     
     return {
       code: magg.magiamgia,
@@ -118,7 +141,7 @@ async function generateVoucherForUser(phone, reason = 'reward', expiryDays = 30)
       isNew: true
     };
   } catch (error) {
-    console.error('Error generating voucher:', error);
+    console.error('Lỗi khi tạo voucher:', error);
     throw error;
   }
 }
@@ -204,71 +227,146 @@ function getVoucherDescription(reason) {
 }
 
 /**
- * Checks if a user is eligible for a first order voucher
- * @param {string} phone - User phone number
- * @returns {Promise<boolean>} - True if eligible
+ * Kiểm tra xem người dùng có đủ điều kiện nhận voucher đơn hàng đầu tiên không
+ * @param {string} userId - User ID của người dùng đã đăng nhập
+ * @returns {Promise<boolean>} - True nếu đủ điều kiện
  */
-async function isFirstOrderVoucherEligible(phone) {
+async function isFirstOrderVoucherEligible(userId) {
   try {
-    if (!phone) {
-      console.log("Can't check first order eligibility: Missing phone number");
+    // Yêu cầu userId hợp lệ - chỉ phát voucher cho người dùng đã đăng ký
+    if (!userId || !/^[0-9a-fA-F]{24}$/.test(userId)) {
+      console.log("Không thể kiểm tra tư cách nhận voucher đơn đầu: Không có userId hợp lệ");
       return false;
     }
     
-    // Validate phone format
-    if (!/^\d{10,12}$/.test(phone.toString().trim())) {
-      console.log(`Invalid phone format for eligibility check: ${phone}`);
+    // Tìm user
+    const user = await User.User.findById(userId);
+    if (!user) {
+      console.log(`Không tìm thấy thông tin người dùng với userId ${userId}`);
       return false;
     }
     
-    // Count previous orders for this user
-    const orderCount = await HoaDon.hoadon.countDocuments({ 
-      phone, 
-      thanhtoan: true // Only count paid orders
-    });
+    // Thêm điều kiện lọc chỉ đơn hàng thành công
+    const query = {
+      userId: userId,
+      thanhtoan: true, // Chỉ đếm đơn hàng đã thanh toán
+      trangthai: { $in: ['Đã thanh toán', 'Hoàn thành', 'Đã nhận'] } // Trạng thái thành công
+    };
     
+    // Đếm số đơn hàng đã hoàn thành
+    const orderCount = await HoaDon.hoadon.countDocuments(query);
+    
+    console.log(`Người dùng ${userId} có ${orderCount} đơn hàng hoàn thành`);
+    
+    // Đủ điều kiện nếu đây là đơn hàng đầu tiên của họ
+    // orderCount = 1 vì chúng ta đang đếm TRONG HÀM NÀY sau khi đơn hàng hiện tại đã được đánh dấu là hoàn thành
     const eligible = orderCount === 1;
-    console.log(`User ${phone} has ${orderCount} paid orders. First-order eligible: ${eligible}`);
+    console.log(`Đủ điều kiện nhận voucher đơn đầu: ${eligible}`);
     
-    // Eligible if this is their first paid order
+    // Nếu đủ điều kiện, kiểm tra xem người dùng đã có voucher FIRST chưa
+    if (eligible) {
+      const phone = user.phone;
+      const email = user.email;
+      
+      // Nếu không có thông tin liên hệ, không phát voucher
+      if (!phone && !email) {
+        return false;
+      }
+      
+      // Tìm bất kỳ voucher FIRST nào đã cấp cho người dùng này mà vẫn còn hiệu lực
+      let voucherQuery = {
+        magiamgia: { $regex: /^FIRST/ },
+        ngayketthuc: { $gte: new Date() }
+      };
+      
+      const queryConditions = [];
+      if (phone) queryConditions.push({ intended_users: phone });
+      if (email) queryConditions.push({ intended_users: email });
+      
+      voucherQuery.$or = queryConditions;
+      
+      const existingVoucher = await MaGiamGia.magiamgia.findOne(voucherQuery);
+      
+      if (existingVoucher) {
+        console.log(`Người dùng ${userId} đã có voucher FIRST còn hiệu lực: ${existingVoucher.magiamgia}`);
+        return false;
+      }
+    }
+    
     return eligible;
   } catch (error) {
-    console.error('Error checking first order eligibility:', error);
+    console.error('Lỗi khi kiểm tra tư cách nhận voucher đơn đầu:', error);
     return false;
   }
 }
 
 /**
- * Checks if a user is eligible for a third order voucher
- * @param {string} phone - User phone number
- * @returns {Promise<boolean>} - True if eligible
+ * Kiểm tra xem người dùng có đủ điều kiện nhận voucher đơn hàng thứ 3, 6, 9... không
+ * @param {string} userId - User ID của người dùng đã đăng nhập
+ * @returns {Promise<boolean>} - True nếu đủ điều kiện
  */
-async function isThirdOrderVoucherEligible(phone) {
+async function isThirdOrderVoucherEligible(userId) {
   try {
-    if (!phone) {
-      console.log("Can't check third order eligibility: Missing phone number");
+    // Yêu cầu userId hợp lệ - chỉ phát voucher cho người dùng đã đăng ký
+    if (!userId || !/^[0-9a-fA-F]{24}$/.test(userId)) {
+      console.log("Không thể kiểm tra tư cách nhận voucher đơn thứ 3: Không có userId hợp lệ");
       return false;
     }
     
-    // Validate phone format
-    if (!/^\d{10,12}$/.test(phone.toString().trim())) {
-      console.log(`Invalid phone format for eligibility check: ${phone}`);
+    // Tìm user
+    const user = await User.User.findById(userId);
+    if (!user) {
+      console.log(`Không tìm thấy thông tin người dùng với userId ${userId}`);
       return false;
     }
     
-    // Count previous orders for this user
-    const orderCount = await HoaDon.hoadon.countDocuments({ 
-      phone, 
-      thanhtoan: true // Only count paid orders
-    });
+    // Thêm điều kiện lọc chỉ đơn hàng thành công
+    const query = {
+      userId: userId,
+      thanhtoan: true, // Chỉ đếm đơn hàng đã thanh toán
+      trangthai: { $in: ['Đã thanh toán', 'Hoàn thành', 'Đã nhận'] } // Trạng thái thành công
+    };
     
-    // Eligible if this is their 3rd, 6th, 9th, etc. order (divisible by 3)
+    // Đếm số đơn hàng đã hoàn thành
+    const orderCount = await HoaDon.hoadon.countDocuments(query);
+    
+    // Đủ điều kiện nếu đây là đơn hàng thứ 3, 6, 9... của họ
     const eligible = orderCount > 0 && orderCount % 3 === 0;
-    console.log(`User ${phone} has ${orderCount} paid orders. Third-order eligible: ${eligible}`);
+    console.log(`Người dùng ${userId} có ${orderCount} đơn hàng hoàn thành. Đủ điều kiện nhận voucher đơn thứ 3: ${eligible}`);
+    
+    // Nếu đủ điều kiện, kiểm tra xem người dùng đã có voucher LOYAL nào chưa
+    if (eligible) {
+      const phone = user.phone;
+      const email = user.email;
+      
+      // Nếu không có thông tin liên hệ, không phát voucher
+      if (!phone && !email) {
+        return false;
+      }
+      
+      // Tìm bất kỳ voucher LOYAL nào đã cấp cho người dùng này mà vẫn còn hiệu lực
+      let voucherQuery = {
+        magiamgia: { $regex: /^LOYAL/ },
+        ngayketthuc: { $gte: new Date() }
+      };
+      
+      const queryConditions = [];
+      if (phone) queryConditions.push({ intended_users: phone });
+      if (email) queryConditions.push({ intended_users: email });
+      
+      voucherQuery.$or = queryConditions;
+      
+      const existingVoucher = await MaGiamGia.magiamgia.findOne(voucherQuery);
+      
+      if (existingVoucher) {
+        console.log(`Người dùng ${userId} đã có voucher LOYAL còn hiệu lực: ${existingVoucher.magiamgia}`);
+        return false;
+      }
+    }
     
     return eligible;
   } catch (error) {
-    console.error('Error checking third order eligibility:', error);
+    console.error('Lỗi khi kiểm tra tư cách nhận voucher đơn thứ 3:', error);
     return false;
   }
 }

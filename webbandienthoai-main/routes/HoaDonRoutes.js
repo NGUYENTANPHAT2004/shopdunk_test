@@ -11,7 +11,7 @@ const { ProductSizeStock } = require('../models/ProductSizeStockmodel')
 const { 
   generateVoucherForUser, 
   isFirstOrderVoucherEligible, 
-  isThirdOrderVoucherEligible 
+  isThirdOrderVoucherEligible
 } = require('../socket/handlers/voucherGenerator');
 const db = require('../models/db')
 const Category = require('../models/CategoryModel');
@@ -198,7 +198,7 @@ router.post('/posthoadon', async (req, res) => {
       ghichu,
       magiamgia,
       sanphams,
-      userId // ✅ nhận thêm từ body
+      userId // userId từ token authentication 
     } = req.body;
 
     const hoadon = new HoaDon.hoadon({
@@ -210,7 +210,7 @@ router.post('/posthoadon', async (req, res) => {
       ngaymua: moment().toISOString(),
       trangthai: 'Đang xử lý',
       tongtien: 0,
-      userId: userId || null // ✅ gán userId nếu có
+      userId: userId || null // gán userId nếu có
     });
 
     let tongtien = 0;
@@ -225,18 +225,14 @@ router.post('/posthoadon', async (req, res) => {
     hoadon.tongtien = tongtien;
 
     if (magiamgia) {
-      const magiamgia1 = await MaGiamGia.magiamgia.findOne({ magiamgia });
-      const ngayHienTai = moment();
-      const ngayKetThuc = moment(magiamgia1.ngayketthuc);
-
-      if (ngayHienTai.isAfter(ngayKetThuc)) {
-        return res.json({ message: 'Mã giảm giá đã hết hạn' });
+      // Sử dụng hàm validateVoucher đã cập nhật, truyền thêm userId
+      const validationResult = await validateVoucher(magiamgia, phone, tongtien, userId);
+      
+      if (!validationResult.valid) {
+        return res.status(400).json({ message: validationResult.message });
       }
-
-      const daSuDung = await HoaDon.hoadon.findOne({ phone, magiamgia });
-      if (daSuDung) {
-        return res.status(400).json({ message: 'Bạn đã sử dụng mã giảm giá này' });
-      }
+      
+      const magiamgia1 = validationResult.voucher;
 
       hoadon.magiamgia = magiamgia;
       const giamGia = magiamgia1.sophantram / 100;
@@ -254,7 +250,7 @@ router.post('/posthoadon', async (req, res) => {
   }
 });
 
-async function validateVoucher(magiamgia, phone, totalAmount) {
+async function validateVoucher(magiamgia, phone, totalAmount, userId = null) {
   if (!magiamgia) return { valid: false, message: 'Không có mã giảm giá' };
   
   const voucher = await MaGiamGia.magiamgia.findOne({ magiamgia });
@@ -324,10 +320,28 @@ async function validateVoucher(magiamgia, phone, totalAmount) {
     }
   }
   
-  // Check if serverWide or one-time-per-user restriction
-  if (!voucher.isServerWide && voucher.isOneTimePerUser) {
-    // Check if user has already used this voucher
-    if (voucher.appliedUsers && voucher.appliedUsers.includes(phone)) {
+  // Kiểm tra nếu đây là voucher cá nhân (không phải server-wide)
+  if (!voucher.isServerWide) {
+    // Kiểm tra xem voucher có thuộc về userId nào không
+    if (voucher.userId && voucher.userId.toString() !== userId) {
+      return { 
+        valid: false, 
+        message: 'Mã giảm giá này chỉ dành cho chủ sở hữu' 
+      };
+    }
+    
+    // Kiểm tra xem số điện thoại có trong danh sách người dùng được chỉ định không
+    if (voucher.intended_users && voucher.intended_users.length > 0) {
+      if (!voucher.intended_users.includes(phone)) {
+        return { 
+          valid: false, 
+          message: 'Mã giảm giá không dành cho tài khoản này' 
+        };
+      }
+    }
+    
+    // Nếu là voucher một lần, kiểm tra xem đã sử dụng chưa
+    if (voucher.isOneTimePerUser && voucher.appliedUsers && voucher.appliedUsers.includes(phone)) {
       return { valid: false, message: 'Bạn đã sử dụng mã giảm giá này' };
     }
   }
@@ -493,6 +507,9 @@ router.post('/create_payment_url', async (req, res) => {
   res.json(vnpUrl)
 })
 
+// Trong HoaDonRoutes.js, cập nhật phần xử lý voucher sau thanh toán thành công
+
+// Cập nhật đoạn code trong route /vnpay_return
 router.get('/vnpay_return', async (req, res) => {
   let vnp_Params = req.query
 
@@ -540,76 +557,77 @@ router.get('/vnpay_return', async (req, res) => {
         const orderTotal = hoadon.tongtien;
         const userId = hoadon.userId;
         const phone = hoadon.phone;
-        let userEmail = null;
         
-        // Cố gắng lấy email từ thông tin người dùng nếu có userId
+        // Chỉ tích điểm cho user đã đăng nhập (có userId)
         if (userId) {
           try {
             const userInfo = await User.User.findById(userId);
+            let userEmail = null;
             if (userInfo && userInfo.email) {
               userEmail = userInfo.email;
             }
-          } catch (userError) {
-            console.error('Error fetching user email:', userError);
-            // Tiếp tục mà không cần email
-          }
-        }
-        
-        // Đảm bảo có ít nhất một trong các thông tin định danh
-        if (phone || userId || userEmail) {
-          // Sử dụng axios để gọi API tích điểm
-          const axios = require('axios');
-          
-          // Gọi API tích điểm với tất cả thông tin có sẵn
-          const pointsResponse = await axios.post('http://localhost:3005/loyalty/award-points', {
-            userId: userId,
-            phone: phone,
-            email: userEmail,
-            orderId: hoadon._id.toString(),
-            orderAmount: orderTotal,
-            orderDate: hoadon.ngaymua
-          });
-          
-          if (pointsResponse.data.success) {
-            console.log(`Đã tích ${pointsResponse.data.pointsEarned} điểm thưởng cho đơn hàng ${hoadon._id}`);
             
-            // Thông báo qua socket cho người dùng về điểm thưởng nếu có socket.io
-            if (typeof io !== 'undefined' && userId) {
-              io.to(userId).emit('pointsEarned', {
-                phone: phone,
-                pointsEarned: pointsResponse.data.pointsEarned,
-                newPointsTotal: pointsResponse.data.newPointsTotal,
-                tier: pointsResponse.data.tier
-              });
+            // Gọi API tích điểm với thông tin người dùng
+            const axios = require('axios');
+            const pointsResponse = await axios.post('http://localhost:3005/loyalty/award-points', {
+              userId: userId,
+              phone: phone,
+              email: userEmail,
+              orderId: hoadon._id.toString(),
+              orderAmount: orderTotal,
+              orderDate: hoadon.ngaymua
+            });
+            
+            if (pointsResponse.data.success) {
+              console.log(`Đã tích ${pointsResponse.data.pointsEarned} điểm thưởng cho đơn hàng ${hoadon._id}`);
               
-              // Kiểm tra nếu người dùng vừa lên hạng
-              if (pointsResponse.data.previousTier && pointsResponse.data.previousTier !== pointsResponse.data.tier) {
-                io.to(userId).emit('tierUpgrade', {
+              // Thông báo qua socket cho người dùng về điểm thưởng nếu có socket.io
+              if (typeof io !== 'undefined' && userId) {
+                io.to(userId).emit('pointsEarned', {
                   phone: phone,
-                  newTier: pointsResponse.data.tier,
-                  previousTier: pointsResponse.data.previousTier
+                  pointsEarned: pointsResponse.data.pointsEarned,
+                  newPointsTotal: pointsResponse.data.newPointsTotal,
+                  tier: pointsResponse.data.tier
                 });
+                
+                // Kiểm tra nếu người dùng vừa lên hạng
+                if (pointsResponse.data.previousTier && pointsResponse.data.previousTier !== pointsResponse.data.tier) {
+                  io.to(userId).emit('tierUpgrade', {
+                    phone: phone,
+                    newTier: pointsResponse.data.tier,
+                    previousTier: pointsResponse.data.previousTier
+                  });
+                }
               }
             }
+          } catch (userError) {
+            console.error('Error fetching user info:', userError);
+            // Tiếp tục mà không cần dừng quy trình
           }
+        } else {
+          console.log('Bỏ qua tích điểm: Đơn hàng của khách vãng lai (không có userId)');
         }
       } catch (pointsError) {
         console.error('Lỗi khi tích điểm thưởng:', pointsError);
         // Tiếp tục xử lý - không fail đơn hàng chỉ vì lỗi tích điểm
       }
       
-      // Check for first-time purchase or every third purchase
+      // Chỉ phát voucher cho user đã đăng nhập (có userId)
       try {
-        const userPhone = hoadon.phone;
+        const userId = hoadon.userId;
         
-        // Check if this is their first order
-        if (await isFirstOrderVoucherEligible(userPhone)) {
-          await generateVoucherForUser(userPhone, 'first-order');
-        }
-        
-        // Check if this is their third, sixth, ninth, etc. order
-        if (await isThirdOrderVoucherEligible(userPhone)) {
-          await generateVoucherForUser(userPhone, 'third-order');
+        if (userId) {
+          // Check if this is their first order
+          if (await isFirstOrderVoucherEligible(userId)) {
+            await generateVoucherForUser(userId, 'first-order');
+          }
+          
+          // Check if this is their third, sixth, ninth, etc. order
+          if (await isThirdOrderVoucherEligible(userId)) {
+            await generateVoucherForUser(userId, 'third-order');
+          }
+        } else {
+          console.log('Bỏ qua phát voucher: Đơn hàng của khách vãng lai (không có userId)');
         }
       } catch (error) {
         console.error('Error generating automatic voucher:', error);

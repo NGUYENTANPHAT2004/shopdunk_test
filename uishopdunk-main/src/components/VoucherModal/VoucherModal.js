@@ -1,22 +1,44 @@
 import React, { useState, useEffect } from 'react';
 import { FaTicketAlt, FaCopy, FaCheckCircle, FaRegClock, FaTimes, FaGift, FaStar, FaCrown } from 'react-icons/fa';
 import './VoucherModal.scss';
+import { useUserContext } from '../../context/Usercontext';
 
-const VoucherModal = ({ isOpen, onClose, phone }) => {
+const VoucherModal = ({ isOpen, onClose }) => {
   const [vouchers, setVouchers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [copiedCode, setCopiedCode] = useState(null);
   const [activeTab, setActiveTab] = useState('available');
   const [notification, setNotification] = useState(null);
   const [lastGoldenHourCheck, setLastGoldenHourCheck] = useState(0);
+  
+  // Lấy thông tin người dùng từ context
+  const { user } = useUserContext();
+
+  // Lấy userId từ thông tin người dùng
+  const getUserId = () => {
+    // Kiểm tra user có tồn tại không
+    if (!user) return null;
+    
+    // Trả về userId, có thể nằm trực tiếp trong user hoặc trong user.user
+    return user._id || (user.user && user.user._id);
+  };
 
   useEffect(() => {
     const fetchVouchers = async () => {
-      if (!phone) return;
+      const userId = getUserId();
+      if (!userId) {
+        setLoading(false);
+        setNotification({
+          type: 'error',
+          message: 'Bạn cần đăng nhập để xem mã giảm giá'
+        });
+        return;
+      }
 
       try {
         setLoading(true);
-        const response = await fetch(`http://localhost:3005/timkiemvoucher/${phone}`);
+        // Gọi API với userId
+        const response = await fetch(`http://localhost:3005/timkiemvoucher/${userId}`);
         const data = await response.json();
         
         if (response.ok) {
@@ -43,10 +65,11 @@ const VoucherModal = ({ isOpen, onClose, phone }) => {
 
     // Check for new vouchers when modal opens
     const checkNewVouchers = async () => {
-      if (!phone) return;
+      const userId = getUserId();
+      if (!userId) return;
       
       try {
-        const response = await fetch(`http://localhost:3005/checknewvouchers/${phone}`);
+        const response = await fetch(`http://localhost:3005/checknewvouchers/${userId}`);
         const data = await response.json();
         
         if (response.ok && data.hasNewVouchers) {
@@ -64,12 +87,13 @@ const VoucherModal = ({ isOpen, onClose, phone }) => {
       fetchVouchers();
       checkNewVouchers();
     }
-  }, [isOpen, phone]);
+  }, [isOpen, user]);
   
   // Check golden hour vouchers with throttling
   useEffect(() => {
     const checkGoldenHourVouchers = async () => {
-      if (!phone || !isOpen) return;
+      const userId = getUserId();
+      if (!userId || !isOpen) return;
       
       // Prevent checking too frequently
       const now = Date.now();
@@ -80,7 +104,7 @@ const VoucherModal = ({ isOpen, onClose, phone }) => {
       setLastGoldenHourCheck(now);
       
       try {
-        const response = await fetch(`http://localhost:3005/activegoldenhour/${phone}`);
+        const response = await fetch(`http://localhost:3005/activegoldenhour/${userId}`);
         const data = await response.json();
         
         if (response.ok && data.hasActiveVouchers) {
@@ -100,7 +124,7 @@ const VoucherModal = ({ isOpen, onClose, phone }) => {
       const interval = setInterval(checkGoldenHourVouchers, 5 * 60 * 1000);
       return () => clearInterval(interval);
     }
-  }, [isOpen, phone, lastGoldenHourCheck]);
+  }, [isOpen, lastGoldenHourCheck, user]);
 
   // Lọc voucher trùng lặp - ưu tiên giữ lại voucher có % giảm giá cao hơn
   const filterDuplicateVouchers = (vouchersList) => {
@@ -137,6 +161,8 @@ const VoucherModal = ({ isOpen, onClose, phone }) => {
   
   // Lấy prefix của voucher
   const getVoucherPrefix = (code) => {
+    if (!code) return 'OTHER';
+    
     if (code.startsWith('FIRST')) return 'FIRST';
     if (code.startsWith('LOYAL')) return 'LOYAL';
     if (code.startsWith('WELCOME')) return 'WELCOME';
@@ -170,6 +196,8 @@ const VoucherModal = ({ isOpen, onClose, phone }) => {
   };
   
   const getVoucherTypeLabel = (code) => {
+    if (!code) return 'Mã giảm giá';
+    
     if (code.startsWith('FIRST')) return 'Khách hàng mới';
     if (code.startsWith('LOYAL')) return 'Khách hàng thân thiết';
     if (code.startsWith('WELCOME')) return 'Chào mừng';

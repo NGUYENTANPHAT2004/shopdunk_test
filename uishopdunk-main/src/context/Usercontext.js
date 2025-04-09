@@ -118,7 +118,6 @@ export const UserContextProvider = ({ children }) => {
       setUserPoints(null);
     }
   };
-  
   const login = async (loginData) => {
     try {
       setIsLoading(true);

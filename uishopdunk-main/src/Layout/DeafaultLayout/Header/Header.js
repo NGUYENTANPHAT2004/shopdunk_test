@@ -18,29 +18,36 @@ const Header = () => {
   const [isSearchExpanded, setIsSearchExpanded] = useState(false)
   const [isMenuOpen, setIsMenuOpen] = useState(false)
   const [isVoucherModalOpen, setIsVoucherModalOpen] = useState(false)
-  const { getUser, getUserPhone, logout, welcomeVoucher, dismissWelcomeVoucher } = useUserContext()
+  const { getUser, logout, welcomeVoucher, dismissWelcomeVoucher, user } = useUserContext()
   const [username, setUsername] = useState(null)
-  const [userPhone, setUserPhone] = useState(null)
   const [hasNewVouchers, setHasNewVouchers] = useState(false)
   const [lastVoucherCheck, setLastVoucherCheck] = useState(0)
   const navigate = useNavigate()
 
+  // Lấy userId từ thông tin người dùng
+  const getUserId = () => {
+    // Kiểm tra user có tồn tại không
+    if (!user) return null;
+    
+    // Trả về userId, có thể nằm trực tiếp trong user hoặc trong user.user
+    return user._id || (user.user && user.user._id);
+  };
+
   // Initialize user data
   useEffect(() => {
-    const user = getUser();
-    setUsername(user);
+    const userData = getUser();
+    setUsername(userData);
     
-    // Get phone from localStorage directly
+    // Kiểm tra userId từ localStorage
     const storedUser = localStorage.getItem('user');
     if (storedUser) {
       try {
         const userData = JSON.parse(storedUser);
-        const phone = userData?.phone || userData?.user?.phone;
-        setUserPhone(phone);
-        console.log("Found user phone:", phone);
-        // Check for new vouchers if phone exists
-        if (phone) {
-          checkForNewVouchers(phone);
+        const userId = userData?._id || userData?.user?._id;
+        
+        // Check for new vouchers if userId exists
+        if (userId) {
+          checkForNewVouchers(userId);
         }
       } catch (e) {
         console.error('Error parsing user data:', e);
@@ -51,22 +58,8 @@ const Header = () => {
   // Update user data when logout event occurs
   useEffect(() => {
     const updateUser = () => {
-      const user = getUser();
-      setUsername(user);
-      
-      // Update phone when user changes
-      const storedUser = localStorage.getItem('user');
-      if (storedUser) {
-        try {
-          const userData = JSON.parse(storedUser);
-          const phone = userData?.phone || userData?.user?.phone;
-          setUserPhone(phone);
-        } catch (e) {
-          console.error('Error parsing user data:', e);
-        }
-      } else {
-        setUserPhone(null);
-      }
+      const userData = getUser();
+      setUsername(userData);
     };
   
     window.addEventListener("userLogout", updateUser);
@@ -78,26 +71,27 @@ const Header = () => {
   
   // Check for new vouchers with reduced frequency
   useEffect(() => {
-    if (!userPhone) return;
+    const userId = getUserId();
+    if (!userId) return;
     
-    console.log("Setting up voucher checking for phone:", userPhone);
+    console.log("Setting up voucher checking for userId:", userId);
     
     // Initial check if we haven't checked recently
     const now = Date.now();
     if (now - lastVoucherCheck > 15 * 60 * 1000) { // 15 minutes between checks
-      checkForNewVouchers(userPhone);
+      checkForNewVouchers(userId);
     }
     
     // Set up interval for checking (every 15 minutes instead of 5)
     const intervalId = setInterval(() => {
-      checkForNewVouchers(userPhone);
+      checkForNewVouchers(userId);
     }, 15 * 60 * 1000);
     
     return () => clearInterval(intervalId);
-  }, [userPhone, lastVoucherCheck]);
+  }, [user, lastVoucherCheck]);
   
   // Check for new vouchers with throttling
-  const checkForNewVouchers = async (phone) => {
+  const checkForNewVouchers = async (userId) => {
     try {
       // Prevent checking too frequently
       const now = Date.now();
@@ -107,9 +101,9 @@ const Header = () => {
       }
       
       setLastVoucherCheck(now);
-      console.log("Checking for new vouchers for phone:", phone);
+      console.log("Checking for new vouchers for userId:", userId);
       
-      const response = await fetch(`http://localhost:3005/checknewvouchers/${phone}`);
+      const response = await fetch(`http://localhost:3005/checknewvouchers/${userId}`);
       const data = await response.json();
       
       if (response.ok && data.hasNewVouchers) {
@@ -165,12 +159,13 @@ const Header = () => {
   
   const openVoucherModal = () => {
     if (username) {
-      if (userPhone) {
+      const userId = getUserId();
+      if (userId) {
         setIsVoucherModalOpen(true);
         // Reset new vouchers notification when modal is opened
         setHasNewVouchers(false);
       } else {
-        toast.warning('Không tìm thấy thông tin số điện thoại của bạn', {
+        toast.warning('Không tìm thấy thông tin người dùng của bạn', {
           position: "top-right",
           autoClose: 3000
         });
@@ -238,7 +233,7 @@ const Header = () => {
             <FaSearch className='search-toggle-icon' />
           </button>
         </div>  
-        {userPhone && <UserPointsInfo phone={userPhone} />}
+        {username && <UserPointsInfo />}
         <Link to="/cart" className='cart-container'>
           <FontAwesomeIcon icon={faBagShopping} className='cart-icon' />
           {itemCount > 0 && <span className='cart-badge'>{itemCount}</span>}
@@ -280,13 +275,11 @@ const Header = () => {
       <VoucherModal 
         isOpen={isVoucherModalOpen} 
         onClose={() => setIsVoucherModalOpen(false)}
-        phone={userPhone}
       />
       
       {/* Voucher Notification for logged-in users */}
-      {username && userPhone && (
+      {username && getUserId() && (
         <VoucherNotification 
-          phone={userPhone} 
           onVoucherClick={openVoucherModal}
         />
       )}

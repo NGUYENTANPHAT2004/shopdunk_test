@@ -127,7 +127,7 @@ const Navbar = () => {
           <li className="menu-item" onClick={toggleMenuItem}>
             <Link to="/">Sản phẩm</Link>
           </li>
-          <li className="menu-item has-submenu" onClick={toggleMenuItem}>
+          {/* <li className="menu-item has-submenu" onClick={toggleMenuItem}>
             <span className="menu-title">Dịch vụ</span>
             <ul className="submenu">
               <li>
@@ -144,7 +144,7 @@ const Navbar = () => {
           </li>
           <li className="menu-item" onClick={toggleMenuItem}>
             <Link to="/lien-he">Liên hệ</Link>
-          </li>
+          </li> */}
         </ul>
       </div>
     </nav>
