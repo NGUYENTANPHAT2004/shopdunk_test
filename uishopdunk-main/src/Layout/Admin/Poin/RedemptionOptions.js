@@ -154,50 +154,68 @@ const RedemptionOptions = () => {
   };
 
   // Save redemption option
-  const handleSubmit = async (e) => {
-    e.preventDefault();
+  // Điều chỉnh hàm handleSubmit để đảm bảo các tùy chọn đổi điểm 
+// chỉ sử dụng userId cho giới hạn
+const handleSubmit = async (e) => {
+  e.preventDefault();
+  
+  // Validate required fields
+  if (!formData.name || !formData.pointsCost || !formData.voucherValue || !formData.voucherId) {
+    toast.error('Vui lòng điền đầy đủ thông tin bắt buộc');
+    return;
+  }
+  
+  // Thêm lưu ý về việc chỉ sử dụng userId
+  if (formData.limitPerUser > 1) {
+    toast.info('Lưu ý: Giới hạn đổi điểm mỗi người dùng sẽ áp dụng theo User ID');
+  }
+  
+  try {
+    setLoading(true);
     
-    // Validate required fields
-    if (!formData.name || !formData.pointsCost || !formData.voucherValue || !formData.voucherId) {
-      toast.error('Vui lòng điền đầy đủ thông tin bắt buộc');
-      return;
-    }
+    // Payload đã chuẩn hóa
+    const payload = {
+      ...formData,
+      // Đảm bảo các giá trị số được chuyển đổi đúng
+      pointsCost: Number(formData.pointsCost),
+      voucherValue: Number(formData.voucherValue),
+      minOrderValue: Number(formData.minOrderValue) || 0,
+      limitPerUser: Number(formData.limitPerUser) || 1,
+      totalQuantity: Number(formData.totalQuantity) || 100
+    };
     
-    try {
-      setLoading(true);
+    if (editMode) {
+      const response = await axios.put(`http://localhost:3005/admin/loyalty/update-redemption/${formData._id}`, payload);
       
-      if (editMode) {
-        const response = await axios.put(`http://localhost:3005/admin/loyalty/update-redemption/${formData._id}`, formData);
+      if (response.data && response.data.success) {
+        const updatedOptions = options.map(option => 
+          option._id === formData._id ? response.data.data : option
+        );
         
-        if (response.data && response.data.success) {
-          const updatedOptions = options.map(option => 
-            option._id === formData._id ? response.data.data : option
-          );
-          
-          setOptions(updatedOptions);
-          toast.success('Cập nhật tùy chọn đổi điểm thành công');
-        } else {
-          toast.error('Không thể cập nhật tùy chọn đổi điểm');
-        }
+        setOptions(updatedOptions);
+        toast.success('Cập nhật tùy chọn đổi điểm thành công');
       } else {
-        const response = await axios.post('http://localhost:3005/admin/loyalty/create-redemption', formData);
-        
-        if (response.data && response.data.success) {
-          setOptions([...options, response.data.data]);
-          toast.success('Tạo tùy chọn đổi điểm thành công');
-        } else {
-          toast.error('Không thể tạo tùy chọn đổi điểm');
-        }
+        toast.error('Không thể cập nhật tùy chọn đổi điểm');
       }
+    } else {
+      const response = await axios.post('http://localhost:3005/admin/loyalty/create-redemption', payload);
       
-      setModalOpen(false);
-    } catch (error) {
-      console.error('Lỗi khi lưu tùy chọn đổi điểm:', error);
-      toast.error('Không thể lưu tùy chọn đổi điểm');
-    } finally {
-      setLoading(false);
+      if (response.data && response.data.success) {
+        setOptions([...options, response.data.data]);
+        toast.success('Tạo tùy chọn đổi điểm thành công');
+      } else {
+        toast.error('Không thể tạo tùy chọn đổi điểm');
+      }
     }
-  };
+    
+    setModalOpen(false);
+  } catch (error) {
+    console.error('Lỗi khi lưu tùy chọn đổi điểm:', error);
+    toast.error('Không thể lưu tùy chọn đổi điểm');
+  } finally {
+    setLoading(false);
+  }
+};
 
   // Handle delete redemption option
   const handleDelete = async (id) => {

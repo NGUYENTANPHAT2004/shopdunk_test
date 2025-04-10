@@ -1,9 +1,9 @@
-// UserPointsManagement.js - For viewing member information and history
+// UserPointsManagement.js
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { toast } from 'react-toastify';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faSearch, faHistory, faSpinner, faTimes } from '@fortawesome/free-solid-svg-icons';
+import { faSearch, faHistory, faSpinner, faTimes, faUser } from '@fortawesome/free-solid-svg-icons';
 import moment from 'moment';
 
 const UserPointsManagement = () => {
@@ -15,25 +15,13 @@ const UserPointsManagement = () => {
   const [selectedUser, setSelectedUser] = useState(null);
   const [pointsHistory, setPointsHistory] = useState([]);
   const [page, setPage] = useState(1);
+  const [userDetailsMap, setUserDetailsMap] = useState({});
   const itemsPerPage = 10;
 
   // Fetch users when component mounts
   useEffect(() => {
     fetchUsers();
   }, []);
-
-  // Filter search results when searchTerm changes
-  useEffect(() => {
-    if (searchTerm.trim() === '') {
-      setSearchResults(users);
-    } else {
-      const results = users.filter(user => 
-        (user.phone && user.phone.includes(searchTerm)) || 
-        (user.email && user.email.toLowerCase().includes(searchTerm.toLowerCase()))
-      );
-      setSearchResults(results);
-    }
-  }, [searchTerm, users]);
 
   // Fetch user points accounts
   const fetchUsers = async () => {
@@ -42,8 +30,18 @@ const UserPointsManagement = () => {
       const response = await axios.get('http://localhost:3005/admin/loyalty/users');
       
       if (response.data && response.data.success) {
-        setUsers(response.data.data);
-        setSearchResults(response.data.data);
+        const userPointsData = response.data.data;
+        setUsers(userPointsData);
+        setSearchResults(userPointsData);
+        
+        // Lấy danh sách userId để fetch thông tin chi tiết
+        const userIds = userPointsData
+          .filter(user => user.userId)
+          .map(user => user.userId);
+        
+        if (userIds.length > 0) {
+          fetchUserDetails(userIds);
+        }
       } else {
         toast.error('Không thể tải danh sách thành viên');
       }
@@ -55,6 +53,59 @@ const UserPointsManagement = () => {
     }
   };
 
+  // Fetch user details
+  const fetchUserDetails = async (userIds) => {
+    try {
+      const response = await axios.get('http://localhost:3005/auth/userlist');
+      
+      if (response.data) {
+        // Tạo map từ dữ liệu user trả về
+        const detailsMap = {};
+        response.data.forEach(user => {
+          if (user._id) {
+            detailsMap[user._id] = user;
+          }
+        });
+        
+        setUserDetailsMap(detailsMap);
+      }
+    } catch (error) {
+      console.error('Lỗi khi tải thông tin chi tiết người dùng:', error);
+    }
+  };
+
+  // Filter search results when searchTerm changes
+  useEffect(() => {
+    if (searchTerm.trim() === '') {
+      setSearchResults(users);
+    } else {
+      // Tìm kiếm cục bộ
+      filterResults();
+    }
+  }, [searchTerm, users, userDetailsMap]);
+
+  // Filter results locally
+  const filterResults = () => {
+    const term = searchTerm.trim().toLowerCase();
+    const results = users.filter(user => {
+      // Tìm theo phone, email
+      const phoneMatch = user.phone && user.phone.toLowerCase().includes(term);
+      const emailMatch = user.email && user.email.toLowerCase().includes(term);
+      
+      // Tìm theo tên người dùng từ userDetailsMap
+      let nameMatch = false;
+      if (user.userId && userDetailsMap[user.userId]) {
+        const userDetail = userDetailsMap[user.userId];
+        const userName = userDetail.username || '';
+        nameMatch = userName.toLowerCase().includes(term);
+      }
+      
+      return phoneMatch || emailMatch || nameMatch;
+    });
+    
+    setSearchResults(results);
+  };
+
   // Handle search
   const handleSearch = (e) => {
     e.preventDefault();
@@ -64,71 +115,48 @@ const UserPointsManagement = () => {
       return;
     }
     
-    // If searchTerm looks like a phone number, search for exact match
-    if (/^\d{10,11}$/.test(searchTerm.trim())) {
-      const exactResult = users.find(user => user.phone === searchTerm.trim());
-      
-      if (exactResult) {
-        setSearchResults([exactResult]);
-      } else {
-        // Try searching via API if not found in current list
-        searchUserByPhone(searchTerm.trim());
-      }
-    } else {
-      // Search by partial match for other fields
-      const results = users.filter(user => 
-        (user.phone && user.phone.includes(searchTerm)) || 
-        (user.email && user.email.toLowerCase().includes(searchTerm.toLowerCase()))
-      );
-      setSearchResults(results);
-      
-      if (results.length === 0) {
-        // Try searching via API if not found in current list
-        searchUserByEmail(searchTerm.trim());
-      }
+    // Check if local filtering found results
+    if (searchResults.length > 0) {
+      return; // Local filtering worked, no need to query API
     }
+    
+    // If no local results, search through API
+    searchUserByTerm(searchTerm.trim());
   };
 
-  // Search user by phone number via API
-  const searchUserByPhone = async (phone) => {
+  // Search user by term via API
+  const searchUserByTerm = async (term) => {
     try {
       setLoading(true);
-      const response = await axios.get(`http://localhost:3005/loyalty/user-points/${phone}`);
       
-      if (response.data && response.data.success && response.data.hasPoints) {
-        const user = response.data.data;
-        setUsers(prevUsers => [...prevUsers, user]);
-        setSearchResults([user]);
+      // First try searching by username
+      const userResponse = await axios.get(`http://localhost:3005/admin/loyalty/search?term=${encodeURIComponent(term)}`);
+      
+      if (userResponse.data && userResponse.data.success && userResponse.data.data.length > 0) {
+        // Add the new user details to our map
+        const newDetailsMap = { ...userDetailsMap };
+        userResponse.data.userDetails.forEach(user => {
+          newDetailsMap[user._id] = user;
+        });
+        setUserDetailsMap(newDetailsMap);
+        
+        // Add the points data to our list
+        setUsers(prevUsers => {
+          // Avoid duplicates
+          const newUsers = userResponse.data.data.filter(
+            newUser => !prevUsers.some(user => user._id === newUser._id)
+          );
+          return [...prevUsers, ...newUsers];
+        });
+        
+        setSearchResults(userResponse.data.data);
       } else {
-        toast.error('Không tìm thấy thành viên với số điện thoại này');
+        toast.info('Không tìm thấy thành viên với từ khóa này');
         setSearchResults([]);
       }
     } catch (error) {
       console.error('Lỗi khi tìm kiếm thành viên:', error);
-      toast.error('Không tìm thấy thành viên với số điện thoại này');
-      setSearchResults([]);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // Search user by email via API
-  const searchUserByEmail = async (email) => {
-    try {
-      setLoading(true);
-      const response = await axios.get(`http://localhost:3005/loyalty/user-points-by-email/${email}`);
-      
-      if (response.data && response.data.success && response.data.hasPoints) {
-        const user = response.data.data;
-        setUsers(prevUsers => [...prevUsers, user]);
-        setSearchResults([user]);
-      } else {
-        toast.error('Không tìm thấy thành viên với email này');
-        setSearchResults([]);
-      }
-    } catch (error) {
-      console.error('Lỗi khi tìm kiếm thành viên:', error);
-      toast.error('Không tìm thấy thành viên với email này');
+      toast.error('Lỗi khi tìm kiếm thành viên');
       setSearchResults([]);
     } finally {
       setLoading(false);
@@ -190,6 +218,12 @@ const UserPointsManagement = () => {
     }
   };
 
+  // Get username from userDetailsMap
+  const getUserName = (userId) => {
+    if (!userId || !userDetailsMap[userId]) return 'N/A';
+    return userDetailsMap[userId].username || 'N/A';
+  };
+
   return (
     <div className="user-points-management">
       <div className="search-section">
@@ -197,7 +231,7 @@ const UserPointsManagement = () => {
         <form onSubmit={handleSearch} className="search-form">
           <input
             type="text"
-            placeholder="Tìm theo số điện thoại hoặc email..."
+            placeholder="Tìm theo tên, số điện thoại hoặc email..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
           />
@@ -215,7 +249,7 @@ const UserPointsManagement = () => {
       <div className="results-section">
         <h3>Danh sách thành viên ({searchResults.length})</h3>
         
-        {loading ? (
+        {loading && searchResults.length === 0 ? (
           <div className="loading-container">
             <FontAwesomeIcon icon={faSpinner} spin />
             <p>Đang tải dữ liệu...</p>
@@ -230,6 +264,7 @@ const UserPointsManagement = () => {
               <table>
                 <thead>
                   <tr>
+                    <th>Tên người dùng</th>
                     <th>Số điện thoại</th>
                     <th>Email</th>
                     <th>Tổng điểm</th>
@@ -242,8 +277,14 @@ const UserPointsManagement = () => {
                 <tbody>
                   {paginatedResults.map(user => (
                     <tr key={user._id}>
-                      <td>{user.phone}</td>
-                      <td>{user.email}</td>
+                      <td>
+                        <div className="user-name">
+                          <FontAwesomeIcon icon={faUser} className="user-icon" />
+                          <span>{getUserName(user.userId)}</span>
+                        </div>
+                      </td>
+                      <td>{user.phone || 'N/A'}</td>
+                      <td>{user.email || 'N/A'}</td>
                       <td>{user.totalPoints.toLocaleString('vi-VN')}</td>
                       <td>{user.availablePoints.toLocaleString('vi-VN')}</td>
                       <td>
@@ -326,8 +367,9 @@ const UserPointsManagement = () => {
             
             <div className="modal-body">
               <div className="user-info">
-                <p><strong>Thành viên:</strong> {selectedUser.phone}</p>
-                <p><strong>Email:</strong> {selectedUser.email}</p>
+                <p><strong>Tên người dùng:</strong> {getUserName(selectedUser.userId)}</p>
+                <p><strong>Số điện thoại:</strong> {selectedUser.phone || 'N/A'}</p>
+                <p><strong>Email:</strong> {selectedUser.email || 'N/A'}</p>
                 <p><strong>Điểm hiện tại:</strong> {selectedUser.availablePoints.toLocaleString('vi-VN')}</p>
                 <p><strong>Hạng thành viên:</strong> {getTierName(selectedUser.tier)}</p>
               </div>
@@ -353,8 +395,8 @@ const UserPointsManagement = () => {
                       </tr>
                     </thead>
                     <tbody>
-                      {pointsHistory.map(history => (
-                        <tr key={history._id}>
+                      {pointsHistory.map((history, index) => (
+                        <tr key={index}>
                           <td>{moment(history.date).format('DD/MM/YYYY')}</td>
                           <td>{getTransactionType(history.type)}</td>
                           <td className={history.amount >= 0 ? 'positive' : 'negative'}>

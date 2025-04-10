@@ -58,79 +58,52 @@ const UserPointsPage = () => {
     // Không fetch nếu không đăng nhập hoặc đã có dữ liệu điểm hoặc đang trong quá trình fetch
     if (!isLoggedIn || hasPointsDataRef.current || isFetchingRef.current) return;
 
-   // Hàm fetchUserPoints cập nhật để hỗ trợ đăng nhập social
-// Hàm fetchUserPoints cập nhật để hỗ trợ đăng nhập social
 const fetchUserPoints = async () => {
-  // Đánh dấu đang fetch để tránh fetch nhiều lần
-  isFetchingRef.current = true;
-  
   try {
     setLoading(true);
     
-    // Thử lấy theo số điện thoại trước
-    const phone = getUserPhone();
+    // Lấy userId từ localStorage
+    const storedUser = localStorage.getItem('user');
+    let userId = null;
     
-    if (phone) {
+    if (storedUser) {
       try {
-        const response = await axios.get(`http://localhost:3005/loyalty/user-points/${phone}`);
-        if (response.data.success && response.data.hasPoints) {
-          setUserPoints(response.data.points);
-          hasPointsDataRef.current = true;
-          setLoading(false);
-          return;
-        }
-      } catch (error) {
-        console.error('Error fetching user points by phone:', error);
+        const userData = JSON.parse(storedUser);
+        userId = userData?._id || userData?.user?._id || userData?.id || userData?.user?.id;
+      } catch (e) {
+        console.error('Error parsing user data:', e);
       }
     }
     
-    // Nếu không tìm được bằng số điện thoại, thử bằng email
-    if (user?.email || user?.user?.email) {
-      const email = user?.email || user?.user?.email;
-      try {
-        const response = await axios.get(`http://localhost:3005/loyalty/user-points-by-email/${email}`);
-        if (response.data.success && response.data.hasPoints) {
-          setUserPoints(response.data.points);
-          hasPointsDataRef.current = true;
-          setLoading(false);
-          return;
-        }
-      } catch (error) {
-        console.error('Error fetching user points by email:', error);
-      }
+    if (!userId) {
+      console.error('User ID not found in localStorage');
+      setLoading(false);
+      return;
     }
     
-    // Nếu không tìm được bằng email, thử bằng userId
-    const userId = user?._id || user?.user?._id || user?.id || user?.user?.id;
-    if (userId) {
-      try {
-        const response = await axios.get(`http://localhost:3005/loyalty/user-points/${userId}`);
-        if (response.data.success && response.data.hasPoints) {
-          setUserPoints(response.data.points);
-          hasPointsDataRef.current = true;
-          setLoading(false);
-          return;
-        }
-      } catch (error) {
-        console.error('Error fetching user points by userId:', error);
-      }
-    }
+    // Lấy điểm thưởng bằng userId
+    const response = await axios.get(`http://localhost:3005/loyalty/user-points/${userId}`);
     
-    // Mặc định điểm nếu không tìm thấy
-    setUserPoints({
-      totalPoints: 0,
-      availablePoints: 0,
-      tier: 'standard',
-      yearToDatePoints: 0,
-      history: []
-    });
-    hasPointsDataRef.current = true;
+    if (response.data.success) {
+      if (response.data.hasPoints) {
+        setUserPoints(response.data.points);
+      } else {
+        setUserPoints({
+          totalPoints: 0,
+          availablePoints: 0,
+          tier: 'standard',
+          yearToDatePoints: 0,
+          history: []
+        });
+      }
+    } else {
+      toast.error('Lỗi khi tải thông tin điểm thưởng');
+    }
   } catch (error) {
     console.error('Error fetching user points:', error);
     toast.error('Lỗi khi tải thông tin điểm thưởng');
   } finally {
     setLoading(false);
-    isFetchingRef.current = false; // Reset flag
   }
 };
 

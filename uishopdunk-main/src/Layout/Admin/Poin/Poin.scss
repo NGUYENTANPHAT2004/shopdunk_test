@@ -972,3 +972,67 @@
 .negative {
   color: #e74c3c;
 }
+/* Thêm vào Poin.scss */
+.user-points-management {
+  .user-name {
+    display: flex;
+    align-items: center;
+    
+    .user-icon {
+      margin-right: 8px;
+      color: #666;
+    }
+  }
+  
+  .tier-badge {
+    display: inline-block;
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-size: 0.8em;
+    font-weight: bold;
+    text-align: center;
+    
+    &.standard {
+      background-color: #e0e0e0;
+      color: #333;
+    }
+    
+    &.silver {
+      background-color: #c0c0c0;
+      color: #333;
+    }
+    
+    &.gold {
+      background-color: #ffd700;
+      color: #333;
+    }
+    
+    &.platinum {
+      background-color: #e5e4e2;
+      color: #333;
+    }
+  }
+  
+  .positive {
+    color: #4caf50;
+    font-weight: bold;
+  }
+  
+  .negative {
+    color: #f44336;
+    font-weight: bold;
+  }
+  
+  .modal-backdrop {
+    .user-info {
+      background-color: #f5f5f5;
+      padding: 15px;
+      border-radius: 5px;
+      margin-bottom: 20px;
+      
+      p {
+        margin: 5px 0;
+      }
+    }
+  }
+}

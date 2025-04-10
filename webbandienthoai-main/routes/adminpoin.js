@@ -31,11 +31,37 @@ router.get('/admin/loyalty/users', checkAdminAuth, async (req, res) => {
   try {
     const users = await UserPoints.find()
       .sort({ lastUpdated: -1 })
-      .limit(100); // Limit to most recent 100 for performance
+      .limit(100);
+    
+    // Map để đảm bảo mỗi bản ghi có userId
+    const mappedUsers = await Promise.all(users.map(async (user) => {
+      const userData = user.toObject();
+      
+      // Nếu không có userId nhưng có phone/email, tìm user tương ứng
+      if (!userData.userId && (userData.phone || userData.email)) {
+        try {
+          let query = {};
+          if (userData.phone) query.phone = userData.phone;
+          else if (userData.email) query.email = userData.email;
+          
+          const matchedUser = await User.User.findOne(query);
+          if (matchedUser) {
+            userData.userId = matchedUser._id;
+            
+            // Cập nhật vào database
+            await UserPoints.findByIdAndUpdate(user._id, { userId: matchedUser._id });
+          }
+        } catch (err) {
+          console.error('Error mapping userId:', err);
+        }
+      }
+      
+      return userData;
+    }));
     
     res.json({
       success: true,
-      data: users
+      data: mappedUsers
     });
   } catch (error) {
     console.error('Error fetching users with points:', error);
@@ -688,5 +714,146 @@ router.post('/admin/loyalty/reset-ytd-points', checkAdminAuth, async (req, res) 
     });
   }
 });
+router.get('/admin/loyalty/search', checkAdminAuth, async (req, res) => {
+  try {
+    const { term } = req.query;
+    
+    if (!term || term.trim().length < 2) {
+      return res.status(400).json({
+        success: false,
+        message: 'Cần ít nhất 2 ký tự để tìm kiếm'
+      });
+    }
+    
+    // Tìm kiếm user theo tên hoặc email
+    const users = await User.User.find({
+      $or: [
+        { username: { $regex: term, $options: 'i' } },
+        { email: { $regex: term, $options: 'i' } },
+        { phone: { $regex: term, $options: 'i' } }
+      ]
+    }).select('_id username email phone').limit(20);
+    
+    // Nếu không tìm thấy người dùng
+    if (users.length === 0) {
+      return res.json({
+        success: true,
+        data: [],
+        userDetails: []
+      });
+    }
+    
+    // Lấy ra danh sách userId và phone để tìm trong UserPoints
+    const userIds = users.map(user => user._id);
+    const phones = users.map(user => user.phone).filter(Boolean);
+    const emails = users.map(user => user.email).filter(Boolean);
+    
+    // Tìm kiếm trong UserPoints
+    const userPointsQuery = {
+      $or: [
+        { userId: { $in: userIds } },
+        { phone: { $in: phones } },
+        { email: { $in: emails } }
+      ]
+    };
+    
+    const pointsAccounts = await UserPoints.find(userPointsQuery);
+    
+    // Nếu không tìm thấy tài khoản điểm
+    if (pointsAccounts.length === 0) {
+      return res.json({
+        success: true,
+        data: [],
+        userDetails: []
+      });
+    }
+    
+    // Trả về kết quả
+    res.json({
+      success: true,
+      data: pointsAccounts,
+      userDetails: users
+    });
+  } catch (error) {
+    console.error('Error searching users:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Lỗi khi tìm kiếm người dùng'
+    });
+  }
+});
+router.get('/admin/loyalty/user-points/:userId', checkAdminAuth, async (req, res) => {
+  try {
+    const { userId } = req.params;
+    
+    // Kiểm tra định dạng ObjectId hợp lệ
+    if (!/^[0-9a-fA-F]{24}$/.test(userId)) {
+      return res.status(400).json({
+        success: false,
+        message: 'UserId không hợp lệ'
+      });
+    }
+    
+    // Tìm theo trường userId hoặc _id
+    const userPoints = await UserPoints.findOne({
+      $or: [
+        { userId: userId },
+        { _id: userId }
+      ]
+    });
+    
+    if (!userPoints) {
+      return res.status(404).json({
+        success: false,
+        message: 'Không tìm thấy tài khoản điểm thưởng'
+      });
+    }
+    
+    res.json({
+      success: true,
+      data: userPoints
+    });
+  } catch (error) {
+    console.error('Error fetching user points:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Lỗi khi tải thông tin điểm thưởng'
+    });
+  }
+});
 
+// Sửa lại API lấy lịch sử điểm
+router.get('/admin/loyalty/user-points-history/:userId', checkAdminAuth, async (req, res) => {
+  try {
+    const { userId } = req.params;
+    
+    const userPoints = await UserPoints.findOne({
+      $or: [
+        { userId: userId },
+        { _id: userId }
+      ]
+    });
+    
+    if (!userPoints) {
+      return res.status(404).json({
+        success: false,
+        message: 'Không tìm thấy tài khoản điểm thưởng'
+      });
+    }
+    
+    // Get history sorted from newest to oldest
+    const history = userPoints.pointsHistory.sort((a, b) => new Date(b.date) - new Date(a.date));
+    
+    res.json({
+      success: true,
+      data: history
+    });
+  } catch (error) {
+    console.error('Error fetching user points history:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Lỗi khi tải lịch sử điểm thưởng'
+    });
+  }
+});
 module.exports = router;
