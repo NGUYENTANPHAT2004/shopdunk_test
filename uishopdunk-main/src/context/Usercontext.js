@@ -10,6 +10,7 @@ export const UserContextProvider = ({ children }) => {
   const [welcomeVoucher, setWelcomeVoucher] = useState(null);
   const [userPoints, setUserPoints] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [pointsLoading, setPointsLoading] = useState(false);
   
   // Load user from localStorage on initial render
   useEffect(() => {
@@ -41,13 +42,19 @@ export const UserContextProvider = ({ children }) => {
     }
   }, []);
   
-  const loadUserPoints = async (userData) => {
+  // Enhanced user points loading function using ONLY user ID
+  const loadUserPoints = async (userData, forceRefresh = false) => {
     try {
-      if (!userData) return;
+      if (!userData) return null;
       
-      // Extract all possible user identifiers
-      const userPhone = userData?.phone || userData?.user?.phone;
-      const userEmail = userData?.email || userData?.user?.email;
+      // Don't reload if we already have data and no refresh is requested
+      if (userPoints && !forceRefresh) {
+        return userPoints;
+      }
+      
+      setPointsLoading(true);
+      
+      // Extract user ID - only using user ID now for point management
       let userId = null;
       
       if (userData?._id) userId = userData._id;
@@ -55,68 +62,75 @@ export const UserContextProvider = ({ children }) => {
       else if (userData?.id) userId = userData.id;
       else if (userData?.user?.id) userId = userData.user.id;
       
-      // No identifiers available - can't fetch points
-      if (!userPhone && !userEmail && !userId) {
-        console.log("No identifiers available to fetch user points");
-        return;
+      // No user ID available - can't fetch points
+      if (!userId) {
+        console.log("No user ID available to fetch user points");
+        setPointsLoading(false);
+        return null;
       }
       
-      // Try fetching points using different methods, in order of priority
-      let pointsData = null;
-      
-      // 1. Try by phone (most reliable)
-      if (userPhone) {
-        try {
-          const response = await axios.get(`http://localhost:3005/loyalty/user-points/${userPhone}`);
-          if (response.data.success && response.data.hasPoints) {
-            pointsData = response.data.points;
+      // Try fetching points using user ID
+      try {
+        const response = await axios.get(`http://localhost:3005/loyalty/user-points/${userId}`);
+        if (response.data.success) {
+          if (response.data.hasPoints) {
+            const pointsData = response.data.points;
+            setUserPoints(pointsData);
+            setPointsLoading(false);
+            return pointsData;
+          } else {
+            // User has no points yet
+            const defaultPoints = {
+              totalPoints: 0,
+              availablePoints: 0,
+              tier: 'standard',
+              yearToDatePoints: 0,
+              history: [],
+              soonExpiringPoints: 0
+            };
+            setUserPoints(defaultPoints);
+            setPointsLoading(false);
+            return defaultPoints;
           }
-        } catch (error) {
-          console.error('Error fetching user points by phone:', error);
         }
-      }
-      
-      // 2. If phone fails, try by email
-      if (!pointsData && userEmail) {
-        try {
-          const response = await axios.get(`http://localhost:3005/loyalty/user-points-by-email/${userEmail}`);
-          if (response.data.success && response.data.hasPoints) {
-            pointsData = response.data.points;
-          }
-        } catch (error) {
-          console.error('Error fetching user points by email:', error);
+      } catch (error) {
+        console.error('Error fetching user points by user ID:', error);
+        
+        if (error.response && error.response.status !== 404) {
+          toast.error('Không thể kết nối đến máy chủ điểm thưởng', {
+            position: "top-right",
+            autoClose: 3000
+          });
         }
-      }
-      
-      // 3. As last resort, try by userId
-      if (!pointsData && userId) {
-        try {
-          const response = await axios.get(`http://localhost:3005/loyalty/user-points/${userId}`);
-          if (response.data.success && response.data.hasPoints) {
-            pointsData = response.data.points;
-          }
-        } catch (error) {
-          console.error('Error fetching user points by userId:', error);
-        }
-      }
-      
-      // Set default points if all methods fail
-      if (!pointsData) {
-        pointsData = {
+        
+        // Set default points if fetching fails
+        const defaultPoints = {
           totalPoints: 0,
           availablePoints: 0,
           tier: 'standard',
           yearToDatePoints: 0,
-          history: []
+          history: [],
+          soonExpiringPoints: 0
         };
+        setUserPoints(defaultPoints);
+        setPointsLoading(false);
+        return defaultPoints;
       }
-      
-      setUserPoints(pointsData);
-      
     } catch (error) {
-      console.error('Error loading user points:', error);
-      setUserPoints(null);
+      console.error('Error in loadUserPoints:', error);
+      setPointsLoading(false);
+      return null;
     }
+  };
+
+  // Add points manipulation functions
+  const updateUserPoints = (newPoints) => {
+    if (!userPoints) return;
+    
+    setUserPoints(prevPoints => ({
+      ...prevPoints,
+      ...newPoints
+    }));
   };
   const login = async (loginData) => {
     try {
@@ -394,7 +408,8 @@ export const UserContextProvider = ({ children }) => {
       userPoints,
       welcomeVoucher,
       dismissWelcomeVoucher,
-      isLoading
+      isLoading,
+      updateUserPoints
     }}>
       {children}
     </UserContext.Provider>

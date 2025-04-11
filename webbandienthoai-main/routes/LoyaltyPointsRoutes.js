@@ -1,3 +1,4 @@
+// Fixed LoyaltyPointsRoutes.js - User ID Only for points management
 const express = require('express');
 const router = express.Router();
 const { UserPoints } = require('../models/UserPointsModel');
@@ -7,8 +8,7 @@ const { User } = require('../models/user.model');
 const { magiamgia } = require('../models/MaGiamGiaModel');
 const moment = require('moment');
 
-// Middleware để kiểm tra user và tạo bản ghi điểm thưởng nếu cần
-// Middleware để kiểm tra user và tạo bản ghi điểm thưởng nếu cần
+// Middleware to ensure user points exist - USER ID ONLY
 const ensureUserPoints = async (req, res, next) => {
   try {
     const { userId } = req.body;
@@ -20,10 +20,19 @@ const ensureUserPoints = async (req, res, next) => {
       });
     }
     
+    // Check if user ID is valid MongoDB ObjectID
+    if (!/^[0-9a-fA-F]{24}$/.test(userId)) {
+      return res.status(400).json({
+        success: false, 
+        message: 'UserId không hợp lệ'
+      });
+    }
+    
+    // Only search by userId
     let userPoints = await UserPoints.findOne({ userId });
     
     if (!userPoints) {
-      // Lấy thông tin người dùng từ User model
+      // Get user information from User model
       const userData = await User.User.findById(userId);
       
       if (!userData) {
@@ -33,11 +42,11 @@ const ensureUserPoints = async (req, res, next) => {
         });
       }
       
-      // Tạo bản ghi điểm mới với userId
+      // Create new points record with user ID only as the primary identifier
       userPoints = new UserPoints({
-        userId,
-        phone: userData.phone,
-        email: userData.email,
+        userId, // Primary identifier
+        phone: userData.phone, // Store for reference but don't use for lookups
+        email: userData.email, // Store for reference but don't use for lookups
         totalPoints: 0,
         availablePoints: 0,
         tier: 'standard',
@@ -68,82 +77,87 @@ const calculateUserTier = (yearToDatePoints) => {
   return 'standard';
 };
 
-// 1. Lấy điểm của người dùng
-// Cập nhật route GET /loyalty/redemption-history/:identifier trong LoyaltyPointsRoutes.js
-router.get('/loyalty/redemption-history/:identifier', async (req, res) => {
+// 1. Lấy điểm của người dùng - CHỈ DÙNG USER ID
+router.get('/loyalty/user-points/:userId', async (req, res) => {
   try {
-    const { identifier } = req.params;
+    const { userId } = req.params;
     
-    // Kiểm tra xem identifier là gì (ObjectId, email hay số điện thoại)
-    const isObjectId = /^[0-9a-fA-F]{24}$/.test(identifier);
-    const isEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(identifier);
-    
-    let query = {};
-    if (isObjectId) {
-      query.userId = identifier;
-    } else if (isEmail) {
-      query.email = identifier;
-    } else {
-      query.phone = identifier;
+    // Kiểm tra định dạng ObjectId hợp lệ
+    if (!/^[0-9a-fA-F]{24}$/.test(userId)) {
+      return res.status(400).json({
+        success: false,
+        message: 'userId không hợp lệ'
+      });
     }
     
-    const redemptionHistory = await RedemptionHistory.find(query)
-      .sort({ redemptionDate: -1 })
-      .populate('redemptionId', 'name description voucherType voucherValue')
-      .populate('voucherId', 'magiamgia sophantram minOrderValue ngayketthuc')
-      .lean();
+    // Chỉ tìm theo userId
+    const userPoints = await UserPoints.findOne({ userId });
     
-    // Format lại kết quả để dễ sử dụng
-    const formattedHistory = redemptionHistory.map(item => ({
-      _id: item._id,
-      voucherCode: item.voucherCode,
-      voucherName: item.redemptionId?.name || 'Phần thưởng đã xóa',
-      voucherDescription: item.redemptionId?.description || '',
-      discountType: item.redemptionId?.voucherType || 'percentage',
-      discountValue: item.redemptionId?.voucherValue || 0,
-      minOrderValue: item.voucherId?.minOrderValue || 0,
-      pointsSpent: item.pointsSpent,
-      redemptionDate: item.redemptionDate,
-      expiryDate: item.expiryDate,
-      status: item.status,
-      usedDate: item.usedDate
-    }));
+    if (!userPoints) {
+      return res.status(200).json({
+        success: true,
+        hasPoints: false,
+        points: {
+          totalPoints: 0,
+          availablePoints: 0,
+          tier: 'standard',
+          yearToDatePoints: 0
+        }
+      });
+    }
+    
+    // Kiểm tra điểm sắp hết hạn trong 30 ngày tới
+    const now = new Date();
+    const thirtyDaysFromNow = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
+    
+    const soonExpiringPoints = userPoints.expiringPoints
+      .filter(entry => entry.expiryDate <= thirtyDaysFromNow && entry.expiryDate > now)
+      .reduce((total, entry) => total + entry.points, 0);
+    
+    function getNextTier(currentTier) {
+      const tiers = {
+        'standard': 'silver',
+        'silver': 'gold',
+        'gold': 'platinum'
+      };
+      return tiers[currentTier] || null;
+    }
+
+    function getPointsToNextTier(currentTier, yearToDatePoints) {
+      const tierThresholds = {
+        'standard': 2000,  // Cần 2000 để đạt Silver
+        'silver': 5000,    // Cần 5000 để đạt Gold
+        'gold': 10000      // Cần 10000 để đạt Platinum
+      };
+      
+      const threshold = tierThresholds[currentTier] || 0;
+      return Math.max(0, threshold - yearToDatePoints);
+    }
     
     res.json({
       success: true,
-      history: formattedHistory
+      hasPoints: true,
+      points: {
+        totalPoints: userPoints.totalPoints,
+        availablePoints: userPoints.availablePoints,
+        tier: userPoints.tier,
+        yearToDatePoints: userPoints.yearToDatePoints,
+        soonExpiringPoints,
+        nextTier: userPoints.tier !== 'platinum' ? getNextTier(userPoints.tier) : null,
+        pointsToNextTier: userPoints.tier !== 'platinum' ? getPointsToNextTier(userPoints.tier, userPoints.yearToDatePoints) : 0,
+        history: userPoints.pointsHistory.slice(0, 10) // Trả về 10 lịch sử gần đây nhất
+      }
     });
   } catch (error) {
-    console.error('Lỗi khi lấy lịch sử đổi điểm:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Lỗi khi lấy lịch sử đổi điểm'
+    console.error('Lỗi khi lấy điểm người dùng:', error);
+    res.status(500).json({ 
+      success: false, 
+      message: 'Lỗi khi lấy thông tin điểm thưởng' 
     });
   }
 });
 
-// Helper functions for tier calculation
-function getNextTier(currentTier) {
-  const tiers = {
-    'standard': 'silver',
-    'silver': 'gold',
-    'gold': 'platinum'
-  };
-  return tiers[currentTier] || null;
-}
-
-function getPointsToNextTier(currentTier, yearToDatePoints) {
-  const tierThresholds = {
-    'standard': 2000,  // Cần 2000 để đạt Silver
-    'silver': 5000,    // Cần 5000 để đạt Gold
-    'gold': 10000      // Cần 10000 để đạt Platinum
-  };
-  
-  const threshold = tierThresholds[currentTier] || 0;
-  return Math.max(0, threshold - yearToDatePoints);
-}
-
-// 2. Tích điểm sau khi đặt hàng thành công
+// 2. Tích điểm sau khi đặt hàng thành công - CHỈ DÙNG USER ID
 router.post('/loyalty/award-points', async (req, res) => {
   try {
     const { 
@@ -160,7 +174,15 @@ router.post('/loyalty/award-points', async (req, res) => {
       });
     }
     
-    // Tìm hoặc tạo bản ghi điểm của người dùng
+    // Kiểm tra định dạng ObjectId hợp lệ
+    if (!/^[0-9a-fA-F]{24}$/.test(userId)) {
+      return res.status(400).json({
+        success: false,
+        message: 'userId không hợp lệ'
+      });
+    }
+    
+    // Tìm hoặc tạo bản ghi điểm của người dùng - CHỈ DÙNG USER ID
     let userPoints = await UserPoints.findOne({ userId });
     
     // Nếu không có bản ghi điểm, tạo mới
@@ -176,8 +198,8 @@ router.post('/loyalty/award-points', async (req, res) => {
       
       userPoints = new UserPoints({
         userId,
-        phone: userData.phone,
-        email: userData.email,
+        phone: userData.phone, // Chỉ lưu trữ để tham khảo
+        email: userData.email, // Chỉ lưu trữ để tham khảo
         totalPoints: 0,
         availablePoints: 0,
         tier: 'standard',
@@ -249,7 +271,7 @@ router.post('/loyalty/award-points', async (req, res) => {
   }
 });
 
-// 3. Lấy danh sách các voucher có thể đổi điểm
+// 3. Lấy danh sách các voucher có thể đổi điểm - CHỈ DÙNG USER ID
 router.get('/loyalty/redemption-options', async (req, res) => {
   try {
     const { tier, userId } = req.query;
@@ -319,169 +341,8 @@ router.get('/loyalty/redemption-options', async (req, res) => {
     });
   }
 });
-router.get('/loyalty/user-points/:userId', async (req, res) => {
-  try {
-    const { userId } = req.params;
-    
-    // Kiểm tra định dạng ObjectId hợp lệ
-    if (!/^[0-9a-fA-F]{24}$/.test(userId)) {
-      return res.status(400).json({
-        success: false,
-        message: 'userId không hợp lệ'
-      });
-    }
-    
-    const userPoints = await UserPoints.findOne({ userId });
-    
-    if (!userPoints) {
-      return res.status(200).json({
-        success: true,
-        hasPoints: false,
-        points: {
-          totalPoints: 0,
-          availablePoints: 0,
-          tier: 'standard',
-          yearToDatePoints: 0
-        }
-      });
-    }
-    
-    // Kiểm tra điểm sắp hết hạn trong 30 ngày tới
-    const now = new Date();
-    const thirtyDaysFromNow = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
-    
-    const soonExpiringPoints = userPoints.expiringPoints
-      .filter(entry => entry.expiryDate <= thirtyDaysFromNow && entry.expiryDate > now)
-      .reduce((total, entry) => total + entry.points, 0);
-    
-    res.json({
-      success: true,
-      hasPoints: true,
-      points: {
-        totalPoints: userPoints.totalPoints,
-        availablePoints: userPoints.availablePoints,
-        tier: userPoints.tier,
-        yearToDatePoints: userPoints.yearToDatePoints,
-        soonExpiringPoints,
-        nextTier: userPoints.tier !== 'platinum' ? getNextTier(userPoints.tier) : null,
-        pointsToNextTier: userPoints.tier !== 'platinum' ? getPointsToNextTier(userPoints.tier, userPoints.yearToDatePoints) : 0,
-        history: userPoints.pointsHistory.slice(0, 10) // Trả về 10 lịch sử gần đây nhất
-      }
-    });
-  } catch (error) {
-    console.error('Lỗi khi lấy điểm người dùng:', error);
-    res.status(500).json({ 
-      success: false, 
-      message: 'Lỗi khi lấy thông tin điểm thưởng' 
-    });
-  }
-});
-router.post('/loyalty/combine-points', async (req, res) => {
-  try {
-    const { targetPhone, sourcePhone, sourceEmail, userId } = req.body;
-    
-    if (!targetPhone || (!sourcePhone && !sourceEmail && !userId)) {
-      return res.status(400).json({
-        success: false,
-        message: 'Thiếu thông tin tài khoản nguồn hoặc đích'
-      });
-    }
-    
-    // Tìm tài khoản đích
-    const targetAccount = await UserPoints.findOne({ phone: targetPhone });
-    if (!targetAccount) {
-      return res.status(404).json({
-        success: false,
-        message: 'Không tìm thấy tài khoản đích'
-      });
-    }
-    
-    // Tìm tài khoản nguồn
-    let sourceQuery = {};
-    if (sourcePhone) sourceQuery.phone = sourcePhone;
-    else if (sourceEmail) sourceQuery.email = sourceEmail;
-    else if (userId) sourceQuery.userId = userId;
-    
-    const sourceAccount = await UserPoints.findOne(sourceQuery);
-    if (!sourceAccount) {
-      return res.status(404).json({
-        success: false,
-        message: 'Không tìm thấy tài khoản nguồn'
-      });
-    }
-    
-    // Đảm bảo hai tài khoản không trùng nhau
-    if (sourceAccount._id.toString() === targetAccount._id.toString()) {
-      return res.status(400).json({
-        success: false,
-        message: 'Không thể kết hợp điểm với cùng một tài khoản'
-      });
-    }
-    
-    // Chuyển điểm từ tài khoản nguồn sang tài khoản đích
-    const pointsToTransfer = sourceAccount.availablePoints;
-    
-    // Cập nhật điểm cho tài khoản đích
-    targetAccount.totalPoints += pointsToTransfer;
-    targetAccount.availablePoints += pointsToTransfer;
-    targetAccount.yearToDatePoints += pointsToTransfer;
-    
-    // Thêm vào lịch sử
-    targetAccount.pointsHistory.push({
-      amount: pointsToTransfer,
-      type: 'adjusted',
-      reason: `Kết hợp điểm từ tài khoản ${sourceAccount.phone || sourceAccount.email}`,
-      date: new Date()
-    });
-    
-    // Chuyển các điểm sắp hết hạn
-    sourceAccount.expiringPoints.forEach(entry => {
-      targetAccount.expiringPoints.push({
-        points: entry.points,
-        expiryDate: entry.expiryDate
-      });
-    });
-    
-    // Cập nhật cấp thành viên
-    targetAccount.tier = calculateUserTier(targetAccount.yearToDatePoints);
-    targetAccount.lastUpdated = new Date();
-    
-    // Xóa điểm trên tài khoản nguồn
-    sourceAccount.totalPoints = 0;
-    sourceAccount.availablePoints = 0;
-    sourceAccount.expiringPoints = [];
-    sourceAccount.pointsHistory.push({
-      amount: -pointsToTransfer,
-      type: 'adjusted',
-      reason: `Đã chuyển điểm đến tài khoản ${targetAccount.phone}`,
-      date: new Date()
-    });
-    sourceAccount.lastUpdated = new Date();
-    
-    // Lưu thay đổi
-    await Promise.all([targetAccount.save(), sourceAccount.save()]);
-    
-    res.json({
-      success: true,
-      message: `Đã chuyển ${pointsToTransfer} điểm thành công`,
-      targetAccount: {
-        phone: targetAccount.phone,
-        newTotal: targetAccount.availablePoints,
-        tier: targetAccount.tier
-      }
-    });
-    
-  } catch (error) {
-    console.error('Lỗi khi kết hợp điểm:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Lỗi khi kết hợp điểm thưởng'
-    });
-  }
-});
 
-// 4. Đổi điểm lấy voucher
-// Cập nhật route POST /loyalty/redeem trong LoyaltyPointsRoutes.js
+// 4. Đổi điểm lấy voucher - CHỈ DÙNG USER ID
 router.post('/loyalty/redeem', ensureUserPoints, async (req, res) => {
   try {
     const { redemptionId } = req.body;
@@ -553,8 +414,74 @@ router.post('/loyalty/redeem', ensureUserPoints, async (req, res) => {
       });
     }
     
-    // ... Phần còn lại của mã giữ nguyên
-    // Cập nhật mã giảm giá, tạo bản ghi lịch sử, trừ điểm người dùng, etc.
+    // Tạo mã giảm giá dựa trên voucher liên kết
+    const linkedVoucher = await magiamgia.findById(redemptionOption.voucherId);
+    
+    if (!linkedVoucher) {
+      return res.status(404).json({
+        success: false,
+        message: 'Không tìm thấy mã giảm giá liên kết'
+      });
+    }
+    
+    // Tạo mã giảm giá mới từ mã gốc
+    const voucherCode = `REWARD-${userPoints.userId.toString().slice(-4)}-${Math.floor(Math.random() * 10000).toString().padStart(4, '0')}`;
+    
+    // Đặt thời gian hết hạn cho voucher (mặc định 30 ngày hoặc theo ngày hết hạn của voucher gốc)
+    const expiryDate = linkedVoucher.ngayketthuc ? 
+      new Date(linkedVoucher.ngayketthuc) : 
+      new Date(new Date().setDate(new Date().getDate() + 30));
+    
+    // Tạo bản ghi lịch sử đổi điểm
+    const redemptionHistory = new RedemptionHistory({
+      userId: userPoints.userId,
+      phone: userPoints.phone,
+      email: userPoints.email,
+      redemptionId: redemptionOption._id,
+      voucherId: redemptionOption.voucherId,
+      pointsSpent: redemptionOption.pointsCost,
+      voucherCode: voucherCode,
+      redemptionDate: new Date(),
+      expiryDate: expiryDate,
+      status: 'active'
+    });
+    
+    // Cập nhật điểm của người dùng
+    userPoints.availablePoints -= redemptionOption.pointsCost;
+    userPoints.lastUpdated = new Date();
+    
+    // Thêm vào lịch sử điểm
+    userPoints.pointsHistory.push({
+      amount: -redemptionOption.pointsCost,
+      type: 'redeemed',
+      voucherId: redemptionOption.voucherId,
+      reason: `Đổi điểm lấy ${redemptionOption.name}`,
+      date: new Date()
+    });
+    
+    // Cập nhật số lượng còn lại của tùy chọn đổi điểm
+    redemptionOption.remainingQuantity -= 1;
+    
+    // Lưu tất cả thay đổi
+    await Promise.all([
+      userPoints.save(),
+      redemptionHistory.save(),
+      redemptionOption.save()
+    ]);
+    
+    res.json({
+      success: true,
+      message: 'Đổi điểm thành công',
+      voucher: {
+        code: voucherCode,
+        type: redemptionOption.voucherType,
+        value: redemptionOption.voucherValue,
+        minOrderValue: linkedVoucher.minOrderValue || 0,
+        expiryDate: expiryDate,
+        pointsUsed: redemptionOption.pointsCost
+      },
+      remainingPoints: userPoints.availablePoints
+    });
   } catch (error) {
     console.error('Lỗi khi đổi điểm:', error);
     res.status(500).json({
@@ -564,8 +491,7 @@ router.post('/loyalty/redeem', ensureUserPoints, async (req, res) => {
   }
 });
 
-// 5. Lấy lịch sử đổi điểm của người dùng
-// Cập nhật route GET /loyalty/redemption-history/:identifier trong LoyaltyPointsRoutes.js
+// 5. Lấy lịch sử đổi điểm của người dùng - CHỈ DÙNG USER ID
 router.get('/loyalty/redemption-history/:userId', async (req, res) => {
   try {
     const { userId } = req.params;
@@ -613,7 +539,4 @@ router.get('/loyalty/redemption-history/:userId', async (req, res) => {
   }
 });
 
-// 6. ADMIN: Tạo tùy chọn đổi điểm mới (kết nối với mã giảm giá có sẵn)
-
-// 8. Đặt lại điểm YTD cho tính toán cấp thành viên (chạy hàng năm)
 module.exports = router;
