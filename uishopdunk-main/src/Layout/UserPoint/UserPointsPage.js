@@ -122,6 +122,8 @@ const UserPointsPage = () => {
         const userData = JSON.parse(localStorage.getItem('user') || '{}');
         const userId = userData?._id || userData?.user?._id || userData?.id || userData?.user?.id;
         
+        console.log('Fetching redemption options for userId:', userId);
+        
         if (!userId) {
           console.error('Cannot fetch redemption options: User ID not found');
           return;
@@ -134,13 +136,26 @@ const UserPointsPage = () => {
         }
         queryParams.append('userId', userId);
         
+        console.log('Request URL:', `http://localhost:3005/loyalty/redemption-options?${queryParams.toString()}`);
+        
         const response = await axios.get(`http://localhost:3005/loyalty/redemption-options?${queryParams.toString()}`);
         
+        console.log('API Response:', response.data);
+        
         if (response.data.success) {
+          console.log('Setting redemption options:', response.data.redemptionOptions);
           setRedemptionOptions(response.data.redemptionOptions || []);
+        } else {
+          console.error('API returned success: false');
         }
       } catch (error) {
         console.error('Error fetching redemption options:', error);
+        
+        // Log more details about the error
+        if (error.response) {
+          console.error('Error response data:', error.response.data);
+          console.error('Error response status:', error.response.status);
+        }
       }
     };
 
@@ -446,10 +461,9 @@ const UserPointsPage = () => {
                 <span>Lịch sử</span>
               </button>
             </div>
-
             <div className="points-content">
               {activeTab === 'summary' && (
-                <div className="tab-content summary-tab">
+                <div className="tab-content-user summary-tab">
                   <div className="points-cards">
                     <div className="points-card">
                       <div className="card-header">Điểm của bạn</div>
@@ -589,7 +603,7 @@ const UserPointsPage = () => {
               )}
 
               {activeTab === 'redeem' && (
-                <div className="tab-content redeem-tab">
+                <div className="tab-content-user redeem-tab">
                   <div className="available-points">
                     <span>Điểm khả dụng:</span>
                     <strong>{formatPoints(userPoints?.availablePoints || 0)}</strong>
@@ -656,7 +670,7 @@ const UserPointsPage = () => {
               )}
 
               {activeTab === 'history' && (
-                <div className="tab-content history-tab">
+                <div className="tab-content-user history-tab">
                   {redemptionHistory.length > 0 ? (
                     <div className="history-list">
                       {redemptionHistory.map((item, index) => (
