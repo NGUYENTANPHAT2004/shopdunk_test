@@ -12,22 +12,22 @@ const magiamgiaSchema = new db.mongoose.Schema({
   goldenHourStart: { type: String, default: null }, // Format: "HH:MM" (24-hour format)
   goldenHourEnd: { type: String, default: null }, // Format: "HH:MM" (24-hour format)
   isServerWide: { type: Boolean, default: false }, // If true, no restriction on user limit
-  appliedUsers: [{ type: String }], // Array of phone numbers that have used this voucher
+  appliedUsers: [{ 
+    type: db.mongoose.Schema.Types.ObjectId, 
+    ref: 'User' 
+  }], // Array of user IDs that have used this voucher
   isOneTimePerUser: { type: Boolean, default: true }, // If false, same user can use multiple times
   daysOfWeek: [{ type: Number }], // 0-6 (Sunday-Saturday), empty array means all days
   isDeleted: { type: Boolean, default: false },
-  intended_users: [{
+  intended_users: [{ 
     type: db.mongoose.Schema.Types.ObjectId,
     ref: 'User'
-  }], // For soft delete functionality
-  deletedAt: { type: Date }, // When the voucher was soft deleted
-  deletedBy: { type: String }, // Who deleted the voucher (admin username)
-  deletionReason: { type: String },
+  }], // For targeted vouchers - now references User model
   userId: {
     type: db.mongoose.Schema.Types.ObjectId,
     ref: 'User',
     default: null
-  } // Optional reason for deletion
+  } // User this voucher belongs to (if personal)
 })
 
 const magiamgia = db.mongoose.model('magiamgia', magiamgiaSchema)
