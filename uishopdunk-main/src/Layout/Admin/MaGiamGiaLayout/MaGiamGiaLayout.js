@@ -1,10 +1,10 @@
 import { useState, useEffect } from 'react'
 import { FaEdit, FaPlus, FaMegaphone, FaRegClock } from 'react-icons/fa'
 import { FaTrashCan, FaServer } from 'react-icons/fa6'
-import { AddMaGiamGia} from './AddMaGiamGia'
+import { AddMaGiamGia } from './AddMaGiamGia'
 import { UpdateMaGiamGia } from './UpdateMaGiamGia'
 import { XoaMaGiamGia } from './XoaMaGiamGia'
-import {ServerWideVoucher} from './ServerWideVoucher'
+import { ServerWideVoucher } from './ServerWideVoucher'
 import { toast } from 'react-toastify'
 import 'react-toastify/dist/ReactToastify.css'
 import './MaGiamGiaLayout.scss'
@@ -18,6 +18,10 @@ function MaGiamGiaLayout() {
   const [isOpenCapNhat, setisOpenCapNhat] = useState(false)
   const [isOpenServerWide, setIsOpenServerWide] = useState(false)
   const [filterType, setFilterType] = useState('all') // 'all', 'normal', 'serverWide', 'goldenHour'
+
+  // Thêm phân trang
+  const [currentPage, setCurrentPage] = useState(1)
+  const itemsPerPage = 10
 
   const fetchdata = async () => {
     try {
@@ -35,45 +39,14 @@ function MaGiamGiaLayout() {
     fetchdata()
   }, [])
 
-  const handleSelectAll = () => {
-    if (selectAll) {
-      setSelectedIds([])
-    } else {
-      // Only select IDs that match the current filter
-      const filteredData = filterData(data, filterType)
-      setSelectedIds(filteredData.map(item => item._id))
-    }
-    setSelectAll(!selectAll)
-  }
+  // Khi thay đổi filter hoặc dữ liệu, reset lại trang hiện tại về 1
+  useEffect(() => {
+    setCurrentPage(1)
+    // reset selected khi lọc dữ liệu cũng có thể hữu ích
+    setSelectedIds([])
+    setSelectAll(false)
+  }, [filterType, data])
 
-  const handleSelectItem = id => {
-    let newSelectedIds = [...selectedIds]
-    if (newSelectedIds.includes(id)) {
-      newSelectedIds = newSelectedIds.filter(itemId => itemId !== id)
-    } else {
-      newSelectedIds.push(id)
-    }
-    setSelectedIds(newSelectedIds)
-
-    // Check if all items in the current filter are selected
-    const filteredData = filterData(data, filterType)
-    setSelectAll(newSelectedIds.length === filteredData.length && 
-      filteredData.every(item => newSelectedIds.includes(item._id)))
-  }
-
-  const handleServerWideVoucherCreated = (voucherData) => {
-    toast.success(`Mã giảm giá toàn server đã được tạo: ${voucherData.code}`, {
-      position: "top-right",
-      autoClose: 5000,
-      hideProgressBar: false,
-      closeOnClick: true,
-      pauseOnHover: true,
-      draggable: true,
-    })
-    fetchdata()
-  }
-
-  // Function to filter data based on the selected filter type
   const filterData = (data, filterType) => {
     switch(filterType) {
       case 'serverWide':
@@ -90,8 +63,50 @@ function MaGiamGiaLayout() {
     }
   }
 
-  // Get the filtered data based on current filter type
   const filteredData = filterData(data, filterType)
+
+  // Phân trang: tính toán số trang và dữ liệu của trang hiện tại
+  const totalPages = Math.ceil(filteredData.length / itemsPerPage)
+  const currentPageData = filteredData.slice(
+    (currentPage - 1) * itemsPerPage,
+    currentPage * itemsPerPage
+  )
+
+  const handleSelectAll = () => {
+    if (selectAll) {
+      setSelectedIds([])
+    } else {
+      // Chỉ chọn các ID phù hợp với bộ lọc hiện tại
+      setSelectedIds(currentPageData.map(item => item._id))
+    }
+    setSelectAll(!selectAll)
+  }
+
+  const handleSelectItem = id => {
+    let newSelectedIds = [...selectedIds]
+    if (newSelectedIds.includes(id)) {
+      newSelectedIds = newSelectedIds.filter(itemId => itemId !== id)
+    } else {
+      newSelectedIds.push(id)
+    }
+    setSelectedIds(newSelectedIds)
+
+    // Kiểm tra nếu tất cả các item trên trang hiện tại đã được chọn
+    setSelectAll(newSelectedIds.length === currentPageData.length &&
+      currentPageData.every(item => newSelectedIds.includes(item._id)))
+  }
+
+  const handleServerWideVoucherCreated = (voucherData) => {
+    toast.success(`Mã giảm giá toàn server đã được tạo: ${voucherData.code}`, {
+      position: "top-right",
+      autoClose: 5000,
+      hideProgressBar: false,
+      closeOnClick: true,
+      pauseOnHover: true,
+      draggable: true,
+    })
+    fetchdata()
+  }
 
   return (
     <div className='theloai_container'>
@@ -192,7 +207,7 @@ function MaGiamGiaLayout() {
           </tr>
         </thead>
         <tbody>
-          {filteredData.map((item, index) => (
+          {currentPageData.map((item, index) => (
             <tr key={item._id} className={item.isServerWide ? 'server-wide-row' : ''}>
               <td>
                 <input
@@ -201,7 +216,7 @@ function MaGiamGiaLayout() {
                   onChange={() => handleSelectItem(item._id)}
                 />
               </td>
-              <td>{index + 1}</td>
+              <td>{(currentPage - 1) * itemsPerPage + index + 1}</td>
               <td>{item._id}</td>
               <td>{item.magiamgia}</td>
               <td>{item.ngaybatdau}</td>
@@ -227,6 +242,25 @@ function MaGiamGiaLayout() {
           ))}
         </tbody>
       </table>
+
+      {/* Phân trang */}
+      <div className="pagination">
+        <button 
+          onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+          disabled={currentPage === 1}
+        >
+          Prev
+        </button>
+        <span>
+          Trang {currentPage} / {totalPages === 0 ? 1 : totalPages}
+        </span>
+        <button 
+          onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+          disabled={currentPage === totalPages || totalPages === 0}
+        >
+          Next
+        </button>
+      </div>
 
       <AddMaGiamGia
         isOpen={isOpen}

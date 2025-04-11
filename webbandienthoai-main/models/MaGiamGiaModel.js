@@ -16,7 +16,10 @@ const magiamgiaSchema = new db.mongoose.Schema({
   isOneTimePerUser: { type: Boolean, default: true }, // If false, same user can use multiple times
   daysOfWeek: [{ type: Number }], // 0-6 (Sunday-Saturday), empty array means all days
   isDeleted: { type: Boolean, default: false },
-  intended_users: [{ type: String }], // For soft delete functionality
+  intended_users: [{
+    type: db.mongoose.Schema.Types.ObjectId,
+    ref: 'User'
+  }], // For soft delete functionality
   deletedAt: { type: Date }, // When the voucher was soft deleted
   deletedBy: { type: String }, // Who deleted the voucher (admin username)
   deletionReason: { type: String },

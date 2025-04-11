@@ -159,63 +159,116 @@ const RedemptionOptions = () => {
 const handleSubmit = async (e) => {
   e.preventDefault();
   
-  // Validate required fields
+  // Validate dữ liệu
   if (!formData.name || !formData.pointsCost || !formData.voucherValue || !formData.voucherId) {
     toast.error('Vui lòng điền đầy đủ thông tin bắt buộc');
     return;
   }
   
-  // Thêm lưu ý về việc chỉ sử dụng userId
-  if (formData.limitPerUser > 1) {
-    toast.info('Lưu ý: Giới hạn đổi điểm mỗi người dùng sẽ áp dụng theo User ID');
-  }
-  
   try {
     setLoading(true);
     
-    // Payload đã chuẩn hóa
+    // Chuẩn hóa dữ liệu
     const payload = {
       ...formData,
-      // Đảm bảo các giá trị số được chuyển đổi đúng
       pointsCost: Number(formData.pointsCost),
       voucherValue: Number(formData.voucherValue),
       minOrderValue: Number(formData.minOrderValue) || 0,
       limitPerUser: Number(formData.limitPerUser) || 1,
-      totalQuantity: Number(formData.totalQuantity) || 100
+      totalQuantity: Number(formData.totalQuantity) || 100,
+      remainingQuantity: editMode ? formData.remainingQuantity : Number(formData.totalQuantity) || 100
     };
     
+    // Kiểm tra các giá trị cần thiết có hợp lệ không
+    if (payload.pointsCost <= 0) {
+      toast.error('Số điểm cần để đổi phải lớn hơn 0');
+      setLoading(false);
+      return;
+    }
+    
+    if (payload.voucherValue <= 0) {
+      toast.error('Giá trị voucher phải lớn hơn 0');
+      setLoading(false);
+      return;
+    }
+    
+    if (payload.limitPerUser <= 0) {
+      toast.error('Giới hạn đổi điểm/người phải lớn hơn 0');
+      setLoading(false);
+      return;
+    }
+    
+    if (payload.totalQuantity <= 0) {
+      toast.error('Tổng số lượng phải lớn hơn 0');
+      setLoading(false);
+      return;
+    }
+    
+    // Kiểm tra ngày bắt đầu và kết thúc
+    const startDate = new Date(payload.startDate);
+    const endDate = new Date(payload.endDate);
+    
+    if (startDate > endDate) {
+      toast.error('Ngày kết thúc phải sau ngày bắt đầu');
+      setLoading(false);
+      return;
+    }
+    
+    // Lưu ý về giới hạn đổi điểm
+    if (payload.limitPerUser > 1) {
+      toast.info('Lưu ý: Giới hạn đổi điểm mỗi người dùng sẽ áp dụng theo tài khoản');
+    }
+    
+    // Thực hiện API call
     if (editMode) {
-      const response = await axios.put(`http://localhost:3005/admin/loyalty/update-redemption/${formData._id}`, payload);
+      // Trường hợp cập nhật
+      const response = await axios.put(
+        `http://localhost:3005/admin/loyalty/update-redemption/${formData._id}`, 
+        payload
+      );
       
       if (response.data && response.data.success) {
+        // Cập nhật danh sách options
         const updatedOptions = options.map(option => 
           option._id === formData._id ? response.data.data : option
         );
         
         setOptions(updatedOptions);
         toast.success('Cập nhật tùy chọn đổi điểm thành công');
+        setModalOpen(false);
       } else {
-        toast.error('Không thể cập nhật tùy chọn đổi điểm');
+        toast.error(response.data?.message || 'Không thể cập nhật tùy chọn đổi điểm');
       }
     } else {
-      const response = await axios.post('http://localhost:3005/admin/loyalty/create-redemption', payload);
+      // Trường hợp tạo mới
+      const response = await axios.post(
+        'http://localhost:3005/admin/loyalty/create-redemption', 
+        payload
+      );
       
       if (response.data && response.data.success) {
+        // Thêm option mới vào danh sách
         setOptions([...options, response.data.data]);
         toast.success('Tạo tùy chọn đổi điểm thành công');
+        setModalOpen(false);
       } else {
-        toast.error('Không thể tạo tùy chọn đổi điểm');
+        toast.error(response.data?.message || 'Không thể tạo tùy chọn đổi điểm');
       }
     }
-    
-    setModalOpen(false);
   } catch (error) {
     console.error('Lỗi khi lưu tùy chọn đổi điểm:', error);
-    toast.error('Không thể lưu tùy chọn đổi điểm');
+    
+    // Hiển thị thông báo lỗi cụ thể nếu có
+    if (error.response && error.response.data && error.response.data.message) {
+      toast.error(error.response.data.message);
+    } else {
+      toast.error('Không thể lưu tùy chọn đổi điểm');
+    }
   } finally {
     setLoading(false);
   }
 };
+
 
   // Handle delete redemption option
   const handleDelete = async (id) => {
