@@ -714,69 +714,97 @@ router.get('/checknewvouchers/:phone', async (req, res) => {
 });
 
 router.post('/settrangthai/:idhoadon', async (req, res) => {
+  const session = await db.mongoose.startSession();
+  session.startTransaction();
+  
   try {
     const idhoadon = req.params.idhoadon;
-    const { trangthai, thanhtoan } = req.body;
+    const { trangthai, thanhtoan, note } = req.body;
     
     // Tìm đơn hàng hiện tại
-    const hoadon = await HoaDon.hoadon.findById(idhoadon);
+    const hoadon = await HoaDon.hoadon.findById(idhoadon).session(session);
     
     if (!hoadon) {
+      await session.abortTransaction();
+      session.endSession();
       return res.status(404).json({ message: 'Không tìm thấy hóa đơn' });
     }
     
     const oldTrangthai = hoadon.trangthai;
-    const oldThanhtoan = hoadon.thanhtoan; // false = chưa thanh toán/thất bại
+    const oldThanhtoan = hoadon.thanhtoan;
     
-    // Trường hợp 1: Hủy đơn hàng
+    // Ghi log để debug
+    console.log(`Chuyển trạng thái đơn hàng ${idhoadon} từ '${oldTrangthai}' sang '${trangthai}'`);
+    
+    // TRƯỜNG HỢP 1: Hủy đơn hàng
     if (trangthai === 'Hủy Đơn Hàng' && oldTrangthai !== 'Hủy Đơn Hàng') {
-      // Kiểm tra xem đơn hàng đã giảm tồn kho chưa
-      // Đã giảm kho nếu: đã thanh toán HOẶC trạng thái không phải thất bại/hết hạn
-      const inventoryWasReduced = oldThanhtoan || 
-                                  (!oldThanhtoan && 
-                                   oldTrangthai !== 'Thanh toán thất bại' && 
-                                   oldTrangthai !== 'Thanh toán hết hạn');
+      console.log(`Đơn hàng ${idhoadon} đang bị hủy. Kiểm tra để hoàn tồn kho.`);
+      
+      // Chỉ hoàn tồn kho nếu đơn hàng đã giảm tồn kho
+      // Đã giảm tồn kho nếu: đã thanh toán HOẶC trạng thái không phải thất bại/hết hạn/hủy
+      const nonReducedStatuses = ['Thanh toán thất bại', 'Thanh toán hết hạn', 'Hủy Đơn Hàng'];
+      const inventoryWasReduced = oldThanhtoan || (!oldThanhtoan && !nonReducedStatuses.includes(oldTrangthai));
       
       if (inventoryWasReduced) {
-        console.log(`Khôi phục tồn kho khi hủy đơn hàng ${idhoadon}`);
-        await restoreInventory(hoadon.sanpham);
+        console.log(`Khôi phục tồn kho khi hủy đơn hàng ${idhoadon} từ trạng thái ${oldTrangthai}`);
+        
+        // Sử dụng session để đảm bảo tính nguyên vẹn dữ liệu
+        await restoreInventory(hoadon.sanpham, session);
+      } else {
+        console.log(`Không cần khôi phục tồn kho cho đơn hàng ${idhoadon}, vì tồn kho chưa bị giảm`);
       }
     }
     
-    // Trường hợp 2: Đánh dấu thất bại thanh toán (nếu chưa hủy và đã giảm tồn kho)
-    if (trangthai === 'Thanh toán thất bại' && 
-        oldTrangthai !== 'Thanh toán thất bại' && 
-        oldTrangthai !== 'Hủy Đơn Hàng' &&
-        oldTrangthai !== 'Thanh toán hết hạn') {
+    // TRƯỜNG HỢP 2: Đánh dấu thất bại/hết hạn thanh toán (nếu chưa hủy và đã giảm tồn kho)
+    else if ((trangthai === 'Thanh toán thất bại' || trangthai === 'Thanh toán hết hạn') && 
+             oldTrangthai !== 'Thanh toán thất bại' && 
+             oldTrangthai !== 'Thanh toán hết hạn' && 
+             oldTrangthai !== 'Hủy Đơn Hàng') {
       
-      console.log(`Khôi phục tồn kho khi đánh dấu thất bại thanh toán ${idhoadon}`);
-      await restoreInventory(hoadon.sanpham);
+      // Kiểm tra xem đã giảm tồn kho chưa
+      const nonReducedStatuses = ['Thanh toán thất bại', 'Thanh toán hết hạn', 'Hủy Đơn Hàng'];
+      const inventoryWasReduced = oldThanhtoan || (!oldThanhtoan && !nonReducedStatuses.includes(oldTrangthai));
+      
+      if (inventoryWasReduced) {
+        console.log(`Khôi phục tồn kho khi đánh dấu thất bại/hết hạn thanh toán ${idhoadon}`);
+        await restoreInventory(hoadon.sanpham, session);
+      }
     }
     
-    // Trường hợp 3: Trả hàng sau khi đã nhận
-    if (oldTrangthai === 'Đã nhận' && trangthai === 'Trả hàng/Hoàn tiền') {
+    // TRƯỜNG HỢP 3: Trả hàng sau khi đã nhận
+    else if ((oldTrangthai === 'Đã nhận' || oldTrangthai === 'Hoàn thành') && 
+             trangthai === 'Trả hàng/Hoàn tiền') {
       console.log(`Khôi phục tồn kho khi trả hàng ${idhoadon}`);
-      await restoreInventory(hoadon.sanpham);
+      await restoreInventory(hoadon.sanpham, session);
     }
     
-    // Trường hợp 4: Từ trạng thái thất bại/hết hạn/hủy sang trạng thái thành công
+    // TRƯỜNG HỢP 4: Từ trạng thái thất bại/hết hạn/hủy sang trạng thái thành công
     // (trường hợp khách hàng quyết định thanh toán lại sau khi thất bại)
-    if ((oldTrangthai === 'Thanh toán thất bại' || 
-         oldTrangthai === 'Thanh toán hết hạn' || 
-         oldTrangthai === 'Hủy Đơn Hàng') && 
-        trangthai === 'Đã thanh toán' && 
-        thanhtoan === true) {
+    else if ((oldTrangthai === 'Thanh toán thất bại' || 
+              oldTrangthai === 'Thanh toán hết hạn' || 
+              oldTrangthai === 'Hủy Đơn Hàng') && 
+             (trangthai === 'Đã thanh toán' || trangthai === 'Đang xử lý') && 
+             (thanhtoan === true || trangthai === 'Đã thanh toán')) {
       
       console.log(`Giảm tồn kho khi đơn hàng được thanh toán lại ${idhoadon}`);
       try {
         await reduceInventory(hoadon.sanpham);
       } catch (error) {
         // Nếu không đủ tồn kho, không cho chuyển trạng thái
+        await session.abortTransaction();
+        session.endSession();
         return res.status(400).json({ 
           message: 'Không thể thanh toán lại đơn hàng do tồn kho không đủ',
           error: error.message
         });
       }
+    }
+    
+    // TRƯỜNG HỢP 5: Khi chuyển từ đang xử lý sang đang vận chuyển
+    // KHÔNG giảm tồn kho trong trường hợp này, vì tồn kho đã giảm từ khi tạo đơn
+    else if (oldTrangthai === 'Đang xử lý' && trangthai === 'Đang vận chuyển') {
+      console.log(`Chuyển từ đang xử lý sang đang vận chuyển, không thay đổi tồn kho`);
+      // Không làm gì với tồn kho
     }
     
     // Cập nhật trạng thái đơn hàng
@@ -785,7 +813,7 @@ router.post('/settrangthai/:idhoadon', async (req, res) => {
       hoadon.thanhtoan = thanhtoan;
     }
     
-    // Ghi lại lịch sử thay đổi trạng thái (nếu cần)
+    // Ghi lại lịch sử thay đổi trạng thái
     if (!hoadon.statusHistory) {
       hoadon.statusHistory = [];
     }
@@ -795,12 +823,19 @@ router.post('/settrangthai/:idhoadon', async (req, res) => {
       to: trangthai,
       thanhtoan: hoadon.thanhtoan,
       date: new Date(),
-      note: req.body.note || ''
+      note: note || '',
+      inventoryUpdated: true // Đánh dấu là đã cập nhật tồn kho
     });
     
-    await hoadon.save();
+    await hoadon.save({ session });
+    await session.commitTransaction();
+    session.endSession();
+    
     res.json(hoadon);
   } catch (error) {
+    await session.abortTransaction();
+    session.endSession();
+    
     console.error('Lỗi khi cập nhật trạng thái đơn hàng:', error);
     res.status(500).json({ 
       message: 'Lỗi khi cập nhật trạng thái đơn hàng', 
