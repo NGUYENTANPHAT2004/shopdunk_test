@@ -310,24 +310,24 @@ function HoaDonChiTiet ({ isOpen, onClose, idhoadon }) {
                 {hoadon.hoadonsanpham.map((sanpham, index) => (
                   <tr key={index}>
                     <td>
-                      <div className="product-info">
+                      <div className="product-info-hd">
                         {sanpham.image && (
-                          <div className="product-image">
+                          <div className="product-image-hd">
                             <img src={sanpham.image} alt={sanpham.namesanpham} />
                           </div>
                         )}
-                        <div className="product-details">
+                        <div className="product-details-hd">
                           <h4>{sanpham.namesanpham}</h4>
-                          <span className="product-sku">SKU: {sanpham.idsp ? sanpham.idsp.slice(-6) : 'N/A'}</span>
+                          <span className="product-sku-hd">SKU: {sanpham.idsp ? sanpham.idsp.slice(-6) : 'N/A'}</span>
                         </div>
                       </div>
                     </td>
-                    <td className="product-spec">{sanpham.dungluong || 'N/A'}</td>
-                    <td className="product-spec">
+                    <td className="product-spec-hd">{sanpham.dungluong || 'N/A'}</td>
+                    <td className="product-spec-hd">
                       {sanpham.mausac && (
-                        <div className="color-indicator">
+                        <div className="color-indicator-hd">
                           <div 
-                            className="color-dot" 
+                            className="color-dot-hd" 
                             style={{backgroundColor: (
                               // Chỉ một số màu cơ bản, có thể mở rộng thêm hoặc sử dụng hex codes trực tiếp
                               sanpham.mausac.toLowerCase() === 'đen' ? '#000' :
@@ -342,13 +342,13 @@ function HoaDonChiTiet ({ isOpen, onClose, idhoadon }) {
                         </div>
                       )}
                     </td>
-                    <td className="price">{sanpham.price.toLocaleString()}₫</td>
-                    <td className="quantity">
-                      <div className="quantity-box">
+                    <td className="price-hd">{sanpham.price.toLocaleString()}₫</td>
+                    <td className="quantity-hd">
+                      <div className="quantity-box-hd">
                         {sanpham.soluong}
                       </div>
                     </td>
-                    <td className="price total-price">
+                    <td className="price-hd total-price-hd">
                       {(sanpham.price * sanpham.soluong).toLocaleString()}₫
                     </td>
                   </tr>

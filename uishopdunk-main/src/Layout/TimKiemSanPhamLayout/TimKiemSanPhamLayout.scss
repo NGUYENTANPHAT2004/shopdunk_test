@@ -1,4 +1,4 @@
-.search-container {
+.search-container-product {
     max-width: 1200px;
     margin: 0 auto;
     padding: 20px;
@@ -499,7 +499,7 @@
 
 // Responsive styles
 @media (max-width: 768px) {
-    .search-container {
+    .search-container-product {
         padding: 15px;
 
         .search-header {
@@ -523,13 +523,13 @@
         }
 
         .filter-sidebar {
-            width: 280px;
+            width: 100px;
         }
     }
 }
 
 @media (max-width: 480px) {
-    .search-container {
+    .search-container-product {
         .search-header {
             h1 {
                 font-size: 20px;

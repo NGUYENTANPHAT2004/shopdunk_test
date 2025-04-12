@@ -21,10 +21,10 @@ const hoadonSchema = new db.mongoose.Schema({
       soluong: { type: Number },
       price: { type: Number },
       productSnapshot: {
-        name: { type: String },       // Tên sản phẩm tại thời điểm mua
-        image: { type: String },      // Hình ảnh sản phẩm tại thời điểm mua
-        dungluongName: { type: String }, // Tên dung lượng tại thời điểm mua
-        mausacName: { type: String }  // Tên màu sắc tại thời điểm mua
+        name: { type: String },       
+        image: { type: String },     
+        dungluongName: { type: String }, 
+        mausacName: { type: String } 
       }
     }
   ],

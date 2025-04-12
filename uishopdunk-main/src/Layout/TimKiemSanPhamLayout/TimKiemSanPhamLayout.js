@@ -236,7 +236,7 @@ const TimKiemSanPhamLayout = () => {
   };
   
   return (
-    <div className="search-container">
+    <div className="search-container-product">
       <Helmet>
         <title>{`Tìm kiếm: ${keyword} - Shopdunk`}</title>
         <meta name="description" content={`Kết quả tìm kiếm cho: ${keyword}. Tìm thấy ${totalItems} sản phẩm.`} />
