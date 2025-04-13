@@ -96,70 +96,98 @@ function ModalNhapThongTin ({
     }
   }
 
-  const handlethanhtoan = async () => {
-    if (!isStockChecked) {
-      await checkStockAvailability()
-      if (stockError) return
-    }
+ // Cập nhật hàm handlethanhtoan trong ModalNhapThongTin.js
+const handlethanhtoan = async () => {
+  if (!isStockChecked) {
+    await checkStockAvailability()
+    if (stockError) return
+  }
+
+  if (stockError) {
+    alert(stockError.message)
+    return
+  }
   
-    if (stockError) {
-      alert(stockError.message)
-      return
-    }
-    
-    // Kiểm tra thông tin sanphams trước khi gửi
-    const validSanphams = sanphams.map(item => {
-      if (!item.idmausac) {
-        console.warn('Thiếu idmausac cho sản phẩm:', item);
-      }
-      return {
-        ...item,
-        // Đảm bảo tất cả các trường đều có giá trị
-        idsp: item.idsp,
-        soluong: item.soluong || 1,
-        price: item.price || 0,
-        dungluong: item.dungluong,
-        mausac: item.mausac || '',
-        idmausac: item.idmausac
-      };
-    });
-    
-    setLoading(true)
+  // Kiểm tra xem voucher có phải từ điểm thưởng không
+  let isLoyaltyVoucher = false;
+  let loyaltyVoucherInfo = null;
+  
+  if (magiamgia) {
     try {
-      const response = await fetch('http://localhost:3005/create_payment_url', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          name,
-          nguoinhan,
-          phone,
-          sex,
-          giaotannoi,
-          address,
-          ghichu,
-          magiamgia,
-          bankCode,
-          amount,
-          sanphams: validSanphams, // Gửi danh sách đã kiểm tra
-          language: 'vn',
-          userId: userId || null
-        })
-      })
-  
-      const data = await response.json()
-  
-      if (data.message) {
-        alert(data.message)
-      } else {
-        window.location.href = data
+      const voucherResponse = await fetch(`http://localhost:3005/check-loyalty-voucher/${magiamgia}`);
+      const voucherData = await voucherResponse.json();
+      isLoyaltyVoucher = voucherData.isLoyaltyVoucher;
+      loyaltyVoucherInfo = voucherData.redemptionInfo;
+      
+      // Hiển thị thông báo nếu là voucher điểm thưởng
+      if (isLoyaltyVoucher) {
+        console.log(`Đang sử dụng voucher từ đổi điểm, đã dùng ${loyaltyVoucherInfo?.pointsSpent || '?'} điểm`);
       }
     } catch (error) {
-      console.error('Lỗi khi thanh toán:', error)
-      alert('Đã xảy ra lỗi khi thanh toán. Vui lòng thử lại sau.')
-    } finally {
-      setLoading(false)
+      console.error('Lỗi kiểm tra voucher điểm thưởng:', error);
     }
   }
+  
+  // Chuẩn bị dữ liệu thanh toán
+  const validSanphams = sanphams.map(item => {
+    if (!item.idmausac) {
+      console.warn('Thiếu idmausac cho sản phẩm:', item);
+    }
+    return {
+      ...item,
+      idsp: item.idsp,
+      soluong: item.soluong || 1,
+      price: item.price || 0,
+      dungluong: item.dungluong,
+      mausac: item.mausac || '',
+      idmausac: item.idmausac
+    };
+  });
+  
+  setLoading(true)
+  try {
+    const response = await fetch('http://localhost:3005/create_payment_url', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        name,
+        nguoinhan,
+        phone,
+        sex,
+        giaotannoi,
+        address,
+        ghichu,
+        magiamgia,
+        bankCode,
+        amount,
+        sanphams: validSanphams,
+        language: 'vn',
+        userId: userId || null,
+        // Thêm cờ để chỉ ra đây là voucher điểm thưởng
+        isLoyaltyVoucher,
+        loyaltyVoucherInfo
+      })
+    })
+
+    const data = await response.json()
+
+    if (data.message) {
+      alert(data.message)
+      
+      // Nếu có lỗi và đây là voucher điểm thưởng, thông báo sẽ hoàn điểm
+      if (isLoyaltyVoucher && data.loyaltyRefundInitiated) {
+        alert('Điểm thưởng đã dùng để đổi voucher này sẽ được hoàn lại trong vài phút.');
+      }
+    } else {
+      window.location.href = data
+    }
+  } catch (error) {
+    console.error('Lỗi khi thanh toán:', error)
+    alert('Đã xảy ra lỗi khi thanh toán. Vui lòng thử lại sau.')
+  } finally {
+    setLoading(false)
+  }
+}
 
   
   return (

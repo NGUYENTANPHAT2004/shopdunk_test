@@ -30,6 +30,7 @@ const orderrating = require('./routes/OrderRatingRoutes');
 const chatroutes = require('./routes/ChatRoutes');
 const loyaltyPointsRoutes = require('./routes/LoyaltyPointsRoutes');
 const adminpoin = require('./routes/adminpoin');
+const validatemagiamgia = require('./routes/validateroutes.js')
 // Socket.io and services
 const { initSocket } = require('./config/socket');
 const { initSocketHandlers } = require('./socket/index');
@@ -101,6 +102,7 @@ app.use('/', orderrating);
 app.use('/', chatroutes); 
 app.use('/', loyaltyPointsRoutes);
 app.use('/', adminpoin);
+app.use('/', validatemagiamgia)
 
 // Setup daily analytics job
 const setupDailyAnalytics = () => {

@@ -246,22 +246,70 @@
             }
         }
     }
-
+   
     .filter-sidebar {
         position: fixed;
         top: 0;
-        right: -500px;
-        width: 300px;
+        right: 0;
+        max-width: 320px;
+        width: 100%;
+        height: 100vh;
+        background-color: #fff;
+        z-index: 1000;
+        padding: 20px;
+        box-shadow: -2px 0 5px rgba(0, 0, 0, 0.1);
+        transform: translateX(100%);
+        transition: transform 0.3s ease-in-out;
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+        box-sizing: border-box;
+      }
+      
+      .filter-sidebar.open {
+        transform: translateX(0);
+      }
+      
+      .filter-sidebar .filter-content {
+        flex: 1;
+        overflow-y: auto;
+        padding-bottom: 20px;
+      }
+      
+      .sidebar-backdrop {
+        position: fixed;
+        inset: 0;
+        background-color: rgba(0, 0, 0, 0.4);
+        z-index: 999;
+      }
+      
+      /* Sticky footer buttons (áp dụng / đặt lại) */
+      .filter-sidebar .filter-actions {
+        position: sticky;
+        bottom: 0;
+        padding: 15px 0 0;
+        background-color: white;
+      }
+    .filter-sidebar {
+        position: fixed;
+        box-sizing: border-box;
+        top: 0;
+        right: 0;
+        max-width: 320px;        
         height: 100vh;
         background-color: #fff;
         box-shadow: -2px 0 5px rgba(0, 0, 0, 0.1);
         z-index: 1000;
+        
         transition: right 0.3s ease;
         padding: 20px;
         overflow-y: auto;
-
+        transform: translateX(100%);
+        transition: transform 0.3s ease-in-out;
+    
+        width: 100%;
         &.open {
-            right: 0;
+            transform: translateX(0);
         }
 
         .filter-header {
@@ -523,7 +571,7 @@
         }
 
         .filter-sidebar {
-            width: 100px;
+            max-width: 250px;
         }
     }
 }
@@ -549,8 +597,7 @@
         }
 
         .filter-sidebar {
-            width: 100%;
-            right: -100%;
+            max-width: 250px;
         }
     }
 }

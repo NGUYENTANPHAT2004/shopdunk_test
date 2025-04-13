@@ -1,7 +1,11 @@
+// In TimKiemSanPhamLayout.js
+// Here's how to integrate the new MobileFilters component
+
 import React, { useEffect, useState, useCallback } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import ProductCard from '../../components/ProductItem/ProductCard';
 import ThanhDinhHuong from '../../components/ThanhDinhHuong/ThanhDinhHuong';
+import MobileFilters from './MobileFilters'; // Import the new component
 import { Helmet } from 'react-helmet';
 import Loading from '../../components/Loading/Loading';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
@@ -222,16 +226,11 @@ const TimKiemSanPhamLayout = () => {
     setPage(1);
   };
   
-  // Apply price filter
-  const applyPriceFilter = () => {
-    setPage(1);
-    setIsFilterOpen(false);
-  };
-  
-  // Select price range
-  const selectPriceRange = (min, max) => {
-    setMinPrice(min || '');
-    setMaxPrice(max || '');
+  // Apply filters from MobileFilters component
+  const handleApplyFilters = (filters) => {
+    setCategory(filters.category || '');
+    setMinPrice(filters.minPrice || '');
+    setMaxPrice(filters.maxPrice || '');
     setPage(1);
   };
   
@@ -323,9 +322,24 @@ const TimKiemSanPhamLayout = () => {
                   </div>
                 )}
               </div>
+              <button type="submit" className="search-button">
+                <FontAwesomeIcon icon={faSearch} />
+              </button>
             </div>
           </form>
         </div>
+
+        {/* New Mobile Filters Component */}
+        <MobileFilters
+          categories={categories}
+          initialFilters={{
+            category,
+            minPrice,
+            maxPrice
+          }}
+          onApplyFilters={handleApplyFilters}
+          onResetFilters={resetFilters}
+        />
 
         <div className="filter-controls">
           <button className="filter-button" onClick={() => setIsFilterOpen(!isFilterOpen)}>
@@ -356,7 +370,7 @@ const TimKiemSanPhamLayout = () => {
           ></div>
         )}
         
-        {/* Filter sidebar */}
+        {/* Filter sidebar - can be removed after fully transitioning to MobileFilters */}
         <div className={`filter-sidebar ${isFilterOpen ? 'open' : ''}`}>
           <div className="filter-header">
             <h3>Lọc sản phẩm</h3>
@@ -383,14 +397,14 @@ const TimKiemSanPhamLayout = () => {
                   onChange={(e) => setMaxPrice(e.target.value)}
                 />
               </div>
-              <button className="apply-price" onClick={applyPriceFilter}>Áp dụng</button>
+              <button className="apply-price" onClick={() => setPage(1)}>Áp dụng</button>
             </div>
             
             <div className="price-presets">
-              <button onClick={() => selectPriceRange(0, 5000000)}>Dưới 5 triệu</button>
-              <button onClick={() => selectPriceRange(5000000, 10000000)}>5 - 10 triệu</button>
-              <button onClick={() => selectPriceRange(10000000, 20000000)}>10 - 20 triệu</button>
-              <button onClick={() => selectPriceRange(20000000, '')}>Trên 20 triệu</button>
+              <button onClick={() => { setMinPrice('0'); setMaxPrice('5000000'); setPage(1); }}>Dưới 5 triệu</button>
+              <button onClick={() => { setMinPrice('5000000'); setMaxPrice('10000000'); setPage(1); }}>5 - 10 triệu</button>
+              <button onClick={() => { setMinPrice('10000000'); setMaxPrice('20000000'); setPage(1); }}>10 - 20 triệu</button>
+              <button onClick={() => { setMinPrice('20000000'); setMaxPrice(''); setPage(1); }}>Trên 20 triệu</button>
             </div>
           </div>
           

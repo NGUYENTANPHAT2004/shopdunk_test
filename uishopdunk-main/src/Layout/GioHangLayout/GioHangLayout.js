@@ -4,10 +4,10 @@ import './GioHangLayout.scss'
 import { useState, useEffect } from 'react'
 import { ModalNhapThongTin } from './ModalNhapThongTin'
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
-import { faCartShopping, faCircleExclamation, faCheckCircle } from '@fortawesome/free-solid-svg-icons'
+import { faCartShopping, faCircleExclamation, faCheckCircle, faSpinner, faExclamationTriangle } from '@fortawesome/free-solid-svg-icons'
 import { useUserContext } from '../../context/Usercontext'
 import axios from 'axios'
-function GioHangLayout () {
+function GioHangLayout() {
   const { user } = useUserContext();
   const [cart, setCart] = useState([])
   const [sex, setsex] = useState('Anh')
@@ -20,7 +20,9 @@ function GioHangLayout () {
   const [magiamgia, setmagiamgia] = useState('')
   const [isOpenModaltt, setisOpenModaltt] = useState(false)
   const [sanphams, setsanphams] = useState([])
-  
+  const [voucherValidation, setVoucherValidation] = useState(null);
+  const [validatingVoucher, setValidatingVoucher] = useState(false);
+
   // Validation states
   const [nameError, setNameError] = useState('')
   const [phoneError, setPhoneError] = useState('')
@@ -45,7 +47,7 @@ function GioHangLayout () {
   const [provinces, setProvinces] = useState([]);
   const [isCalculatingShipping, setIsCalculatingShipping] = useState(false);
 
-  
+
   const validateName = (value) => {
     setname(value)
     if (!value.trim()) {
@@ -66,6 +68,43 @@ function GioHangLayout () {
       return true
     }
   }
+  const validateVoucher = async (code) => {
+    if (!code || code.trim() === '') {
+      setVoucherValidation(null);
+      return;
+    }
+
+    setValidatingVoucher(true);
+    try {
+      // Sử dụng giỏ hàng hiện tại để xác thực
+      const response = await fetch('http://localhost:3005/pre-validate-voucher', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          magiamgia: code,
+          orderTotal: totalPrice,
+          userId: user?._id || null,
+          phone: user?.phone || null,
+          cartItems: cart.map(item => ({
+            productId: item.idsanpham,
+            quantity: item.soluong,
+            price: item.pricemausac
+          }))
+        })
+      });
+
+      const result = await response.json();
+      setVoucherValidation(result);
+    } catch (error) {
+      console.error('Lỗi khi xác thực voucher:', error);
+      setVoucherValidation({
+        valid: false,
+        message: 'Lỗi khi kiểm tra mã giảm giá'
+      });
+    } finally {
+      setValidatingVoucher(false);
+    }
+  };
   const validatenguoinhan = (value) => {
     setnguoinhan(value)
     if (!value.trim()) {
@@ -90,7 +129,7 @@ function GioHangLayout () {
     setphone(value)
     // Vietnamese phone number regex pattern
     const phoneRegex = /(84|0[3|5|7|8|9])+([0-9]{8})\b/
-    
+
     if (!value.trim()) {
       setPhoneError('Vui lòng nhập số điện thoại')
       setPhoneValid(false)
@@ -113,7 +152,7 @@ function GioHangLayout () {
     setProvinceError("");
     return true;
   };
-  
+
   const validateDistrict = () => {
     if (!selectedDistrict) {
       setDistrictError("Vui lòng chọn Quận / Huyện");
@@ -122,7 +161,7 @@ function GioHangLayout () {
     setDistrictError("");
     return true;
   };
-  
+
   const validateWard = () => {
     if (!selectedWard) {
       setWardError("Vui lòng chọn Xã / Phường");
@@ -131,7 +170,7 @@ function GioHangLayout () {
     setWardError("");
     return true;
   };
-    
+
   const validateAddress = (value) => {
     setAddress(value)
     if (!value.trim()) {
@@ -166,7 +205,7 @@ function GioHangLayout () {
         console.error("Lỗi lấy danh sách tỉnh:", err);
       }
     };
-  
+
     fetchProvinces();
   }, []);
 
@@ -195,7 +234,7 @@ function GioHangLayout () {
         console.error("Lỗi lấy danh sách quận/huyện:", err);
       }
     };
-  
+
     fetchDistricts();
   }, [selectedProvince]);
 
@@ -223,7 +262,7 @@ function GioHangLayout () {
         console.error("Lỗi lấy danh sách xã/phường:", err);
       }
     };
-  
+
     fetchWards();
   }, [selectedDistrict]);
 
@@ -284,24 +323,24 @@ function GioHangLayout () {
     }
   }
 
- // Khi user nhấn nút tăng số lượng:
-const increaseQuantity = async (index) => {
-  const newCart = [...cart];
-  const product = newCart[index];
+  // Khi user nhấn nút tăng số lượng:
+  const increaseQuantity = async (index) => {
+    const newCart = [...cart];
+    const product = newCart[index];
 
-  // Gọi API check stock cho product.idsanpham, product.iddungluong, product.idmausac
-  const response = await fetch(`http://localhost:3005/stock/${product.idsanpham}/${product.iddungluong}/${product.idmausac}`);
-  const data = await response.json();
+    // Gọi API check stock cho product.idsanpham, product.iddungluong, product.idmausac
+    const response = await fetch(`http://localhost:3005/stock/${product.idsanpham}/${product.iddungluong}/${product.idmausac}`);
+    const data = await response.json();
 
-  // Nếu còn hàng, tăng
-  if (data.stock > product.soluong) {
-    newCart[index].soluong += 1;
-    setCart(newCart);
-    localStorage.setItem('cart', JSON.stringify(newCart));
-  } else {
-    alert('Không đủ hàng');
-  }
-};
+    // Nếu còn hàng, tăng
+    if (data.stock > product.soluong) {
+      newCart[index].soluong += 1;
+      setCart(newCart);
+      localStorage.setItem('cart', JSON.stringify(newCart));
+    } else {
+      alert('Không đủ hàng');
+    }
+  };
 
 
   const decreaseQuantity = index => {
@@ -358,19 +397,19 @@ const increaseQuantity = async (index) => {
     const isProvinceValid = validateProvince();
     const isDistrictValid = validateDistrict();
     const isWardValid = validateWard();
-  
+
     // Create address from selected province, district, and ward
     if (isProvinceValid && isDistrictValid && isWardValid) {
       const selectedProvinceName = provinces.find(p => p.ProvinceID === Number(selectedProvince))?.ProvinceName || '';
       const selectedDistrictName = districts.find(d => d.DistrictID === Number(selectedDistrict))?.DistrictName || '';
       const selectedWardName = wards.find(w => w.WardCode === selectedWard)?.WardName || '';
-      
+
       const addressParts = [selectedWardName, selectedDistrictName, selectedProvinceName].filter(Boolean);
       setAddress(addressParts.join(', '));
     }
-  
+
     return isNameValid && isPhoneValid && isReceiverValid &&
-           isProvinceValid && isDistrictValid && isWardValid;
+      isProvinceValid && isDistrictValid && isWardValid;
   };
 
   const handelOpenModalTT = () => {
@@ -380,131 +419,131 @@ const increaseQuantity = async (index) => {
   }
 
   // Calculate shipping fee when ward is selected
-// Fixed shipping fee calculation with proper numeric types
-useEffect(() => {
-  const calculateShippingFee = async () => {
-    // Skip calculation if address is incomplete
-    if (!selectedWard || !selectedDistrict || !selectedProvince) {
-      setShippingFee(0);
-      return;
-    }
-
-    setIsCalculatingShipping(true);
-    try {
-      // Set up headers with numeric ShopId
-      const headers = {
-        Token: process.env.REACT_APP_GHN_API_KEY, // Replace with your actual GHN token
-        ShopId: 5724662,  // Make sure this is a NUMBER, not a string
-        'Content-Type': 'application/json'
-      };
-
-      // Calculate total weight (minimum 1kg)
-      const totalWeight = Math.max(
-        cart.reduce((sum, item) => sum + (item.soluong * 500), 0),
-        1000
-      );
-      
-    
-      const fromDistrictID = 1482; 
-      const shopID = 5724662; 
-      
-      // Get selected province and district names for logging
-      const provinceName = provinces.find(p => p.ProvinceID === Number(selectedProvince))?.ProvinceName || '';
-      const districtName = districts.find(d => d.DistrictID === Number(selectedDistrict))?.DistrictName || '';
-      const wardName = wards.find(w => w.WardCode === selectedWard)?.WardName || '';
-      
-      console.log(`Calculating shipping from Cầu Giấy (${fromDistrictID}) to: ${wardName}, ${districtName}, ${provinceName}`);
-      console.log(`Using: ShopID=${shopID}, Weight=${totalWeight}g, Value=${totalPrice}đ`);
-
-      // Step 1: Get available services with numeric shopID
-      console.log("Requesting available services...");
-      const serviceRes = await axios.post(
-        'https://online-gateway.ghn.vn/shiip/public-api/v2/shipping-order/available-services',
-        {
-          shop_id: shopID, // This needs to be a NUMBER
-          from_district: fromDistrictID,
-          to_district: Number(selectedDistrict)
-        },
-        { headers }
-      );
-
-      console.log("Available services response:", serviceRes.data);
-
-      // Handle no available services
-      if (!serviceRes.data?.data || serviceRes.data.data.length === 0) {
-        console.warn("No delivery services available for this route");
-        setShippingFee(30000); // Fallback fee
-        setIsCalculatingShipping(false);
+  // Fixed shipping fee calculation with proper numeric types
+  useEffect(() => {
+    const calculateShippingFee = async () => {
+      // Skip calculation if address is incomplete
+      if (!selectedWard || !selectedDistrict || !selectedProvince) {
+        setShippingFee(0);
         return;
       }
 
-      // Get the first available service
-      const service = serviceRes.data.data[0];
-      const service_id = service.service_id;
-      console.log(`Selected service: ${service.short_name} (ID: ${service_id})`);
-      
-      // Step 2: Calculate shipping fee with detailed data, all numeric IDs
-      console.log("Requesting shipping fee calculation...");
-      const feeRequestData = {
-        service_id: service_id,
-        to_district_id: Number(selectedDistrict),
-        to_ward_code: selectedWard,
-        from_district_id: fromDistrictID,
-        weight: totalWeight,
-        length: 20,
-        width: 15,
-        height: 10,
-        insurance_value: Math.min(totalPrice, 10000000), // Max 10M VND for insurance
-        shop_id: shopID // Make sure this is a NUMBER
-      };
-      
-      console.log("Fee calculation request data:", feeRequestData);
-      
-      const feeRes = await axios.post(
-        'https://online-gateway.ghn.vn/shiip/public-api/v2/shipping-order/fee',
-        feeRequestData,
-        { headers }
-      );
+      setIsCalculatingShipping(true);
+      try {
+        // Set up headers with numeric ShopId
+        const headers = {
+          Token: process.env.REACT_APP_GHN_API_KEY, // Replace with your actual GHN token
+          ShopId: 5724662,  // Make sure this is a NUMBER, not a string
+          'Content-Type': 'application/json'
+        };
 
-      console.log("Fee calculation response:", feeRes.data);
+        // Calculate total weight (minimum 1kg)
+        const totalWeight = Math.max(
+          cart.reduce((sum, item) => sum + (item.soluong * 500), 0),
+          1000
+        );
 
-      if (feeRes.data.code === 200) {
-        setShippingFee(feeRes.data.data.total);
-        console.log(`Shipping fee set to: ${feeRes.data.data.total}đ`);
-      } else {
-        console.warn("GHN fee calculation returned non-200 code:", feeRes.data);
-        
-        // Use a dynamic fallback based on distance and weight
-        const provinceFactor = provinces.findIndex(p => p.ProvinceID === Number(selectedProvince));
-        const baseFee = 15000; // Base fee for shipping
-        const distanceFactor = Math.min(provinceFactor, 10) * 1500; // Up to 15,000đ extra for distance
-        const weightFactor = Math.floor(totalWeight / 1000) * 5000; // 5,000đ per kg
-        
-        const estimatedFee = baseFee + distanceFactor + weightFactor;
-        setShippingFee(estimatedFee);
-        console.log(`Using estimated shipping fee: ${estimatedFee}đ`);
+
+        const fromDistrictID = 1482;
+        const shopID = 5724662;
+
+        // Get selected province and district names for logging
+        const provinceName = provinces.find(p => p.ProvinceID === Number(selectedProvince))?.ProvinceName || '';
+        const districtName = districts.find(d => d.DistrictID === Number(selectedDistrict))?.DistrictName || '';
+        const wardName = wards.find(w => w.WardCode === selectedWard)?.WardName || '';
+
+        console.log(`Calculating shipping from Cầu Giấy (${fromDistrictID}) to: ${wardName}, ${districtName}, ${provinceName}`);
+        console.log(`Using: ShopID=${shopID}, Weight=${totalWeight}g, Value=${totalPrice}đ`);
+
+        // Step 1: Get available services with numeric shopID
+        console.log("Requesting available services...");
+        const serviceRes = await axios.post(
+          'https://online-gateway.ghn.vn/shiip/public-api/v2/shipping-order/available-services',
+          {
+            shop_id: shopID, // This needs to be a NUMBER
+            from_district: fromDistrictID,
+            to_district: Number(selectedDistrict)
+          },
+          { headers }
+        );
+
+        console.log("Available services response:", serviceRes.data);
+
+        // Handle no available services
+        if (!serviceRes.data?.data || serviceRes.data.data.length === 0) {
+          console.warn("No delivery services available for this route");
+          setShippingFee(30000); // Fallback fee
+          setIsCalculatingShipping(false);
+          return;
+        }
+
+        // Get the first available service
+        const service = serviceRes.data.data[0];
+        const service_id = service.service_id;
+        console.log(`Selected service: ${service.short_name} (ID: ${service_id})`);
+
+        // Step 2: Calculate shipping fee with detailed data, all numeric IDs
+        console.log("Requesting shipping fee calculation...");
+        const feeRequestData = {
+          service_id: service_id,
+          to_district_id: Number(selectedDistrict),
+          to_ward_code: selectedWard,
+          from_district_id: fromDistrictID,
+          weight: totalWeight,
+          length: 20,
+          width: 15,
+          height: 10,
+          insurance_value: Math.min(totalPrice, 10000000), // Max 10M VND for insurance
+          shop_id: shopID // Make sure this is a NUMBER
+        };
+
+        console.log("Fee calculation request data:", feeRequestData);
+
+        const feeRes = await axios.post(
+          'https://online-gateway.ghn.vn/shiip/public-api/v2/shipping-order/fee',
+          feeRequestData,
+          { headers }
+        );
+
+        console.log("Fee calculation response:", feeRes.data);
+
+        if (feeRes.data.code === 200) {
+          setShippingFee(feeRes.data.data.total);
+          console.log(`Shipping fee set to: ${feeRes.data.data.total}đ`);
+        } else {
+          console.warn("GHN fee calculation returned non-200 code:", feeRes.data);
+
+          // Use a dynamic fallback based on distance and weight
+          const provinceFactor = provinces.findIndex(p => p.ProvinceID === Number(selectedProvince));
+          const baseFee = 15000; // Base fee for shipping
+          const distanceFactor = Math.min(provinceFactor, 10) * 1500; // Up to 15,000đ extra for distance
+          const weightFactor = Math.floor(totalWeight / 1000) * 5000; // 5,000đ per kg
+
+          const estimatedFee = baseFee + distanceFactor + weightFactor;
+          setShippingFee(estimatedFee);
+          console.log(`Using estimated shipping fee: ${estimatedFee}đ`);
+        }
+      } catch (err) {
+        console.error("Shipping fee calculation error:", err);
+        if (err.response?.data) {
+          console.error("Error details:", err.response.data);
+        }
+
+        // Fallback to a reasonable shipping fee
+        setShippingFee(30000);
+        console.log("Using fallback shipping fee: 30,000đ");
+      } finally {
+        setIsCalculatingShipping(false);
       }
-    } catch (err) {
-      console.error("Shipping fee calculation error:", err);
-      if (err.response?.data) {
-        console.error("Error details:", err.response.data);
-      }
-      
-      // Fallback to a reasonable shipping fee
-      setShippingFee(30000);
-      console.log("Using fallback shipping fee: 30,000đ");
-    } finally {
-      setIsCalculatingShipping(false);
+    };
+
+    // Only calculate if we have complete address and items in cart
+    if (cart.length > 0 && selectedProvince && selectedDistrict && selectedWard) {
+      calculateShippingFee();
+    } else {
+      setShippingFee(0);
     }
-  };
-
-  // Only calculate if we have complete address and items in cart
-  if (cart.length > 0 && selectedProvince && selectedDistrict && selectedWard) {
-    calculateShippingFee();
-  } else {
-    setShippingFee(0);
-  }
-}, [selectedWard, selectedDistrict, selectedProvince, cart, totalPrice, provinces, districts, wards]);
+  }, [selectedWard, selectedDistrict, selectedProvince, cart, totalPrice, provinces, districts, wards]);
 
 
   return (
@@ -669,12 +708,12 @@ useEffect(() => {
                 <label htmlFor=''>Giao tận nơi</label>
               </div>
             </div>
-            
+
             <div className='address-selection-container'>
               <div className='address-field'>
                 <label>Tỉnh/Thành phố</label>
-                <select 
-                  value={selectedProvince} 
+                <select
+                  value={selectedProvince}
                   onChange={(e) => setSelectedProvince(e.target.value)}
                   className={provinceError ? 'error' : ''}
                 >
@@ -688,8 +727,8 @@ useEffect(() => {
 
               <div className='address-field'>
                 <label>Quận/Huyện</label>
-                <select 
-                  value={selectedDistrict} 
+                <select
+                  value={selectedDistrict}
                   onChange={(e) => setSelectedDistrict(e.target.value)}
                   className={districtError ? 'error' : ''}
                   disabled={!selectedProvince}
@@ -704,8 +743,8 @@ useEffect(() => {
 
               <div className='address-field'>
                 <label>Xã/Phường</label>
-                <select 
-                  value={selectedWard} 
+                <select
+                  value={selectedWard}
                   onChange={(e) => setSelectedWard(e.target.value)}
                   className={wardError ? 'error' : ''}
                   disabled={!selectedDistrict}
@@ -718,7 +757,7 @@ useEffect(() => {
                 {wardError && <div className='error_message'><FontAwesomeIcon icon={faCircleExclamation} /> {wardError}</div>}
               </div>
             </div>
-            
+
             <div className='giohang_thongtin_input'>
               <div className='div_thongtin_input'>
                 <input
@@ -734,16 +773,50 @@ useEffect(() => {
           <div className='giohang_content_container'>
             <span>Sử dụng mã giảm giá</span>
             <div className='giohang_thongtin_input'>
-              <div className='div_thongtin_input'>
+              <div className={`div_thongtin_input ${voucherValidation?.valid === false ? 'error' : ''}`}>
                 <input
                   type='text'
                   className='input_giohang'
                   placeholder='Mã giảm giá'
                   value={magiamgia}
                   onChange={e => setmagiamgia(e.target.value)}
+                  onBlur={() => validateVoucher(magiamgia)}
                 />
+
+                {validatingVoucher && (
+                  <div className="validating-voucher">
+                    <FontAwesomeIcon icon={faSpinner} spin />
+                  </div>
+                )}
+
+                {voucherValidation?.valid && (
+                  <div className="valid-voucher-icon">
+                    <FontAwesomeIcon icon={faCheckCircle} />
+                  </div>
+                )}
               </div>
             </div>
+
+            {voucherValidation && (
+              <div className={`voucher-validation-message ${voucherValidation.valid ? 'valid' : 'invalid'}`}>
+                <FontAwesomeIcon icon={voucherValidation.valid ? faCheckCircle : faExclamationTriangle} />
+                <span>{voucherValidation.message}</span>
+
+                {voucherValidation.valid && (
+                  <div className="discount-preview">
+                    Giảm: {voucherValidation.discountAmount?.toLocaleString()}đ
+                  </div>
+                )}
+
+                {/* Hiển thị thông tin bổ sung cho voucher điểm thưởng */}
+                {voucherValidation.isLoyaltyRedeemed && !voucherValidation.valid && (
+                  <div className="loyalty-refund-info">
+                    Điểm thưởng đã dùng để đổi voucher này sẽ được hoàn lại tự động.
+                  </div>
+                )}
+              </div>
+            )}
+
             <div className='giohang_thongtin_tongtien'>
               <div className='div_thongtin_tongtien'>
                 <span>Tạm tính:</span>
@@ -792,7 +865,7 @@ useEffect(() => {
             onClose={() => setisOpenModaltt(false)}
             amount={finalTotalPrice}
             name={name}
-            nguoinhan = {nguoinhan}
+            nguoinhan={nguoinhan}
             phone={phone}
             sex={sex}
             giaotannoi={giaotannoi}
