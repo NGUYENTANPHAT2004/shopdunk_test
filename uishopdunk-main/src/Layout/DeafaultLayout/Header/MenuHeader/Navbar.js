@@ -3,38 +3,39 @@ import { Link } from "react-router-dom";
 import "./Navbar.scss";
 import Header from "../Header";
 import CategoryItem from "../CategoryItem/CategoryItem";
-import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
-import { faBars } from '@fortawesome/free-solid-svg-icons'
-import {  FaBars } from 'react-icons/fa'
+import { FaBars, FaTimes, FaChevronDown, FaSearch } from "react-icons/fa";
+
 const Navbar = () => {
   const [categories, setCategories] = useState([]);
   const [menuOpen, setMenuOpen] = useState(false);
   const [isMobile, setIsMobile] = useState(window.innerWidth <= 768);
   const menuRef = useRef(null);
+  const [activeSubmenu, setActiveSubmenu] = useState(null);
 
   // Check for mobile view on resize
   useEffect(() => {
     const handleResize = () => {
-      setIsMobile(window.innerWidth <= 768);
-      if (window.innerWidth > 768) {
-        setMenuOpen(false); // Close menu when resizing to desktop
+      const mobile = window.innerWidth <= 768;
+      setIsMobile(mobile);
+      if (!mobile && menuOpen) {
+        setMenuOpen(false);
       }
     };
     
     window.addEventListener('resize', handleResize);
-    return () => {
-      window.removeEventListener('resize', handleResize);
-    };
-  }, []);
+    return () => window.removeEventListener('resize', handleResize);
+  }, [menuOpen]);
 
+  // Fetch categories
   useEffect(() => {
     const fetchCategories = async () => {
       try {
         const response = await fetch("http://localhost:3005/listcate");
+        if (!response.ok) throw new Error("Network response was not ok");
         const data = await response.json();
         setCategories(data);
       } catch (error) {
-        console.error("Lỗi khi gọi API:", error);
+        console.error("Error fetching categories:", error);
       }
     };
     fetchCategories();
@@ -43,109 +44,120 @@ const Navbar = () => {
   // Handle click outside to close mobile menu
   useEffect(() => {
     const handleClickOutside = (event) => {
-      if (menuOpen && menuRef.current && !menuRef.current.contains(event.target) &&
+      if (menuOpen && menuRef.current && 
+          !menuRef.current.contains(event.target) &&
           !event.target.closest('.menu-toggle')) {
         setMenuOpen(false);
       }
     };
     
     document.addEventListener('mousedown', handleClickOutside);
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
-    };
+    return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [menuOpen]);
 
-  // Toggle for mobile menu
+  // Toggle menu
   const toggleMenu = () => {
     setMenuOpen(!menuOpen);
+    if (!menuOpen) {
+      // Reset active submenu when opening menu
+      setActiveSubmenu(null);
+    }
   };
 
-  // Toggle individual menu items
-  const toggleMenuItem = (e) => {
-    if (isMobile) {
-      const menuItem = e.currentTarget;
-      const isSubmenuItem = menuItem.classList.contains('has-submenu');
-      
-      if (isSubmenuItem) {
-        e.preventDefault();
-        
-        // Close other open items first
-        const openItems = menuRef.current.querySelectorAll('.submenu-active');
-        openItems.forEach(item => {
-          if (item !== menuItem) {
-            item.classList.remove('submenu-active');
-          }
-        });
-        
-        menuItem.classList.toggle('submenu-active');
-      } else {
-        setMenuOpen(false); // Close menu when clicking regular item
-      }
+  // Toggle submenu
+  const toggleSubmenu = (categoryId) => {
+    if (activeSubmenu === categoryId) {
+      setActiveSubmenu(null);
+    } else {
+      setActiveSubmenu(categoryId);
     }
   };
 
   return (
-    <nav className="navbar">
-      <div className="navbar-container">
-        {/* Logo for desktop */}
-        <div className="logo-container">
-          <Link to="/">
-            <img src="/logo1.png" alt="Logo" className="navbar-logo" />
-          </Link>
+    <nav className="navbar-modern">
+      {/* Top bar */}
+      <div className="topbar">
+        <div className="topbar-container">
+          <div className="logo-container">
+            <Link to="/" className="logo-link">
+              <img src="/logo1.png" alt="ShopDunk" className="logo-image" />
+            </Link>
+          </div>
+          
+          <div className="header-wrapper">
+            <Header />
+          </div>
         </div>
-        
-        {/* Mobile menu toggle button */}
+      </div>
       
-         <button className='menu-toggle' onClick={toggleMenu}>
-                  <FontAwesomeIcon icon={faBars} className={` menu-icon  ${menuOpen ? 'open' : ''}`} />
+      {/* Main menu */}
+      <div className="menu-bar">
+        <div className="menu-container">
+          {/* Mobile menu toggle */}
+          <button className="menu-toggle" onClick={toggleMenu} aria-label="Toggle menu">
+            {menuOpen ? <FaTimes /> : <FaBars />}
+            <span className="toggle-text">Menu</span>
           </button>
-
-        {/* Header component with search and icons */}
-        <div className="header-wrapper">
-          <Header />
+          
+          {/* Main navigation */}
+          <div className={`menu-wrapper ${menuOpen ? 'menu-open' : ''}`}>
+            {menuOpen && <div className="menu-backdrop" onClick={toggleMenu}></div>}
+            
+            <div ref={menuRef} className="main-menu">
+              {menuOpen && (
+                <div className="mobile-menu-header">
+                  <span>Danh mục</span>
+                  <button className="close-menu" onClick={toggleMenu}>
+                    <FaTimes />
+                  </button>
+                </div>
+              )}
+              
+              <ul className="menu-list">
+                <li className="menu-item">
+                  <Link to="/" className="menu-link">Trang chủ</Link>
+                </li>
+                
+                <li className={`menu-item has-submenu ${activeSubmenu === 'category' ? 'submenu-active' : ''}`}>
+                  <button 
+                    className="menu-button" 
+                    onClick={() => isMobile && toggleSubmenu('category')}
+                    aria-expanded={activeSubmenu === 'category'}
+                  >
+                    <span>Danh mục sản phẩm</span>
+                    <FaChevronDown className="submenu-icon" />
+                  </button>
+                  
+                  <div className="submenu-container">
+                    <ul className="submenu-list">
+                      {categories.map((category) => (
+                        <CategoryItem 
+                          key={category._id} 
+                          category={category} 
+                          isMobile={isMobile}
+                          activeSubmenu={activeSubmenu}
+                          toggleSubmenu={toggleSubmenu}
+                        />
+                      ))}
+                    </ul>
+                  </div>
+                </li>
+                
+                <li className="menu-item">
+                  <Link to="/gioi-thieu" className="menu-link">Giới thiệu</Link>
+                </li>
+                
+                <li className="menu-item">
+                  <Link to="/san-pham" className="menu-link">Sản phẩm</Link>
+                </li>
+                
+                <li className="menu-item">
+                  <Link to="/lien-he" className="menu-link">Liên hệ</Link>
+                </li>
+              </ul>
+            </div>
+          </div>
         </div>
-
-        {/* Navigation menu */}
-        <ul ref={menuRef} className={`menu ${menuOpen ? "menu-open" : ""}`}>
-          {/* Product Categories with recursive submenu */}
-          <li className="menu-item has-submenu" onClick={toggleMenuItem}>
-            <span className="menu-title">Danh mục sản phẩm</span>
-            <ul className="submenu">
-              {categories.map((cat) => (
-                <CategoryItem key={cat._id} category={cat} />
-              ))}
-            </ul>
-          </li>
-
-          {/* Other menu items */}
-          <li className="menu-item" onClick={toggleMenuItem}>
-            <Link to="/">Trang chủ</Link>
-          </li>
-          <li className="menu-item" onClick={toggleMenuItem}>
-            <Link to="/gioi-thieu">Giới thiệu</Link>
-          </li>
-          <li className="menu-item" onClick={toggleMenuItem}>
-            <Link to="/">Sản phẩm</Link>
-          </li>
-          {/* <li className="menu-item has-submenu" onClick={toggleMenuItem}>
-            <span className="menu-title">Dịch vụ</span>
-            <ul className="submenu">
-              <li>
-                <Link to="/chinh-sach-van-chuyen" onClick={() => setMenuOpen(false)}>
-                  Chính sách vận chuyển
-                </Link>
-              </li>
-              <li>
-                <Link to="/huong-dan-thanh-toan" onClick={() => setMenuOpen(false)}>
-                  Hướng dẫn thanh toán
-                </Link>
-              </li>
-            </ul>
-          </li>
-          <li className="menu-item" onClick={toggleMenuItem}>
-            <Link to="/lien-he">Liên hệ</Link>
-          </li> */}
-        </ul>
       </div>
     </nav>
   );

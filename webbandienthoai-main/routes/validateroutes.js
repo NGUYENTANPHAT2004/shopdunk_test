@@ -31,14 +31,14 @@ function isAllowedDayOfWeek(daysOfWeek) {
 }
 
 // Xác thực chi tiết với thông tin lỗi đầy đủ
-async function validateVoucherDetailed(magiamgia, phone, totalAmount, userId = null, cartItems = []) {
-  if (!magiamgia) return { 
+async function validateVoucherDetailed(voucherCode, phone, totalAmount, userId = null, cartItems = []) {
+  if (!voucherCode) return { 
     valid: false, 
     message: 'Không có mã giảm giá',
     reason: 'MISSING_CODE'
   };
   
-  const voucher = await magiamgia.findOne({ magiamgia });
+  const voucher = await magiamgia.findOne({ voucherCode });
   if (!voucher) return { 
     valid: false, 
     message: 'Mã giảm giá không tồn tại',
