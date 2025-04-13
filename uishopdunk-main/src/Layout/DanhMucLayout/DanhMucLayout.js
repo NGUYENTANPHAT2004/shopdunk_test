@@ -8,7 +8,8 @@ import ThanhDinhHuong from '../../components/ThanhDinhHuong/ThanhDinhHuong';
 import { Helmet } from 'react-helmet';
 import DanhGiaLayout from '../DanhGiaLayout/DanhGiaLayout';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faArrowLeft, faArrowRight } from '@fortawesome/free-solid-svg-icons';
+import { faArrowLeft, faArrowRight, faStar, faStarHalfAlt } from '@fortawesome/free-solid-svg-icons';
+import { faStar as farStar } from '@fortawesome/free-regular-svg-icons';
 
 const DanhMucLayout = () => {
   const { slug } = useParams();
@@ -234,6 +235,44 @@ const DanhMucLayout = () => {
   
   const breadcrumbs = buildBreadcrumbs();
 
+  // Enhanced ProductCard wrapper component to add custom styling
+  const EnhancedProductCard = ({ product }) => {
+    // Check if product has a discount
+    const hasDiscount = product.priceDiscount && product.priceDiscount < product.price;
+    const discountPercentage = hasDiscount 
+      ? Math.round(((product.price - product.priceDiscount) / product.price) * 100) 
+      : 0;
+
+    return (
+      <div className="product-card">
+        <div className="product-image">
+          <img src={product.image} alt={product.name} />
+          {hasDiscount && (
+            <div className="discount-badge">
+              Giảm {discountPercentage}%
+            </div>
+          )}
+        </div>
+        <div className="product-info">
+          <h3 className="product-name">{product.name}</h3>
+          <div className="product-price">
+            {hasDiscount ? (
+              <>
+                {product.priceDiscount.toLocaleString('vi-VN')}₫
+                <span className="original-price">{product.price.toLocaleString('vi-VN')}₫</span>
+              </>
+            ) : (
+              `${product.price.toLocaleString('vi-VN')}₫`
+            )}
+          </div>
+          <div className="product-meta">
+            {product.theLoaiName}
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   return (
     <div className="theloailayout-container">
       <Helmet>
@@ -242,6 +281,32 @@ const DanhMucLayout = () => {
       </Helmet>
 
       <ThanhDinhHuong breadcrumbs={breadcrumbs} />
+
+      <div className="category-header">
+        <h1>{categoryDetail?.name || "Danh mục"}</h1>
+        <div className="category-description">
+          {categoryDetail?.name === "iPhone" && (
+            <>Khám phá bộ sưu tập iPhone mới nhất tại ShopDunk - đại lý ủy quyền chính thức của Apple tại Việt Nam. Mua ngay để nhận ưu đãi đặc biệt cùng chế độ bảo hành chính hãng.</>
+          )}
+          {categoryDetail?.name === "iPad" && (
+            <>Khám phá các dòng iPad mới nhất với đầy đủ phiên bản, kích thước và màu sắc. Mua iPad chính hãng với giá tốt nhất và nhiều ưu đãi hấp dẫn tại ShopDunk.</>
+          )}
+          {!["iPhone", "iPad"].includes(categoryDetail?.name) && categoryDetail?.name && (
+            <>Mua sắm {categoryDetail?.name} chính hãng với giá tốt nhất và chế độ bảo hành uy tín chỉ có tại ShopDunk - đại lý ủy quyền chính thức của Apple tại Việt Nam.</>
+          )}
+        </div>
+      </div>
+      
+      {/* Featured banner for products */}
+      {categoryDetail?.name === "iPhone" && (
+        <div className="featured-banner">
+          <img src="https://cdn.tgdd.vn/Products/Images/42/289663/s16/iphone-15-pro-blue-titanium-thumbnew-650x650.png" alt="iPhone Promotion" className="banner-image" />
+          <div className="banner-content">
+            <h3>iPhone 16 - Hiệu năng đỉnh cao</h3>
+            <a href="#" className="banner-cta">Xem ngay</a>
+          </div>
+        </div>
+      )}
 
       {/* Thể loại tabs */}
       {allTheLoai.length > 0 && (
@@ -277,15 +342,10 @@ const DanhMucLayout = () => {
       </div>
 
       {/* Product list */}
-      <div className="theloaisp">
+      <div className="theloaisp-category">
         {displayProducts.length > 0 ? (
           displayProducts.map(product => (
-            <ProductCard
-              key={product._id}
-              sanpham={product}
-              setLoading={setLoading}
-              nametheloai={product.theLoaiSlug}
-            />
+            <EnhancedProductCard key={product._id} product={product} />
           ))
         ) : (
           <div className="no-products">Không có sản phẩm nào trong danh mục này</div>
@@ -307,15 +367,39 @@ const DanhMucLayout = () => {
         </div>
       )}
 
-      <ListBlog />
+      {/* Keep original ListBlog component */}
       
-      {/* Pass the selected category/theloai info to DanhGiaLayout */}
+      {/* Use original DanhGiaLayout component */}
       {selectedTheLoaiData && (
         <DanhGiaLayout 
           theloaiId={selectedTheLoaiData.theloaiId}
           theloaiName={selectedTheLoaiData.theloaiName}
           theloaiSlug={selectedTheLoaiData.theloaiSlug}
         />
+      )}
+      
+      {/* Additional information section from reference images */}
+      {categoryDetail && (
+        <div className="info-section">
+          <h3>Apple đã khai tử những dòng iPhone nào?</h3>
+          <p>Tính đến nay, Apple đã khai tử (ngừng sản xuất) các dòng iPhone đời cũ bao gồm: iPhone 2G, iPhone 3G, iPhone 4, iPhone 5 series, iPhone 6 series, iPhone 7 series, iPhone 8 series, iPhone X series, iPhone SE (thế hệ 1), iPhone SE (thế hệ 2), iPhone 11 Pro, iPhone 11 Pro Max, iPhone 12 Pro, iPhone 12 Pro Max.</p>
+          
+          <h3>ShopDunk cung cấp những dòng iPhone nào?</h3>
+          <p>ShopDunk là một trong những thương hiệu bán lẻ được Apple ủy quyền tại Việt Nam, đáp ứng được các yêu cầu khắt khe từ Apple như: dịch vụ kinh doanh, dịch vụ chăm sóc khách hàng, vị trí đặt cửa hàng...</p>
+          <p>Những chiếc iPhone do Apple Việt Nam phân phối tại nước ta đều mang mã VN/A và được bảo hành 12 tháng theo tiêu chuẩn tại các trung tâm bảo hành Apple. Các dòng iPhone được cung cấp tại ShopDunk gồm:</p>
+          <ul>
+            <li><a href="#">iPhone 16 Series</a></li>
+            <li><a href="#">iPhone 15 Series</a></li>
+            <li><a href="#">iPhone 14 Series</a></li>
+            <li><a href="#">iPhone 13 Series</a></li>
+            <li><a href="#">iPhone 12 Series</a></li>
+            <li><a href="#">iPhone 11 Series</a></li>
+            <li><a href="#">iPhone SE 3</a></li>
+          </ul>
+          
+          <h3>Mua iPhone giá tốt nhất tại ShopDunk</h3>
+          <p>ShopDunk đã đại lý ủy quyền Apple tại Việt Nam với hệ thống 40 cửa hàng trên toàn quốc, trong đó có 11 Mono Store. Đến nay, ShopDunk đã trở thành điểm dừng chân lý tưởng cho mọi tín đồ công nghệ.</p>
+        </div>
       )}
     </div>
   );

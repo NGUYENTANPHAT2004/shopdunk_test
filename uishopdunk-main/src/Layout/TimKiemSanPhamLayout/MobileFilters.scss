@@ -7,7 +7,7 @@
       margin-bottom: 20px;
       background-color: #fff;
       border-radius: 8px;
-      box-shadow: 0 2px 10px rgba(0, 0, 0, 0.08);
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
     }
   
     // Header section
@@ -15,7 +15,7 @@
       display: flex;
       justify-content: space-between;
       align-items: center;
-      padding: 12px 15px;
+      padding: 14px 16px;
       border-bottom: 1px solid #f0f0f0;
       
       h3 {
@@ -27,7 +27,7 @@
         align-items: center;
         
         .filter-icon {
-          margin-right: 8px;
+          margin-right: 10px;
           color: #0066cc;
           font-size: 14px;
         }
@@ -58,23 +58,23 @@
       
       &.expanded {
         max-height: 1000px;
-        padding: 15px;
+        padding: 16px;
       }
     }
   
     // Panels
     .filter-panel {
-      margin-bottom: 20px;
+      margin-bottom: 24px;
       
       &:last-child {
         margin-bottom: 0;
       }
       
       &-title {
-        font-size: 14px;
+        font-size: 15px;
         font-weight: 500;
         color: #333;
-        margin-bottom: 12px;
+        margin-bottom: 14px;
       }
       
       // Price range options
@@ -85,10 +85,10 @@
         
         .price-option {
           text-align: center;
-          padding: 10px 5px;
+          padding: 10px 8px;
           background-color: #f7f7f7;
           border: 1px solid #e0e0e0;
-          border-radius: 4px;
+          border-radius: 6px;
           font-size: 13px;
           cursor: pointer;
           transition: all 0.2s;
@@ -97,6 +97,7 @@
             background-color: #0066cc;
             border-color: #0066cc;
             color: white;
+            box-shadow: 0 2px 4px rgba(0, 102, 204, 0.2);
           }
         }
       }
@@ -105,7 +106,7 @@
       .category-list {
         display: flex;
         flex-direction: column;
-        gap: 12px;
+        gap: 14px;
         
         .category-item {
           display: flex;
@@ -131,7 +132,7 @@
     // Action buttons
     &-actions {
       display: flex;
-      gap: 10px;
+      gap: 12px;
       margin-top: 20px;
       
       .apply-btn {
@@ -139,8 +140,8 @@
         background-color: #0066cc;
         color: white;
         border: none;
-        border-radius: 4px;
-        padding: 10px 15px;
+        border-radius: 6px;
+        padding: 12px 15px;
         font-size: 14px;
         font-weight: 500;
         cursor: pointer;
@@ -155,8 +156,8 @@
         background-color: #fff;
         color: #666;
         border: 1px solid #ddd;
-        border-radius: 4px;
-        padding: 10px 15px;
+        border-radius: 6px;
+        padding: 12px 15px;
         font-size: 14px;
         cursor: pointer;
         transition: all 0.2s;
@@ -173,7 +174,7 @@
       display: flex;
       flex-wrap: wrap;
       gap: 8px;
-      margin-bottom: 15px;
+      margin-bottom: 16px;
       
       .filter-tag {
         display: flex;
@@ -225,7 +226,7 @@
         display: flex;
         justify-content: space-between;
         align-items: center;
-        padding: 15px;
+        padding: 16px;
         border-bottom: 1px solid #eee;
         
         h3 {
@@ -240,28 +241,29 @@
           font-size: 20px;
           color: #666;
           cursor: pointer;
+          padding: 4px;
         }
       }
       
       &-content {
         flex: 1;
         overflow-y: auto;
-        padding: 15px;
+        padding: 16px;
       }
       
       &-footer {
         border-top: 1px solid #eee;
-        padding: 15px;
+        padding: 16px;
         background: white;
         
         .filter-drawer-actions {
           display: flex;
-          gap: 10px;
+          gap: 12px;
           
           button {
             flex: 1;
             padding: 12px;
-            border-radius: 4px;
+            border-radius: 6px;
             font-size: 14px;
             font-weight: 500;
             cursor: pointer;
@@ -271,12 +273,21 @@
             background-color: #0066cc;
             color: white;
             border: none;
+            
+            &:hover {
+              background-color: #0052a3;
+            }
           }
           
           .reset-btn {
             background-color: #f5f5f5;
             color: #666;
             border: 1px solid #ddd;
+            
+            &:hover {
+              color: #f44336;
+              border-color: #f44336;
+            }
           }
         }
       }
@@ -313,7 +324,7 @@
       display: flex;
       align-items: center;
       justify-content: center;
-      box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
+      box-shadow: 0 3px 12px rgba(0, 0, 0, 0.2);
       border: none;
       cursor: pointer;
       z-index: 100;
@@ -327,8 +338,69 @@
   
   // Override existing styles to fix mobile issues
   @media (max-width: 480px) {
+    .search-container-product {
+      padding: 12px !important;
+      
+      .search-header {
+        margin-bottom: 20px !important;
+        
+        h1 {
+          font-size: 20px !important;
+          margin-bottom: 8px !important;
+        }
+        
+        p {
+          font-size: 14px !important;
+          margin-bottom: 16px !important;
+        }
+        
+        .filter-controls {
+          flex-wrap: wrap;
+          gap: 10px;
+          
+          .filter-button, 
+          .custom-select,
+          .reset-button {
+            flex: 1;
+            min-width: 0;
+            justify-content: center;
+            white-space: nowrap;
+            font-size: 13px;
+            padding: 8px 10px;
+          }
+        }
+        
+        .search-form form .input-group {
+          .input-wrapper input {
+            padding: 10px 12px;
+            font-size: 14px;
+          }
+          
+          button {
+            padding: 0 15px;
+          }
+        }
+      }
+      
+      .search-results {
+        grid-template-columns: repeat(2, 1fr) !important;
+        gap: 10px !important;
+      }
+      
+      .pagination {
+        margin-top: 20px !important;
+        
+        .page-btn {
+          min-width: 35px;
+          height: 35px;
+          font-size: 13px;
+        }
+      }
+    }
+    
     .filter-sidebar {
-      width: 100%;
+      width: 100% !important;
+      max-width: 100% !important;
       padding: 0;
       
       .filter-section {
@@ -358,22 +430,31 @@
         bottom: 0;
       }
     }
-    
+  }
+
+  // Tablet responsive improvements
+  @media (min-width: 481px) and (max-width: 768px) {
     .search-container-product {
+      padding: 15px;
+      
       .search-header {
+        h1 {
+          font-size: 24px;
+        }
+        
         .filter-controls {
           flex-wrap: wrap;
-          gap: 10px;
           
-          .filter-button, 
-          .custom-select,
-          .reset-button {
+          .custom-select {
             flex: 1;
-            min-width: 0;
-            justify-content: center;
-            white-space: nowrap;
+            min-width: 120px;
           }
         }
+      }
+      
+      .search-results {
+        grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+        gap: 15px;
       }
     }
   }

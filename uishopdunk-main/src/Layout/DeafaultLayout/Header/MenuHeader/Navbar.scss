@@ -1,7 +1,7 @@
 :root {
-  --navbar-bg: #0f79af;
+  --navbar-bg: #161616ed;
   --navbar-text: #ffffff;
-  --topbar-bg: #ffffff;
+  --topbar-bg: #26262ce0;
   --topbar-text: #333333;
   --navbar-hover: rgba(255, 255, 255, 0.15);
   --navbar-active: rgba(255, 255, 255, 0.2);
@@ -26,9 +26,12 @@
 
 // Top bar with logo and header
 .topbar {
+  backdrop-filter: blur(100px); // hiệu ứng mờ
+  -webkit-backdrop-filter: blur(100px); 
   background-color: var(--topbar-bg);
   padding: 10px 0;
-  
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+  z-index: 50;
   .topbar-container {
     max-width: 1300px;
     margin: 0 auto;
