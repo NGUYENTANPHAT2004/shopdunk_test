@@ -157,32 +157,6 @@ const Header = () => {
   }
 
   // Handle click outside user menu
-  useEffect(() => {
-    const handleClickOutside = (event) => {
-      if (isUserMenuOpen && userMenuRef.current && !userMenuRef.current.contains(event.target)) {
-        setIsUserMenuOpen(false);
-      }
-    };
-
-    const handleEscKey = (event) => {
-      if (event.key === 'Escape') {
-        if (isSearchExpanded) {
-          setIsSearchExpanded(false);
-        }
-        if (isUserMenuOpen) {
-          setIsUserMenuOpen(false);
-        }
-      }
-    };
-
-    document.addEventListener('mousedown', handleClickOutside);
-    document.addEventListener('keydown', handleEscKey);
-    
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
-      document.removeEventListener('keydown', handleEscKey);
-    };
-  }, [isUserMenuOpen, isSearchExpanded]);
 
   // UI Mới nhưng giữ nguyên logic hoạt động
   return (
@@ -191,11 +165,11 @@ const Header = () => {
       
       <div className="header-container">
         {/* Vùng tìm kiếm */}
-        <div className={`search-container ${isSearchExpanded ? 'expanded' : ''}`}>
+        <div className={`search-container-header ${isSearchExpanded ? 'expanded' : ''}`}>
           <input
             ref={searchInputRef}
             type="text"
-            className="search-input"
+            className="search-input-header"
             placeholder="Tìm kiếm sản phẩm..."
             value={searchKeyword}
             onChange={e => setSearchKeyword(e.target.value)}
