@@ -68,8 +68,8 @@ const DanhMucLayout = () => {
     fetchCategoryDetail();
   }, [slug]);
 
-  // Update selectedTheLoaiData when selectedTheLoai changes
   useEffect(() => {
+    // Reset any existing selectedTheLoaiData when the category changes
     if (selectedTheLoai === 'all') {
       // If "all" is selected, use the category detail for reviews
       setSelectedTheLoaiData({
@@ -372,6 +372,7 @@ const DanhMucLayout = () => {
       {/* Use original DanhGiaLayout component */}
       {selectedTheLoaiData && (
         <DanhGiaLayout 
+         key={`review-${selectedTheLoaiData.theloaiSlug || 'all'}`}
           theloaiId={selectedTheLoaiData.theloaiId}
           theloaiName={selectedTheLoaiData.theloaiName}
           theloaiSlug={selectedTheLoaiData.theloaiSlug}

@@ -12,6 +12,7 @@ const DanhGiaLayout = ({ theloaiId, theloaiName, theloaiSlug }) => {
   const [content, setContent] = useState('')
   const [danhgias, setDanhgias] = useState([])
   const [averageRating, setAverageRating] = useState(0)
+  const [loading, setLoading] = useState(false)
   const { getUser } = useUserContext()
   const currentUser = getUser()
 
@@ -98,11 +99,20 @@ const DanhGiaLayout = ({ theloaiId, theloaiName, theloaiSlug }) => {
 
   const fetchdanhgia = async () => {
     try {
-      // Use the category-specific endpoint if we have a slug, otherwise fall back to the general endpoint
-      const endpoint = theloaiSlug 
-        ? `http://localhost:3005/getdanhgia/${theloaiSlug}`
-        : 'http://localhost:3005/getdanhgia'
-        
+      setLoading(true)
+      // Clear existing reviews first to avoid showing old data
+      setDanhgias([])
+      setAverageRating(0)
+      
+      // Skip the fetch if we don't have a slug (fresh page load or invalid category)
+      if (!theloaiSlug) {
+        setLoading(false)
+        return
+      }
+      
+      // Use the category-specific endpoint if we have a slug
+      const endpoint = `http://localhost:3005/getdanhgia/${theloaiSlug}`
+      
       const response = await fetch(endpoint)
       
       if (response.ok) {
@@ -122,12 +132,22 @@ const DanhGiaLayout = ({ theloaiId, theloaiName, theloaiSlug }) => {
         position: 'top-right',
         autoClose: 2000
       })
+    } finally {
+      setLoading(false)
     }
   }
 
+  // Reset reviews and fetch new ones when theloaiId or theloaiSlug changes
   useEffect(() => {
-    fetchdanhgia()
-  }, [theloaiSlug]) // Reload reviews when theloaiSlug changes
+    // Reset reviews when category changes
+    setDanhgias([])
+    setAverageRating(0)
+    
+    // Only fetch if we have a valid slug
+    if (theloaiSlug) {
+      fetchdanhgia()
+    }
+  }, [theloaiId, theloaiSlug]) // Add theloaiId as dependency to ensure reloading when category changes
 
   return (
     <div className='review-container'>
@@ -213,7 +233,9 @@ const DanhGiaLayout = ({ theloaiId, theloaiName, theloaiSlug }) => {
       </div>
 
       <div className='reviews'>
-        {danhgias.length > 0 ? (
+        {loading ? (
+          <div className='loading'>Đang tải đánh giá...</div>
+        ) : danhgias.length > 0 ? (
           danhgias.map((review, index) => (
             <div className='review-item' key={review._id || index}>
               <p className='reviewer'>

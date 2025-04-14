@@ -11,6 +11,7 @@ const Navbar = () => {
   const [isMobile, setIsMobile] = useState(window.innerWidth <= 768);
   const menuRef = useRef(null);
   const [activeSubmenu, setActiveSubmenu] = useState(null);
+  const [categoryMenuOpen, setCategoryMenuOpen] = useState(false);
 
   // Check for mobile view on resize
   useEffect(() => {
@@ -61,6 +62,18 @@ const Navbar = () => {
     if (!menuOpen) {
       // Reset active submenu when opening menu
       setActiveSubmenu(null);
+      setCategoryMenuOpen(false);
+    }
+  };
+
+  // Toggle category dropdown
+  const toggleCategoryMenu = () => {
+    if (isMobile) {
+      setCategoryMenuOpen(!categoryMenuOpen);
+      if (categoryMenuOpen) {
+        // If closing category menu, also reset active submenus
+        setActiveSubmenu(null);
+      }
     }
   };
 
@@ -118,17 +131,17 @@ const Navbar = () => {
                   <Link to="/" className="menu-link">Trang chủ</Link>
                 </li>
                 
-                <li className={`menu-item has-submenu ${activeSubmenu === 'category' ? 'submenu-active' : ''}`}>
+                <li className={`menu-item has-submenu ${categoryMenuOpen ? 'submenu-active' : ''}`}>
                   <button 
                     className="menu-button" 
-                    onClick={() => isMobile && toggleSubmenu('category')}
-                    aria-expanded={activeSubmenu === 'category'}
+                    onClick={toggleCategoryMenu}
+                    aria-expanded={categoryMenuOpen}
                   >
                     <span>Danh mục sản phẩm</span>
-                    <FaChevronDown className="submenu-icon" />
+                    <FaChevronDown className={`submenu-icon ${categoryMenuOpen ? 'active' : ''}`} />
                   </button>
                   
-                  <div className="submenu-container">
+                  <div className={`submenu-container ${categoryMenuOpen ? 'active' : ''}`}>
                     <ul className="submenu-list">
                       {categories.map((category) => (
                         <CategoryItem 

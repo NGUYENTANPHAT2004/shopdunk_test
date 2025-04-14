@@ -71,6 +71,7 @@
       cursor: pointer;
       color: var(--icon-color);
       transition: all var(--transition-speed) ease;
+      z-index: 5; /* Ensure buttons are clickable */
       
       &:hover {
         color: var(--icon-hover);
@@ -83,6 +84,11 @@
         &.active {
           transform: rotate(180deg);
         }
+      }
+      
+      /* Hide toggle button on desktop for non-mobile view */
+      @media (min-width: 769px) {
+        display: none;
       }
     }
   }
@@ -110,7 +116,11 @@
     padding: 0;
     
     // Desktop: position absolute for submenus
-    @media (min-width: 769px) {
+@media (min-width: 769px) {
+  .category-item {
+    position: relative;
+
+    .subcategory-list {
       position: absolute;
       top: 0;
       left: 100%;
@@ -123,8 +133,32 @@
       transform: translateX(-10px);
       transition: all var(--transition-speed) ease;
       z-index: 1000;
+
+      // ✨ Xử lý cấp submenu kế tiếp (level 2, 3...)
+      .category-item {
+        &:hover > .subcategory-list {
+          opacity: 1;
+          visibility: visible;
+          transform: translateX(0);
+        }
+
+        .subcategory-list {
+          left: 100%; // để lùi sang phải tiếp tục
+          top: 0;
+        }
+      }
     }
-    
+
+    // Cấp đầu tiên vẫn cần hiển thị khi hover
+    &:hover > .subcategory-list {
+      display: block;
+      opacity: 1;
+      visibility: visible;
+      transform: translateX(0);
+    }
+  }
+}
+
     // Mobile: hide by default, show when active
     @media (max-width: 768px) {
       display: none;
@@ -153,3 +187,56 @@
     }
   }
 }
+
+/* Ensure parent category styles don't affect subcategories */
+.submenu-container {
+  .submenu-list {
+    .category-item {
+      position: relative;
+    }
+  }
+}
+
+/* Make sure the link is clickable on desktop */
+@media (min-width: 769px) {
+  .category-item {
+    position: relative;
+  
+    // Khi hover 1 cấp
+    &:hover > .subcategory-list {
+      display: block;
+      opacity: 1;
+      visibility: visible;
+      transform: translateX(0);
+    }
+  
+    .subcategory-list {
+      // positioning for submenu
+      position: absolute;
+      top: 0;
+      left: 100%;
+      // ...
+  
+      // Nested submenu handling
+      .category-item {
+        position: relative;
+  
+        &:hover > .subcategory-list {
+          display: block;
+          opacity: 1;
+          visibility: visible;
+          transform: translateX(0);
+        }
+  
+        .subcategory-list {
+          top: 0;
+          left: 100%; // cứ đẩy sang phải
+        }
+      }
+    }
+  }
+}
+
+/* Extra styles to add to CategoryItem.scss for desktop hover effects */
+
+/* Desktop arrow icon */
