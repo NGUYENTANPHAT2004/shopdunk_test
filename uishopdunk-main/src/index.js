@@ -5,14 +5,17 @@ import App from './App';
 import reportWebVitals from './reportWebVitals';
 import { UserContextProvider } from './context/Usercontext';
 import { ChatAIProvider } from './context/Chatalcontext';
+import { FlashSaleProvider } from './context/Flashecontext';
 const root = ReactDOM.createRoot(document.getElementById('root'));
 root.render(
   <React.StrictMode>
-    <UserContextProvider>
-      <ChatAIProvider>
+  <UserContextProvider>
+  <FlashSaleProvider>
+    <ChatAIProvider>
       <App />
-      </ChatAIProvider>
-    </UserContextProvider>
+    </ChatAIProvider>
+  </FlashSaleProvider>
+</UserContextProvider>
   </React.StrictMode>
 );
 

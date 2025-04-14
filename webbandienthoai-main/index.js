@@ -35,7 +35,7 @@ const validatemagiamgia = require('./routes/validateroutes.js')
 const { initSocket } = require('./config/socket');
 const { initSocketHandlers } = require('./socket/index');
 const chatAnalyticsService = require('./socket/chat/services/ChatAnalyticsService');
-
+const flasheroutes = require('./routes/flasheroutes.js')
 // Get MongoDB URI from environment variables
 const uri = process.env.MONGODB_URI || 'mongodb+srv://phat1z:123@ez88.akrq2.mongodb.net/datn?retryWrites=true&w=majority&appName=ez88';
 
@@ -103,6 +103,7 @@ app.use('/', chatroutes);
 app.use('/', loyaltyPointsRoutes);
 app.use('/', adminpoin);
 app.use('/', validatemagiamgia)
+app.use("/", flasheroutes)
 
 // Setup daily analytics job
 const setupDailyAnalytics = () => {

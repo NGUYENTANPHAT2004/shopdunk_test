@@ -9,6 +9,7 @@ import VoucherModal from '../../../components/VoucherModal/VoucherModal'
 import VoucherNotification from '../../../notifi/VoucherNotification'
 import WelcomeVoucher from '../../../notifi/WelcomeVoucher'
 import UserPointsInfo from '../../../components/UserPointsInfo/UserPointsInfo';
+import FlashSaleNotification from '../../../notifi/flashenotification'
 
 const Header = () => {
   const [searchKeyword, setSearchKeyword] = useState('')
@@ -141,6 +142,7 @@ const Header = () => {
       if (userId) {
         setIsVoucherModalOpen(true);
         setHasNewVouchers(false);
+        setIsUserMenuOpen(false);
       } else {
         toast.warning('Không tìm thấy thông tin người dùng của bạn', {
           position: "top-right",
@@ -270,6 +272,7 @@ const Header = () => {
           onClose={dismissWelcomeVoucher}
         />
       )}
+      <FlashSaleNotification />
     </header>
   )
 }

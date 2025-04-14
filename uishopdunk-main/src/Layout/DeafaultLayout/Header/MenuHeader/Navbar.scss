@@ -21,17 +21,19 @@
   width: 100%;
   font-family: 'Roboto', Arial, sans-serif;
   box-shadow: 0 2px 10px var(--shadow-color);
-  z-index: 1000;
+  z-index: 990; // Đảm bảo menu dưới các dropdown
 }
 
 // Top bar with logo and header
 .topbar {
-  backdrop-filter: blur(100px); // hiệu ứng mờ
+  backdrop-filter: blur(100px);
   -webkit-backdrop-filter: blur(100px); 
   background-color: var(--topbar-bg);
   padding: 10px 0;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
-  z-index: 50;
+  position: relative;
+  z-index: 991; // Cao hơn navbar để đảm bảo hiển thị đúng
+  
   .topbar-container {
     max-width: 1300px;
     margin: 0 auto;
@@ -73,6 +75,8 @@
 .menu-bar {
   background-color: var(--navbar-bg);
   color: var(--navbar-text);
+  position: relative;
+  z-index: 990;
   
   .menu-container {
     max-width: 1300px;
@@ -111,6 +115,7 @@
   // Menu wrapper
   .menu-wrapper {
     display: flex;
+    flex: 1;
     
     @media (max-width: 768px) {
       .menu-backdrop {
@@ -141,6 +146,8 @@
   
   // Main menu
   .main-menu {
+    width: 100%;
+    
     @media (max-width: 768px) {
       position: fixed;
       top: 0;
@@ -182,10 +189,10 @@
     list-style: none;
     margin: 0;
     padding: 0;
+    width: 100%;
     
     @media (max-width: 768px) {
       flex-direction: column;
-      width: 100%;
     }
     
     // Menu items
@@ -194,6 +201,10 @@
       
       @media (max-width: 768px) {
         border-bottom: 1px solid var(--submenu-border);
+        
+        &:last-child {
+          border-bottom: none;
+        }
       }
       
       // Links in menu
@@ -206,7 +217,7 @@
         text-decoration: none;
         white-space: nowrap;
         font-size: 15px;
-        transition: background-color var(--transition-speed) ease;
+        transition: all var(--transition-speed) ease;
         
         &:hover {
           background-color: var(--navbar-hover);
@@ -231,6 +242,7 @@
         border: none;
         cursor: pointer;
         font-family: inherit;
+        width: 100%;
         
         .submenu-icon {
           margin-left: 8px;
@@ -250,24 +262,25 @@
       // Submenu container
       &.has-submenu {
         .submenu-container {
+          background-color: var(--submenu-bg);
+          
           @media (min-width: 769px) {
             position: absolute;
             top: 100%;
             left: 0;
             min-width: 220px;
-            background-color: var(--submenu-bg);
             border-radius: 0 0 var(--border-radius) var(--border-radius);
             box-shadow: 0 4px 10px var(--shadow-color);
             visibility: hidden;
             opacity: 0;
             transform: translateY(-10px);
             transition: all var(--transition-speed) ease;
-            z-index: 1000;
-            overflow: hidden;
+            z-index: 995; // Đảm bảo hiển thị trên nền trang
           }
           
           @media (max-width: 768px) {
             display: none;
+            background-color: var(--submenu-hover-bg);
             
             &.active {
               display: block;
@@ -286,9 +299,8 @@
         // Active state for mobile
         &.submenu-active {
           @media (max-width: 768px) {
-            background-color: var(--submenu-active-bg);
-            
-            .menu-button {
+            > .menu-button {
+              background-color: var(--submenu-active-bg);
               color: var(--submenu-hover-text);
             }
           }
@@ -302,16 +314,31 @@
         margin: 0;
         
         @media (max-width: 768px) {
-          padding: 0 0 10px 0;
+          padding: 0;
         }
       }
     }
   }
 }
 
-/* Make sure nested categories display on hover */
+/* Đảm bảo submenu hiển thị khi hover */
 @media (min-width: 769px) {
-  .category-item.has-submenu:hover > .subcategory-list {
+  // Level 1: Menu item hover - hiển thị submenu-container
+  .menu-bar .menu-list .menu-item.has-submenu:hover .submenu-container {
+    visibility: visible;
+    opacity: 1;
+    transform: translateY(0);
+  }
+  
+  // Level 2: Category item hover - hiển thị subcategory-list
+  .submenu-container .submenu-list .category-item:hover > .subcategory-list {
+    opacity: 1;
+    visibility: visible;
+    transform: translateX(0);
+  }
+  
+  // Level 3+: Nested category items
+  .subcategory-list .category-item:hover > .subcategory-list {
     opacity: 1;
     visibility: visible;
     transform: translateX(0);

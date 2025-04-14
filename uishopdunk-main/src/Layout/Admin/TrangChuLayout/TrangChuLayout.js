@@ -13,6 +13,7 @@ import { useEffect, useState } from 'react'
 import { UserLayout } from '../UserLayout'
 import AdminChatTraining from '../Chat/Chatlayout'
 import LoyaltyPointsAdminLayout from '../Poin/Poin'
+import FlashSaleAdmin from '../flashe/FlashSaleAdmin'
 function TrangChuLayout() {
   const [searchParams] = useSearchParams()
   const tabFromUrl = searchParams.get('tab') || 'Trang chủ'
@@ -31,6 +32,7 @@ function TrangChuLayout() {
         {tabFromUrl === 'Người dùng' && < UserLayout />}
         {tabFromUrl === 'Chat' && < AdminChatTraining />}
         {tabFromUrl === 'Điểm Thưởng' && <LoyaltyPointsAdminLayout />}
+        {tabFromUrl === 'Flash Sale' && <FlashSaleAdmin />}
       </div>
     </div>
   )

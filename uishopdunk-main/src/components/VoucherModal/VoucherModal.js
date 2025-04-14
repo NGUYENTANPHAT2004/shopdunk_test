@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { FaTicketAlt, FaCopy, FaCheckCircle, FaRegClock, FaTimes, FaGift, FaStar, FaCrown } from 'react-icons/fa';
 import './VoucherModal.scss';
 import { useUserContext } from '../../context/Usercontext';
@@ -11,6 +11,12 @@ const VoucherModal = ({ isOpen, onClose }) => {
   const [notification, setNotification] = useState(null);
   const [lastGoldenHourCheck, setLastGoldenHourCheck] = useState(0);
   
+  // Thêm state cho phép kéo thả
+  const [isDragging, setIsDragging] = useState(false);
+  const [modalPosition, setModalPosition] = useState({ x: 0, y: 0 });
+  const [dragStartPosition, setDragStartPosition] = useState({ x: 0, y: 0 });
+  const modalRef = useRef(null);
+  
   // Lấy thông tin người dùng từ context
   const { user } = useUserContext();
 
@@ -22,6 +28,13 @@ const VoucherModal = ({ isOpen, onClose }) => {
     // Trả về userId, có thể nằm trực tiếp trong user hoặc trong user.user
     return user._id || (user.user && user.user._id);
   };
+
+  // Reset vị trí modal khi mở lại
+  useEffect(() => {
+    if (isOpen) {
+      setModalPosition({ x: 0, y: 0 });
+    }
+  }, [isOpen]);
 
   useEffect(() => {
     const fetchVouchers = async () => {
@@ -237,11 +250,71 @@ const VoucherModal = ({ isOpen, onClose }) => {
     }
   };
 
+  // Xử lý kéo thả modal
+  const handleMouseDown = (e) => {
+    // Chỉ cho phép kéo từ header
+    if (e.target.closest('.voucher-modal-header') && !e.target.closest('.close-button')) {
+      setIsDragging(true);
+      setDragStartPosition({
+        x: e.clientX - modalPosition.x,
+        y: e.clientY - modalPosition.y
+      });
+    }
+  };
+
+  const handleMouseMove = (e) => {
+    if (isDragging) {
+      const newX = e.clientX - dragStartPosition.x;
+      const newY = e.clientY - dragStartPosition.y;
+      
+      // Giới hạn không cho modal ra khỏi màn hình
+      const modalRect = modalRef.current.getBoundingClientRect();
+      const windowWidth = window.innerWidth;
+      const windowHeight = window.innerHeight;
+      
+      const maxX = windowWidth - modalRect.width;
+      const maxY = windowHeight - modalRect.height;
+      
+      setModalPosition({
+        x: Math.min(Math.max(0, newX), maxX),
+        y: Math.min(Math.max(0, newY), maxY)
+      });
+    }
+  };
+
+  const handleMouseUp = () => {
+    setIsDragging(false);
+  };
+
+  // Thêm event listener khi component mount
+  useEffect(() => {
+    if (isOpen) {
+      document.addEventListener('mousemove', handleMouseMove);
+      document.addEventListener('mouseup', handleMouseUp);
+      
+      return () => {
+        document.removeEventListener('mousemove', handleMouseMove);
+        document.removeEventListener('mouseup', handleMouseUp);
+      };
+    }
+  }, [isOpen, isDragging]);
+
   if (!isOpen) return null;
 
   return (
-    <div className="voucher-modal-overlay" onClick={onClose}>
-      <div className="voucher-modal" onClick={(e) => e.stopPropagation()}>
+    <div 
+      className="voucher-modal-overlay" 
+      onClick={onClose}
+    >
+      <div 
+        ref={modalRef}
+        className={`voucher-modal ${isDragging ? 'dragging' : ''}`}
+        onClick={(e) => e.stopPropagation()}
+        onMouseDown={handleMouseDown}
+        style={{
+          transform: `translate(${modalPosition.x}px, ${modalPosition.y}px)`
+        }}
+      >
         <div className="voucher-modal-header">
           <div className="voucher-modal-title">
             <FaTicketAlt className="voucher-icon" />

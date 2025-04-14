@@ -11,7 +11,8 @@ import {
   faWarehouse,
   faUser,
   faChainBroken,
-  faStar
+  faStar,
+  faBolt // Thêm icon cho Flash Sale
 } from '@fortawesome/free-solid-svg-icons'
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
 import './SideBar.scss'
@@ -26,6 +27,7 @@ function Sidebar ({ activeTab }) {
     { name: 'Blog', icon: faBlog },
     { name: 'Danh Mục', icon: faBuilding },
     { name: 'Mã Giảm Giá', icon: faPercent },
+    { name: 'Flash Sale', icon: faBolt }, // Thêm mục Flash Sale
     { name: 'Đánh giá', icon: faComments },
     { name: 'Doanh Thu', icon: faChartLine },
     { name: 'Hóa đơn', icon: faReceipt },
@@ -48,14 +50,13 @@ function Sidebar ({ activeTab }) {
 
       <div className='sidebar_body'>
         {menus.map((menu, index) => (
-          <a href={`/admin?tab=${menu.name}`}>
+          <a href={`/admin?tab=${menu.name}`} key={index}>
             <div
               className={
                 activeTab === menu.name
                   ? 'sidebar_item sidebar_item_active'
                   : 'sidebar_item'
               }
-              key={index}
             >
               <FontAwesomeIcon icon={menu.icon} className='sidebar_icon' />
               <span className={`sidebar_text ${istoggle ? 'show' : 'hide'}`}>

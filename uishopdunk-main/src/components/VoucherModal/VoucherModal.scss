@@ -8,32 +8,36 @@
   display: flex;
   justify-content: center;
   align-items: center;
-  z-index: 2000; /* Tăng z-index để hiển thị trên tất cả các phần tử khác */
+  z-index: 2000; /* Cao hơn tất cả các phần tử khác */
   padding: 20px;
+  backdrop-filter: blur(3px); /* Tạo hiệu ứng mờ cho nền */
 }
 
 .voucher-modal {
   background-color: white;
-  border-radius: 8px;
+  border-radius: 12px; /* Bo góc nhiều hơn */
   width: 100%;
   max-width: 500px;
-  max-height: 90vh;
+  max-height: 80vh; /* Giảm chiều cao tối đa */
   display: flex;
   flex-direction: column;
-  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.25); /* Đổ bóng rõ hơn */
   animation: modalFadeIn 0.3s ease;
-  position: relative; /* Đảm bảo position relative cho modal */
+  position: relative;
+  overflow: hidden; /* Đảm bảo không bị tràn nội dung */
+  margin: auto; /* Căn giữa modal */
   
   @media (max-width: 576px) {
-    max-width: 100%;
-    height: 90vh;
+    max-width: 95%;
+    max-height: 85vh;
+    margin: 20px auto; /* Thêm margin top/bottom trên mobile */
   }
 }
 
 @keyframes modalFadeIn {
   from {
     opacity: 0;
-    transform: translateY(20px);
+    transform: translateY(-20px); /* Hiệu ứng rơi xuống */
   }
   to {
     opacity: 1;
@@ -41,18 +45,18 @@
   }
 }
 
-/* Các phần CSS khác giữ nguyên */
 .voucher-modal-header {
-  padding: 15px 20px;
+  padding: 18px 24px; /* Padding lớn hơn */
   border-bottom: 1px solid #eee;
   display: flex;
   justify-content: space-between;
   align-items: center;
+  background-color: #f8f8f8; /* Thêm màu nền nhẹ cho header */
   
   .voucher-modal-title {
     display: flex;
     align-items: center;
-    gap: 10px;
+    gap: 12px;
     
     .voucher-icon {
       color: #d26e4b;
@@ -61,21 +65,28 @@
     
     h2 {
       margin: 0;
-      font-size: 1.2rem;
+      font-size: 1.25rem;
       color: #333;
+      font-weight: 600;
     }
   }
   
   .close-button {
     background: none;
     border: none;
-    font-size: 20px;
+    font-size: 22px;
     cursor: pointer;
     color: #555;
-    padding: 5px;
+    padding: 6px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s ease;
     
     &:hover {
       color: #d26e4b;
+      background-color: rgba(0, 0, 0, 0.05);
     }
   }
 }
@@ -86,7 +97,7 @@
   
   .tab-button {
     flex: 1;
-    padding: 12px 15px;
+    padding: 14px 16px;
     background: none;
     border: none;
     cursor: pointer;
@@ -94,11 +105,11 @@
     transition: all 0.2s ease;
     color: #555;
     position: relative;
-    white-space: nowrap; /* Ngăn chặn văn bản bị ngắt dòng */
+    white-space: nowrap;
     
     @media (max-width: 400px) {
       font-size: 0.85rem;
-      padding: 12px 5px;
+      padding: 12px 8px;
     }
     
     &:hover {
@@ -107,6 +118,7 @@
     
     &.active {
       color: #d26e4b;
+      font-weight: 600;
       
       &:after {
         content: "";
@@ -114,9 +126,279 @@
         bottom: -1px;
         left: 0;
         width: 100%;
-        height: 2px;
+        height: 3px; /* Đường gạch dày hơn */
         background-color: #d26e4b;
+        border-radius: 3px 3px 0 0;
       }
     }
+  }
+}
+
+/* Thêm CSS cho phần nội dung */
+.voucher-modal-content {
+  flex: 1;
+  overflow-y: auto;
+  padding: 5px;
+  scrollbar-width: thin;
+  
+  &::-webkit-scrollbar {
+    width: 6px;
+  }
+  
+  &::-webkit-scrollbar-track {
+    background: #f1f1f1;
+  }
+  
+  &::-webkit-scrollbar-thumb {
+    background: #d1d1d1;
+    border-radius: 3px;
+  }
+}
+
+.no-vouchers {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 150px;
+  text-align: center;
+  color: #666;
+  font-size: 15px;
+}
+
+.loading-spinner {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 150px;
+  
+  .spinner {
+    border: 3px solid rgba(0, 0, 0, 0.1);
+    border-radius: 50%;
+    border-top: 3px solid #d26e4b;
+    width: 30px;
+    height: 30px;
+    animation: spin 1s linear infinite;
+    margin-bottom: 15px;
+  }
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+/* Notification banner */
+.notification-banner {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 20px;
+  margin: 0;
+  font-size: 14px;
+  
+  &.success {
+    background-color: #e7f7ed;
+    color: #0d6832;
+  }
+  
+  &.error {
+    background-color: #fdecea;
+    color: #b71c1c;
+  }
+  
+  &.golden {
+    background-color: #fff8e1;
+    color: #ff8f00;
+  }
+  
+  .dismiss-button {
+    background: none;
+    border: none;
+    color: inherit;
+    cursor: pointer;
+    padding: 0;
+    margin-left: 10px;
+    opacity: 0.7;
+    
+    &:hover {
+      opacity: 1;
+    }
+  }
+}
+
+/* Vouchers list */
+.vouchers-list {
+  padding: 15px;
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+}
+
+.voucher-item {
+  border: 1px solid #eaeaea;
+  border-radius: 8px;
+  overflow: hidden;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+  transition: all 0.2s ease;
+  
+  &:hover {
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    transform: translateY(-2px);
+  }
+  
+  &.expired {
+    opacity: 0.7;
+    filter: grayscale(50%);
+  }
+  
+  &.golden-hour-voucher {
+    border-color: #ffab00;
+    
+    &.active-golden-hour {
+      border-width: 2px;
+      box-shadow: 0 0 15px rgba(255, 171, 0, 0.3);
+    }
+  }
+}
+
+.voucher-header {
+  background-color: #f9f9f9;
+  padding: 12px 15px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 1px solid #eee;
+  position: relative;
+  
+  .voucher-type {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 13px;
+    font-weight: 500;
+    color: #555;
+    
+    .voucher-type-icon {
+      font-size: 16px;
+      
+      &.first { color: #9c27b0; }
+      &.loyal { color: #ffc107; }
+      &.welcome { color: #4caf50; }
+      &.server { color: #ff5722; }
+      &.default { color: #2196f3; }
+    }
+  }
+  
+  .discount-label {
+    font-weight: 600;
+    color: #d26e4b;
+    font-size: 15px;
+  }
+  
+  .expired-label {
+    position: absolute;
+    top: 0;
+    right: 0;
+    background-color: rgba(0, 0, 0, 0.6);
+    color: white;
+    font-size: 11px;
+    padding: 3px 8px;
+    border-radius: 0 8px 0 8px;
+  }
+  
+  .active-now-label {
+    position: absolute;
+    top: 0;
+    right: 0;
+    background-color: #ffab00;
+    color: white;
+    font-size: 11px;
+    padding: 3px 8px;
+    border-radius: 0 8px 0 8px;
+  }
+}
+
+.voucher-body {
+  padding: 15px;
+  
+  .voucher-info {
+    margin-bottom: 10px;
+  }
+  
+  .voucher-code-label {
+    font-size: 13px;
+    color: #666;
+    margin: 0 0 5px;
+  }
+  
+  .voucher-code {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background-color: #f5f5f5;
+    padding: 8px 12px;
+    border-radius: 4px;
+    font-family: monospace;
+    font-size: 16px;
+    margin-bottom: 10px;
+    
+    .copy-button {
+      background: none;
+      border: none;
+      color: #666;
+      cursor: pointer;
+      transition: all 0.2s;
+      
+      &:hover {
+        color: #d26e4b;
+      }
+      
+      .copied-icon {
+        color: #4caf50;
+      }
+    }
+  }
+  
+  .min-order, .max-order, .days-restriction {
+    font-size: 13px;
+    color: #666;
+    margin: 5px 0;
+  }
+  
+  .golden-hour {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 13px;
+    color: #ff8f00;
+    margin: 8px 0;
+    
+    &.active {
+      font-weight: 600;
+    }
+    
+    .active-badge {
+      background-color: #ffab00;
+      color: white;
+      font-size: 10px;
+      padding: 2px 5px;
+      border-radius: 3px;
+      margin-left: 5px;
+    }
+  }
+}
+
+.voucher-footer {
+  background-color: #f9f9f9;
+  padding: 10px 15px;
+  display: flex;
+  justify-content: space-between;
+  border-top: 1px solid #eee;
+  font-size: 12px;
+  color: #666;
+  
+  .validity, .uses-left {
+    margin: 0;
   }
 }
