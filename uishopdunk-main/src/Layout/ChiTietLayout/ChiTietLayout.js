@@ -14,6 +14,7 @@ import 'slick-carousel/slick/slick.css'
 import 'slick-carousel/slick/slick-theme.css'
 import { RelatedProducts } from '../Splienquan'
 import ProductRatingsContainer from '../../components/ProductRating/ProductRatingcontainer'
+import ProductFlashSale from '../../components/flashe/ProductFlashSale'
 
 const ChiTietLayout = () => {
   const { tieude, loaisp } = useParams()
@@ -434,6 +435,7 @@ const ChiTietLayout = () => {
                 </div>
               </div>
             </div>
+            {idsanpham && <ProductFlashSale productId={idsanpham} />}
             <div className='chitietprice'>
               <span className='current-price'>
                 {pricemausac ? pricemausac.toLocaleString() : 0}đ

@@ -21,6 +21,7 @@ import { TimKiemSanPhamLayout } from '../Layout/TimKiemSanPhamLayout'
 import { DanhMucLayout } from '../Layout/DanhMucLayout'
 import LichSuDonHangLayout from '../Layout/lichsudonhang/lichsudonhang'
 import UserPointsPage from '../Layout/UserPoint/UserPointsPage'
+import FlashSalePage from '../components/flashe/flashepage'
 
 const publicRoutes = [
   { path: '/', component: TrangChuLayout },
@@ -47,6 +48,7 @@ const publicRoutes = [
   { path: '/locsanpham', component: TimKiemSanPhamLayout },
   { path: '/orders', component: LichSuDonHangLayout },
   { path: '/diem-thuong', component: UserPointsPage },
+  {path: "/flash-sale/:id" , component: FlashSalePage  }
   
 
 ]
