@@ -6,7 +6,7 @@ import moment from 'moment';
 import './ProductFlashSale.scss';
 import { useFlashSale } from '../../context/Flashecontext';
 
-const ProductFlashSale = ({ productId }) => {
+const ProductFlashSale = ({ productId, dungluongId, mausacId }) => {
   const { checkProductInFlashSale } = useFlashSale();
   const [flashSaleInfo, setFlashSaleInfo] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -21,7 +21,7 @@ const ProductFlashSale = ({ productId }) => {
     const checkFlashSale = async () => {
       try {
         setLoading(true);
-        const result = await checkProductInFlashSale(productId);
+        const result = await checkProductInFlashSale(productId, dungluongId, mausacId);
         
         if (result.inFlashSale) {
           setFlashSaleInfo(result.flashSaleInfo);
@@ -39,7 +39,7 @@ const ProductFlashSale = ({ productId }) => {
     if (productId) {
       checkFlashSale();
     }
-  }, [productId, checkProductInFlashSale]);
+  }, [productId, dungluongId, mausacId, checkProductInFlashSale]);
 
   // Cập nhật đồng hồ đếm ngược nếu sản phẩm có trong Flash Sale
   useEffect(() => {
@@ -71,7 +71,7 @@ const ProductFlashSale = ({ productId }) => {
     if (!isActive) return;
     
     // Cập nhật mỗi giây
-          const timerId = setInterval(() => {
+    const timerId = setInterval(() => {
       const isStillActive = calculateRemainingTime();
       
       if (!isStillActive) {

@@ -142,6 +142,10 @@ router.post('/admin/flash-sales',
   checkAdminAuth, 
   uploads.fields([{ name: 'bannerImage', maxCount: 1 }]), 
   async (req, res) => {
+    // Bắt đầu giao dịch cơ sở dữ liệu
+    const session = await db.mongoose.startSession();
+    session.startTransaction();
+
     try {
       const { 
         name, description, startTime, endTime, 
@@ -182,7 +186,10 @@ router.post('/admin/flash-sales',
         
         // Validate từng sản phẩm
         for (const product of parsedProducts) {
+          // Kiểm tra thông tin cơ bản
           if (!product.productId || !product.originalPrice || !product.salePrice || !product.quantity) {
+            await session.abortTransaction();
+            session.endSession();
             return res.status(400).json({
               success: false,
               message: 'Thông tin sản phẩm không đầy đủ'
@@ -190,13 +197,48 @@ router.post('/admin/flash-sales',
           }
           
           // Kiểm tra sản phẩm có tồn tại không
-          const existProduct = await Sp.ChitietSp.findById(product.productId);
+          const existProduct = await Sp.ChitietSp.findById(product.productId).session(session);
           if (!existProduct) {
+            await session.abortTransaction();
+            session.endSession();
             return res.status(400).json({
               success: false,
               message: `Sản phẩm với ID ${product.productId} không tồn tại`
             });
           }
+          
+          // Tìm bản ghi tồn kho tương ứng
+          const stockFilter = {
+            productId: product.productId
+          };
+          
+          // Thêm dungluongId và mausacId nếu có
+          if (product.dungluongId) stockFilter.dungluongId = product.dungluongId;
+          if (product.mausacId) stockFilter.mausacId = product.mausacId;
+          
+          const stockRecord = await ProductSizeStock.findOne(stockFilter).session(session);
+          
+          if (!stockRecord) {
+            await session.abortTransaction();
+            session.endSession();
+            return res.status(400).json({
+              success: false,
+              message: `Không tìm thấy thông tin tồn kho cho sản phẩm ${existProduct.name} ${product.dungluongId ? '(dungluong)' : ''} ${product.mausacId ? '(mausac)' : ''}`
+            });
+          }
+          
+          // Kiểm tra số lượng tồn kho
+          if (!stockRecord.unlimitedStock && stockRecord.quantity < product.quantity) {
+            await session.abortTransaction();
+            session.endSession();
+            return res.status(400).json({
+              success: false,
+              message: `Sản phẩm ${existProduct.name} không đủ số lượng trong kho. Hiện chỉ còn ${stockRecord.quantity} sản phẩm.`
+            });
+          }
+          
+          // Thêm stockId vào sản phẩm
+          product.stockId = stockRecord._id;
           
           // Tính phần trăm giảm giá
           if (!product.discountPercent) {
@@ -213,6 +255,8 @@ router.post('/admin/flash-sales',
         }
       } catch (error) {
         console.error('Lỗi khi xử lý danh sách sản phẩm:', error);
+        await session.abortTransaction();
+        session.endSession();
         return res.status(400).json({
           success: false,
           message: 'Danh sách sản phẩm không hợp lệ'
@@ -231,7 +275,11 @@ router.post('/admin/flash-sales',
         products: parsedProducts
       });
       
-      await flashSale.save();
+      await flashSale.save({ session });
+      
+      // Commit giao dịch
+      await session.commitTransaction();
+      session.endSession();
       
       res.json({
         success: true,
@@ -239,6 +287,10 @@ router.post('/admin/flash-sales',
         data: flashSale
       });
     } catch (error) {
+      // Rollback nếu xảy ra lỗi
+      await session.abortTransaction();
+      session.endSession();
+      
       console.error('Lỗi khi tạo Flash Sale:', error);
       res.status(500).json({
         success: false,
@@ -686,16 +738,32 @@ router.get('/flash-sales/:id', async (req, res) => {
 router.get('/flash-sale-products/:productId', async (req, res) => {
   try {
     const { productId } = req.params;
+    const { dungluongId, mausacId } = req.query; // Lấy thêm thông tin về biến thể
     const now = new Date();
     
-    // Tìm Flash Sale đang diễn ra có chứa sản phẩm này
-    const flashSale = await FlashSale.findOne({
+    // Xây dựng điều kiện tìm kiếm
+    const matchConditions = {
       isActive: true,
       isDeleted: false,
       startTime: { $lte: now },
       endTime: { $gt: now },
       'products.productId': productId
-    }).populate('products.productId', 'name image namekhongdau price');
+    };
+    
+    // Thêm điều kiện về dung lượng và màu sắc nếu có
+    if (dungluongId) {
+      matchConditions['products.dungluongId'] = dungluongId;
+    }
+    
+    if (mausacId) {
+      matchConditions['products.mausacId'] = mausacId;
+    }
+    
+    // Tìm Flash Sale đang diễn ra có chứa sản phẩm này
+    const flashSale = await FlashSale.findOne(matchConditions)
+      .populate('products.productId', 'name image namekhongdau price')
+      .populate('products.dungluongId', 'name')
+      .populate('products.mausacId', 'name');
     
     if (!flashSale) {
       return res.status(404).json({
@@ -704,8 +772,27 @@ router.get('/flash-sale-products/:productId', async (req, res) => {
       });
     }
     
-    // Lấy thông tin sản phẩm trong Flash Sale
-    const product = flashSale.products.find(p => p.productId._id.toString() === productId);
+    // Tìm thông tin biến thể sản phẩm trong Flash Sale
+    const productFilter = { productId: { $eq: productId } };
+    if (dungluongId) productFilter.dungluongId = dungluongId;
+    if (mausacId) productFilter.mausacId = mausacId;
+    
+    const product = flashSale.products.find(p => {
+      // Kiểm tra productId
+      const productIdMatch = p.productId._id.toString() === productId;
+      
+      // Kiểm tra dungluongId nếu được chỉ định
+      const dungluongIdMatch = dungluongId 
+        ? p.dungluongId && p.dungluongId._id.toString() === dungluongId
+        : true;
+      
+      // Kiểm tra mausacId nếu được chỉ định
+      const mausacIdMatch = mausacId 
+        ? p.mausacId && p.mausacId._id.toString() === mausacId
+        : true;
+      
+      return productIdMatch && dungluongIdMatch && mausacIdMatch;
+    });
     
     if (!product || product.status !== 'available' || product.soldQuantity >= product.quantity) {
       return res.status(404).json({
@@ -722,6 +809,10 @@ router.get('/flash-sale-products/:productId', async (req, res) => {
       name: product.productId.name,
       image: product.productId.image,
       namekhongdau: product.productId.namekhongdau,
+      dungluongId: product.dungluongId ? product.dungluongId._id : null,
+      dungluongName: product.dungluongId ? product.dungluongId.name : null,
+      mausacId: product.mausacId ? product.mausacId._id : null,
+      mausacName: product.mausacId ? product.mausacId.name : null,
       originalPrice: product.originalPrice,
       salePrice: product.salePrice,
       discountPercent: product.discountPercent,
@@ -745,7 +836,6 @@ router.get('/flash-sale-products/:productId', async (req, res) => {
     });
   }
 });
-
 // 11. [PUBLIC] Cập nhật số lượng bán khi mua sản phẩm Flash Sale
 router.post('/flash-sale-purchase', async (req, res) => {
   try {
@@ -928,6 +1018,165 @@ router.get('/admin/flash-sales/:id/stats', checkAdminAuth, async (req, res) => {
     });
   }
 });
+// Đoạn mã xử lý race condition cần thêm vào flasheroutes.js
+
+// Hàm để cập nhật tồn kho một cách an toàn, tránh race condition
+const safeUpdateStock = async (stockId, quantity, session) => {
+  let attempts = 0;
+  const maxAttempts = 3;
+  
+  while (attempts < maxAttempts) {
+    try {
+      // Tìm record tồn kho hiện tại
+      const stockRecord = await ProductSizeStock.findById(stockId).session(session);
+      
+      if (!stockRecord) {
+        throw new Error('Không tìm thấy thông tin tồn kho');
+      }
+      
+      // Nếu kho không giới hạn, không cần cập nhật số lượng
+      if (stockRecord.unlimitedStock) {
+        return { success: true, unlimitedStock: true };
+      }
+      
+      // Kiểm tra nếu số lượng không đủ
+      if (stockRecord.quantity < quantity) {
+        throw new Error(`Số lượng tồn kho không đủ. Hiện chỉ còn ${stockRecord.quantity}`);
+      }
+      
+      // Sử dụng findOneAndUpdate với filter __v để tránh race condition
+      // Để đảm bảo rằng chúng ta chỉ cập nhật nếu không ai khác đã cập nhật record này
+      const result = await ProductSizeStock.findOneAndUpdate(
+        { 
+          _id: stockId,
+          __v: stockRecord.__v,
+          quantity: { $gte: quantity }
+        },
+        { 
+          $inc: { 
+            quantity: -quantity,
+            __v: 1
+          } 
+        },
+        { 
+          new: true,
+          session
+        }
+      );
+      
+      if (!result) {
+        // Nếu không có result, có thể là do race condition
+        // Chờ một khoảng thời gian ngắn và thử lại
+        await new Promise(resolve => setTimeout(resolve, 100));
+        attempts++;
+        continue;
+      }
+      
+      return { success: true, remainingQuantity: result.quantity };
+    } catch (error) {
+      if (error.message.includes('Số lượng tồn kho không đủ')) {
+        // Nếu là lỗi thiếu hàng, ném lại lỗi để xử lý ở nơi gọi hàm
+        throw error;
+      }
+      
+      // Nếu là lỗi khác, thử lại
+      attempts++;
+      
+      if (attempts >= maxAttempts) {
+        throw new Error(`Không thể cập nhật tồn kho sau ${maxAttempts} lần thử: ${error.message}`);
+      }
+      
+      // Chờ một khoảng thời gian ngắn trước khi thử lại
+      await new Promise(resolve => setTimeout(resolve, 100 * attempts));
+    }
+  }
+  
+  throw new Error(`Không thể cập nhật tồn kho sau ${maxAttempts} lần thử`);
+};
+
+// Hàm để cập nhật số lượng Flash Sale một cách an toàn
+const safeUpdateFlashSaleQuantity = async (flashSaleId, productIndex, quantity, session) => {
+  let attempts = 0;
+  const maxAttempts = 3;
+  
+  while (attempts < maxAttempts) {
+    try {
+      // Tìm Flash Sale hiện tại
+      const flashSale = await FlashSale.findById(flashSaleId).session(session);
+      
+      if (!flashSale) {
+        throw new Error('Không tìm thấy Flash Sale');
+      }
+      
+      // Kiểm tra nếu productIndex không hợp lệ
+      if (productIndex < 0 || productIndex >= flashSale.products.length) {
+        throw new Error('Sản phẩm không tồn tại trong Flash Sale');
+      }
+      
+      const product = flashSale.products[productIndex];
+      
+      // Kiểm tra nếu số lượng không đủ
+      if (product.soldQuantity + quantity > product.quantity) {
+        throw new Error(`Số lượng sản phẩm trong Flash Sale không đủ. Hiện chỉ còn ${product.quantity - product.soldQuantity}`);
+      }
+      
+      // Cập nhật sử dụng $inc để tránh race condition
+      const result = await FlashSale.findOneAndUpdate(
+        {
+          _id: flashSaleId,
+          'products._id': product._id,
+          'products.soldQuantity': { $lte: product.quantity - quantity }
+        },
+        {
+          $inc: {
+            'products.$.soldQuantity': quantity
+          },
+          $set: {
+            'products.$.status': (product.soldQuantity + quantity >= product.quantity) ? 'soldout' : product.status
+          }
+        },
+        {
+          new: true,
+          session
+        }
+      );
+      
+      if (!result) {
+        // Nếu không có kết quả, có thể là do race condition
+        // Chờ một khoảng thời gian ngắn và thử lại
+        await new Promise(resolve => setTimeout(resolve, 100));
+        attempts++;
+        continue;
+      }
+      
+      // Tìm sản phẩm đã cập nhật
+      const updatedProduct = result.products.find(p => p._id.toString() === product._id.toString());
+      
+      return { 
+        success: true, 
+        remainingQuantity: updatedProduct.quantity - updatedProduct.soldQuantity,
+        soldOut: updatedProduct.soldQuantity >= updatedProduct.quantity
+      };
+    } catch (error) {
+      if (error.message.includes('Số lượng sản phẩm trong Flash Sale không đủ')) {
+        // Nếu là lỗi thiếu hàng, ném lại lỗi để xử lý ở nơi gọi hàm
+        throw error;
+      }
+      
+      // Nếu là lỗi khác, thử lại
+      attempts++;
+      
+      if (attempts >= maxAttempts) {
+        throw new Error(`Không thể cập nhật số lượng Flash Sale sau ${maxAttempts} lần thử: ${error.message}`);
+      }
+      
+      // Chờ một khoảng thời gian ngắn trước khi thử lại
+      await new Promise(resolve => setTimeout(resolve, 100 * attempts));
+    }
+  }
+  
+  throw new Error(`Không thể cập nhật số lượng Flash Sale sau ${maxAttempts} lần thử`);
+};
 
 // Xuất router
 module.exports = router;

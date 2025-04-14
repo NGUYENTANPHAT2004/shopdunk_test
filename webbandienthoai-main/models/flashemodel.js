@@ -33,6 +33,22 @@ const flashSaleSchema = new db.mongoose.Schema({
       ref: 'chitietsp',
       required: true 
     },
+    // Thêm tham chiếu đến biến thể cụ thể
+    dungluongId: {
+      type: db.mongoose.Schema.Types.ObjectId,
+      ref: 'dungluong',
+      default: null
+    },
+    mausacId: {
+      type: db.mongoose.Schema.Types.ObjectId,
+      ref: 'mausac',
+      default: null
+    },
+    // Tham chiếu đến ProductSizeStock
+    stockId: {
+      type: db.mongoose.Schema.Types.ObjectId,
+      ref: 'productSizeStock'
+    },
     originalPrice: { 
       type: Number,
       required: true 
@@ -45,6 +61,7 @@ const flashSaleSchema = new db.mongoose.Schema({
       type: Number,
       required: true 
     },
+    // Số lượng dành riêng cho Flash Sale
     quantity: { 
       type: Number,
       required: true 
@@ -88,6 +105,8 @@ flashSaleSchema.index({ startTime: 1 });
 flashSaleSchema.index({ endTime: 1 });
 flashSaleSchema.index({ isActive: 1 });
 flashSaleSchema.index({ 'products.productId': 1 });
+flashSaleSchema.index({ 'products.dungluongId': 1 });
+flashSaleSchema.index({ 'products.mausacId': 1 });
 flashSaleSchema.index({ 'products.status': 1 });
 
 const FlashSale = db.mongoose.model('FlashSale', flashSaleSchema);

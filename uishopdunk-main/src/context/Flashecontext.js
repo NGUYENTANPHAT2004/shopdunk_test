@@ -118,11 +118,13 @@ export const FlashSaleProvider = ({ children }) => {
   };
 
   // Hàm để cập nhật số lượng sản phẩm đã bán
-  const updateProductQuantity = async (flashSaleId, productId, quantity = 1) => {
+  const updateProductQuantity = async (flashSaleId, productId, dungluongId = null, mausacId = null, quantity = 1) => {
     try {
       const response = await axios.post('http://localhost:3005/flash-sale-purchase', {
         flashSaleId,
         productId,
+        dungluongId,
+        mausacId,
         quantity
       });
       
@@ -149,9 +151,20 @@ export const FlashSaleProvider = ({ children }) => {
   };
 
   // Hàm kiểm tra sản phẩm có thuộc Flash Sale đang diễn ra không
-  const checkProductInFlashSale = async (productId) => {
+  const checkProductInFlashSale = async (productId, dungluongId = null, mausacId = null) => {
     try {
-      const response = await axios.get(`http://localhost:3005/flash-sale-products/${productId}`);
+      let url = `http://localhost:3005/flash-sale-products/${productId}`;
+      
+      // Thêm query params nếu có dungluongId và mausacId
+      const params = new URLSearchParams();
+      if (dungluongId) params.append('dungluongId', dungluongId);
+      if (mausacId) params.append('mausacId', mausacId);
+      
+      if (params.toString()) {
+        url += `?${params.toString()}`;
+      }
+      
+      const response = await axios.get(url);
       
       if (response.data.success) {
         return {
@@ -201,5 +214,3 @@ export const FlashSaleProvider = ({ children }) => {
     </FlashSaleContext.Provider>
   );
 };
-
-export default FlashSaleProvider;
