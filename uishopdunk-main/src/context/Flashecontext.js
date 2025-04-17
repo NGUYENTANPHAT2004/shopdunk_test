@@ -181,6 +181,22 @@ export const FlashSaleProvider = ({ children }) => {
     setLastCheckedFlashSale({ time: timestamp });
     localStorage.setItem('lastCheckedFlashSale', JSON.stringify({ time: timestamp }));
   };
+  const calculateTimeUntilNextFlashSale = () => {
+    if (!upcomingFlashSales.length) return null;
+  
+    const nextFlashSale = upcomingFlashSales[0];
+    const now = new Date().getTime();
+    const startTime = new Date(nextFlashSale.startTime).getTime();
+    const diff = startTime - now;
+  
+    if (diff <= 0) return null;
+  
+    const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+    const hours = Math.floor((diff / (1000 * 60 * 60)) % 24);
+    const minutes = Math.floor((diff / (1000 * 60)) % 60);
+  
+    return { days, hours, minutes };
+  };
 
   // Fetch Flash Sale khi component mount
   useEffect(() => {
@@ -226,7 +242,8 @@ export const FlashSaleProvider = ({ children }) => {
     updateProductQuantity,
     markNewFlashSaleSeen,
     getProductFlashSaleVariants,
-    refreshFlashSales: fetchFlashSales
+    refreshFlashSales: fetchFlashSales,
+    calculateTimeUntilNextFlashSale
   };
 
   return (

@@ -5,8 +5,9 @@ const Sp = require('../models/chitietSpModel');
 const LoaiSP = require('../models/LoaiSanPham');
 const { User } = require('../models/user.model');
 const moment = require('moment');
-const ProductSizeStock = require('../models/ProductSizeStockmodel')
+const {ProductSizeStock} = require('../models/ProductSizeStockmodel')
 const uploads = require('./upload');
+const db = require("../models/db")
 
 // Middleware để kiểm tra quyền admin
 const checkAdminAuth = async (req, res, next) => {

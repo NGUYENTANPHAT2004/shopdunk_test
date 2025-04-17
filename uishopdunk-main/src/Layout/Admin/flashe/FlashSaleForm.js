@@ -153,10 +153,15 @@ const FlashSaleForm = ({ isEdit, flashSale, onClose, onSubmit }) => {
   };
 
   // Fetch product variants (dungluong and mausac)
-  const fetchProductVariants = async (productId) => {
+  const fetchProductVariants = async (productId, nametheloai) => {
     try {
+      if (!nametheloai) {
+        console.error('Thiếu thông tin nametheloai cho sản phẩm');
+        return;
+      }
+      
       setLoadingVariants(true);
-      const response = await axios.get(`http://localhost:3005/dungluongmay/${productId}`);
+      const response = await axios.get(`http://localhost:3005/dungluongmay/${nametheloai}`);
       
       if (response.data) {
         setProductVariants(prev => ({
@@ -180,8 +185,12 @@ const FlashSaleForm = ({ isEdit, flashSale, onClose, onSubmit }) => {
       return;
     }
     
-    // Fetch product variants
-    fetchProductVariants(product.namekhongdau);
+    // Fetch product variants nếu có nametheloai
+    if (product.nametheloai) {
+      fetchProductVariants(product._id, product.nametheloai);
+    } else {
+      console.log('Không có thông tin nametheloai cho sản phẩm:', product.name);
+    }
     
     // Add product with default values
     setSelectedProducts(prev => [...prev, {
@@ -196,7 +205,8 @@ const FlashSaleForm = ({ isEdit, flashSale, onClose, onSubmit }) => {
       dungluongId: null,
       dungluongName: 'Tất cả',
       mausacId: null,
-      mausacName: 'Tất cả'
+      mausacName: 'Tất cả',
+      nametheloai: product.nametheloai // Lưu trữ nametheloai
     }]);
     
     // Clear search
