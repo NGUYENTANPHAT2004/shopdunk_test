@@ -11,7 +11,9 @@ import {
   faClock,
   faCalendarAlt,
   faInfoCircle,
-  faSpinner
+  faSpinner,
+  faMemory,
+  faPalette
 } from '@fortawesome/free-solid-svg-icons';
 import axios from 'axios';
 import moment from 'moment';
@@ -188,6 +190,28 @@ const FlashSaleAdmin = () => {
     return Math.min(Math.round((soldQuantity / totalQuantity) * 100), 100);
   };
 
+  // Hiển thị thông tin biến thể sản phẩm
+  const renderVariantInfo = (flashSale) => {
+    // Đếm số lượng biến thể
+    const totalVariants = flashSale.totalVariants || 0;
+    
+    // Nếu có biến thể, hiển thị số lượng
+    if (totalVariants > 0) {
+      return (
+        <div className="variant-info">
+          <span className="variant-count">{totalVariants} biến thể</span>
+        </div>
+      );
+    }
+    
+    // Nếu không có biến thể, chỉ hiển thị "Tất cả"
+    return (
+      <div className="variant-info">
+        <span className="variant-all">Tất cả</span>
+      </div>
+    );
+  };
+
   return (
     <div className="flash-sale-admin">
       <ToastContainer position="top-right" />
@@ -249,6 +273,7 @@ const FlashSaleAdmin = () => {
                 <th>Thời gian</th>
                 <th>Trạng thái</th>
                 <th>Sản phẩm</th>
+                <th>Biến thể</th>
                 <th>Tiến độ</th>
                 <th>Thao tác</th>
               </tr>
@@ -281,6 +306,9 @@ const FlashSaleAdmin = () => {
                         Đã bán: {flashSale.soldQuantity}/{flashSale.totalQuantity}
                       </div>
                     </div>
+                  </td>
+                  <td className="variants-cell">
+                    {renderVariantInfo(flashSale)}
                   </td>
                   <td className="progress-cell">
                     <div className="progress-container">

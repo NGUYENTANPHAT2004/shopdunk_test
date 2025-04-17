@@ -8,7 +8,9 @@ import {
   faBoxOpen, 
   faCheck, 
   faExclamationTriangle,
-  faShoppingCart
+  faShoppingCart,
+  faMemory,
+  faPalette
 } from '@fortawesome/free-solid-svg-icons';
 import axios from 'axios';
 import moment from 'moment';
@@ -79,6 +81,31 @@ const FlashSaleStats = ({ flashSale, onClose }) => {
     );
   }
   
+  // Hiển thị thông tin về dung lượng và màu sắc
+  const renderVariantInfo = (product) => {
+    if (!product) return null;
+    
+    return (
+      <div className="variant-info">
+        {product.dungluongName && (
+          <div className="variant-item">
+            <FontAwesomeIcon icon={faMemory} className="variant-icon" />
+            <span>{product.dungluongName}</span>
+          </div>
+        )}
+        {product.mausacName && (
+          <div className="variant-item">
+            <FontAwesomeIcon icon={faPalette} className="variant-icon" />
+            <span>{product.mausacName}</span>
+          </div>
+        )}
+        {!product.dungluongName && !product.mausacName && (
+          <span className="variant-all">Tất cả biến thể</span>
+        )}
+      </div>
+    );
+  };
+  
   return (
     <div className="flash-sale-stats">
       <div className="stats-header">
@@ -142,6 +169,16 @@ const FlashSaleStats = ({ flashSale, onClose }) => {
               <div className="stat-label">Đã bán</div>
             </div>
           </div>
+          
+          <div className="stat-card">
+            <div className="stat-icon">
+              <FontAwesomeIcon icon={faMemory} />
+            </div>
+            <div className="stat-content">
+              <div className="stat-value">{stats.stats.totalVariants || 0}</div>
+              <div className="stat-label">Biến thể</div>
+            </div>
+          </div>
         </div>
         
         <div className="stats-details">
@@ -194,6 +231,7 @@ const FlashSaleStats = ({ flashSale, onClose }) => {
                 <thead>
                   <tr>
                     <th>Sản phẩm</th>
+                    <th>Biến thể</th>
                     <th>Số lượng</th>
                     <th>Đã bán</th>
                     <th>Tỷ lệ</th>
@@ -210,6 +248,9 @@ const FlashSaleStats = ({ flashSale, onClose }) => {
                           </div>
                           <span className="product-name">{product.name}</span>
                         </div>
+                      </td>
+                      <td className="variant-cell">
+                        {renderVariantInfo(product)}
                       </td>
                       <td>{product.quantity}</td>
                       <td>{product.soldQuantity}</td>
@@ -233,6 +274,61 @@ const FlashSaleStats = ({ flashSale, onClose }) => {
                   ))}
                 </tbody>
               </table>
+            )}
+          </div>
+          
+          <div className="stats-section">
+            <h5>Phân bố biến thể</h5>
+            
+            {stats.variantStats && stats.variantStats.length > 0 ? (
+              <div className="variant-distribution">
+                <table className="variants-table">
+                  <thead>
+                    <tr>
+                      <th>Dung lượng</th>
+                      <th>Màu sắc</th>
+                      <th>Đã bán</th>
+                      <th>Còn lại</th>
+                      <th>Tỷ lệ bán</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {stats.variantStats.map((variant, index) => (
+                      <tr key={index}>
+                        <td>
+                          {variant.dungluongName || 'Tất cả'}
+                          <FontAwesomeIcon 
+                            icon={faMemory} 
+                            className="variant-icon-small" 
+                          />
+                        </td>
+                        <td>
+                          {variant.mausacName || 'Tất cả'}
+                          <FontAwesomeIcon 
+                            icon={faPalette} 
+                            className="variant-icon-small" 
+                          />
+                        </td>
+                        <td>{variant.soldQuantity}</td>
+                        <td>{variant.remainingQuantity}</td>
+                        <td>
+                          <div className="progress-container">
+                            <div 
+                              className="progress-bar" 
+                              style={{ width: `${variant.soldPercent}%` }}
+                            ></div>
+                            <span className="progress-text">{variant.soldPercent}%</span>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              <div className="no-variants">
+                <p>Không có thông tin về biến thể sản phẩm</p>
+              </div>
             )}
           </div>
         </div>

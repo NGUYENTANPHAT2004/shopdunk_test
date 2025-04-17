@@ -8,7 +8,9 @@ import {
   faTrash, 
   faSpinner,
   faSearch,
-  faExclamationTriangle
+  faExclamationTriangle,
+  faMemory,
+  faPalette
 } from '@fortawesome/free-solid-svg-icons';
 import axios from 'axios';
 import moment from 'moment';
@@ -34,6 +36,10 @@ const FlashSaleForm = ({ isEdit, flashSale, onClose, onSubmit }) => {
   const [searchResults, setSearchResults] = useState([]);
   const [showSearchResults, setShowSearchResults] = useState(false);
   const [filePreview, setFilePreview] = useState(null);
+  
+  // Thêm state cho dung lượng và màu sắc
+  const [productVariants, setProductVariants] = useState({});
+  const [loadingVariants, setLoadingVariants] = useState(false);
 
   // Populate form data if editing
   useEffect(() => {
@@ -63,7 +69,11 @@ const FlashSaleForm = ({ isEdit, flashSale, onClose, onSubmit }) => {
           salePrice: product.salePrice,
           discountPercent: product.discountPercent,
           quantity: product.quantity,
-          limit: product.limit || 5
+          limit: product.limit || 5,
+          dungluongId: product.dungluongId || null,
+          dungluongName: product.dungluongId ? product.dungluongId.name : 'Tất cả',
+          mausacId: product.mausacId || null,
+          mausacName: product.mausacId ? product.mausacId.name : 'Tất cả'
         }));
         
         setSelectedProducts(formattedProducts);
@@ -142,6 +152,26 @@ const FlashSaleForm = ({ isEdit, flashSale, onClose, onSubmit }) => {
     }
   };
 
+  // Fetch product variants (dungluong and mausac)
+  const fetchProductVariants = async (productId) => {
+    try {
+      setLoadingVariants(true);
+      const response = await axios.get(`http://localhost:3005/dungluongmay/${productId}`);
+      
+      if (response.data) {
+        setProductVariants(prev => ({
+          ...prev,
+          [productId]: response.data
+        }));
+      }
+    } catch (error) {
+      console.error('Lỗi khi lấy biến thể sản phẩm:', error);
+      toast.error('Không thể lấy biến thể sản phẩm');
+    } finally {
+      setLoadingVariants(false);
+    }
+  };
+
   // Add product to selected list
   const addProduct = (product) => {
     // Check if product is already selected
@@ -149,6 +179,9 @@ const FlashSaleForm = ({ isEdit, flashSale, onClose, onSubmit }) => {
       toast.info('Sản phẩm đã được thêm vào danh sách');
       return;
     }
+    
+    // Fetch product variants
+    fetchProductVariants(product.namekhongdau);
     
     // Add product with default values
     setSelectedProducts(prev => [...prev, {
@@ -159,7 +192,11 @@ const FlashSaleForm = ({ isEdit, flashSale, onClose, onSubmit }) => {
       salePrice: Math.round(product.price * 0.9), // Default 10% off
       discountPercent: 10,
       quantity: 50, // Default quantity
-      limit: 5 // Default limit per customer
+      limit: 5, // Default limit per customer
+      dungluongId: null,
+      dungluongName: 'Tất cả',
+      mausacId: null,
+      mausacName: 'Tất cả'
     }]);
     
     // Clear search
@@ -190,12 +227,56 @@ const FlashSaleForm = ({ isEdit, flashSale, onClose, onSubmit }) => {
           // Recalculate sale price when discount percent changes
           const salePrice = Math.round(product.originalPrice * (1 - value / 100));
           updatedProduct.salePrice = salePrice;
+        } else if (field === 'dungluongId') {
+          // Reset mausac when dungluong changes
+          updatedProduct.mausacId = null;
+          updatedProduct.mausacName = 'Tất cả';
+          
+          // Update dungluongName
+          const productId = product.id;
+          const variants = productVariants[productId] || [];
+          const dungluong = variants.find(d => d._id === value);
+          updatedProduct.dungluongName = dungluong ? dungluong.name : 'Tất cả';
+          
+          // Update original price based on dung lượng if needed
+          if (dungluong && dungluong.mausac && dungluong.mausac.length > 0) {
+            // Use the price of the first color variant as default
+            const defaultPrice = dungluong.mausac[0].giagoc || product.originalPrice;
+            updatedProduct.originalPrice = defaultPrice;
+            updatedProduct.salePrice = Math.round(defaultPrice * (1 - updatedProduct.discountPercent / 100));
+          }
+        } else if (field === 'mausacId') {
+          // Update mausacName
+          const productId = product.id;
+          const variants = productVariants[productId] || [];
+          const dungluong = variants.find(d => d._id === product.dungluongId);
+          
+          if (dungluong) {
+            const mausac = dungluong.mausac.find(m => m._id === value);
+            updatedProduct.mausacName = mausac ? mausac.name : 'Tất cả';
+            
+            // Update original price based on màu sắc
+            if (mausac) {
+              updatedProduct.originalPrice = mausac.giagoc || product.originalPrice;
+              updatedProduct.salePrice = Math.round(mausac.giagoc * (1 - updatedProduct.discountPercent / 100));
+            }
+          }
         }
         
         return updatedProduct;
       }
       return product;
     }));
+  };
+
+  // Get available colors for a selected capacity
+  const getAvailableColors = (productId, dungluongId) => {
+    if (!productId || !dungluongId || !productVariants[productId]) {
+      return [];
+    }
+    
+    const dungluong = productVariants[productId].find(d => d._id === dungluongId);
+    return dungluong ? dungluong.mausac : [];
   };
 
   // Validate form before submission
@@ -274,7 +355,9 @@ const FlashSaleForm = ({ isEdit, flashSale, onClose, onSubmit }) => {
         salePrice: parseFloat(product.salePrice),
         discountPercent: parseFloat(product.discountPercent),
         quantity: parseInt(product.quantity),
-        limit: parseInt(product.limit) || 5
+        limit: parseInt(product.limit) || 5,
+        dungluongId: product.dungluongId,
+        mausacId: product.mausacId
       }));
       
       formDataObj.append('products', JSON.stringify(productsData));
@@ -514,6 +597,8 @@ const FlashSaleForm = ({ isEdit, flashSale, onClose, onSubmit }) => {
                   <thead>
                     <tr>
                       <th>Sản phẩm</th>
+                      <th>Dung lượng</th>
+                      <th>Màu sắc</th>
                       <th>Giá gốc (đ)</th>
                       <th>Giá Flash Sale (đ)</th>
                       <th>Giảm (%)</th>
@@ -524,7 +609,7 @@ const FlashSaleForm = ({ isEdit, flashSale, onClose, onSubmit }) => {
                   </thead>
                   <tbody>
                     {selectedProducts.map(product => (
-                      <tr key={product.id}>
+                      <tr key={`${product.id}-${product.dungluongId || 'all'}-${product.mausacId || 'all'}`}>
                         <td className="product-cell">
                           <div className="product-info">
                             <div className="product-image">
@@ -532,6 +617,38 @@ const FlashSaleForm = ({ isEdit, flashSale, onClose, onSubmit }) => {
                             </div>
                             <span className="product-name">{product.name}</span>
                           </div>
+                        </td>
+                        <td className="variant-cell">
+                          <select
+                            value={product.dungluongId || ''}
+                            onChange={(e) => updateProductInfo(product.id, 'dungluongId', e.target.value || null)}
+                          >
+                            <option value="">Tất cả</option>
+                            {productVariants[product.id]?.map(dungluong => (
+                              <option key={dungluong._id} value={dungluong._id}>
+                                {dungluong.name}
+                              </option>
+                            ))}
+                          </select>
+                          {loadingVariants && (
+                            <div className="variant-loading">
+                              <FontAwesomeIcon icon={faSpinner} spin />
+                            </div>
+                          )}
+                        </td>
+                        <td className="variant-cell">
+                          <select
+                            value={product.mausacId || ''}
+                            onChange={(e) => updateProductInfo(product.id, 'mausacId', e.target.value || null)}
+                            disabled={!product.dungluongId}
+                          >
+                            <option value="">Tất cả</option>
+                            {getAvailableColors(product.id, product.dungluongId)?.map(mausac => (
+                              <option key={mausac._id} value={mausac._id}>
+                                {mausac.name}
+                              </option>
+                            ))}
+                          </select>
                         </td>
                         <td>
                           <input
