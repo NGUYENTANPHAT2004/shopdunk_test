@@ -13,6 +13,7 @@ const {
   isFirstOrderVoucherEligible, 
   isThirdOrderVoucherEligible
 } = require('../socket/handlers/voucherGenerator');
+const { FlashSale } = require('../models/flashemodel');
 const db = require('../models/db')
 const Category = require('../models/CategoryModel');
 const LoaiSP = require('../models/LoaiSanPham').LoaiSP;
@@ -52,62 +53,49 @@ async function processFlashSaleItems(flashSaleItems, session = null) {
     
     // Xử lý từng Flash Sale
     for (const [flashSaleId, items] of Object.entries(flashSaleGroups)) {
-      // Tìm Flash Sale
-      const flashSale = await FlashSale.findById(flashSaleId).session(session);
-      
-      if (!flashSale) {
-        return { 
-          success: false, 
-          message: `Không tìm thấy Flash Sale (ID: ${flashSaleId})` 
-        };
-      }
-      
-      // Kiểm tra Flash Sale có còn hoạt động không
-      const now = new Date();
-      if (now < flashSale.startTime || now > flashSale.endTime || !flashSale.isActive) {
-        return { 
-          success: false, 
-          message: 'Flash Sale đã kết thúc hoặc chưa bắt đầu' 
-        };
-      }
-      
-      // Xử lý từng sản phẩm trong Flash Sale
+      // Tìm Flash Sale - sử dụng findOneAndUpdate để tránh race condition
       for (const item of items) {
-        // Tìm sản phẩm trong Flash Sale
-        const productIndex = flashSale.products.findIndex(p => 
-          p.productId.toString() === item.idsp.toString() &&
-          (p.dungluongId ? p.dungluongId.toString() === item.dungluong.toString() : true) &&
-          (p.mausacId ? p.mausacId.toString() === item.idmausac.toString() : true)
+        // Cập nhật sử dụng atomic operation với điều kiện kiểm tra số lượng
+        const result = await FlashSale.findOneAndUpdate(
+          { 
+            _id: flashSaleId,
+            isActive: true,
+            startTime: { $lte: new Date() },
+            endTime: { $gt: new Date() },
+            'products': {
+              $elemMatch: {
+                productId: item.idsp,
+                dungluongId: item.dungluong || null,
+                mausacId: item.idmausac || null,
+                quantity: { $gte: item.soluong + '$products.soldQuantity' } // Đảm bảo đủ số lượng
+              }
+            }
+          },
+          {
+            $inc: { 'products.$.soldQuantity': item.soluong },
+            $set: {
+              'products.$.status': {
+                $cond: [
+                  { $gte: [{ $add: ['$products.soldQuantity', item.soluong] }, '$products.quantity'] },
+                  'soldout',
+                  'available'
+                ]
+              }
+            }
+          },
+          { 
+            new: true,
+            session 
+          }
         );
         
-        if (productIndex === -1) {
+        if (!result) {
           return { 
             success: false, 
-            message: `Sản phẩm không tồn tại trong Flash Sale` 
+            message: `Sản phẩm Flash Sale không đủ số lượng hoặc không tìm thấy.` 
           };
-        }
-        
-        const product = flashSale.products[productIndex];
-        
-        // Kiểm tra số lượng còn lại
-        if (product.soldQuantity + item.soluong > product.quantity) {
-          return { 
-            success: false, 
-            message: `Sản phẩm Flash Sale không đủ số lượng. Hiện chỉ còn ${product.quantity - product.soldQuantity} sản phẩm.` 
-          };
-        }
-        
-        // Cập nhật số lượng đã bán
-        flashSale.products[productIndex].soldQuantity += item.soluong;
-        
-        // Cập nhật trạng thái nếu đã hết hàng
-        if (flashSale.products[productIndex].soldQuantity >= flashSale.products[productIndex].quantity) {
-          flashSale.products[productIndex].status = 'soldout';
         }
       }
-      
-      // Lưu Flash Sale
-      await flashSale.save({ session });
     }
     
     return { success: true };
@@ -120,7 +108,7 @@ async function processFlashSaleItems(flashSaleItems, session = null) {
   }
 }
 
-// Hàm hoàn lại số lượng Flash Sale khi hủy đơn hoặc thanh toán thất bại
+// Hàm hoàn lại số lượng Flash Sale khi hủy đơn hoặc thanh toán thất bại - sửa lại
 async function rollbackFlashSalePurchase(flashSaleItems, session = null) {
   if (!flashSaleItems || !Array.isArray(flashSaleItems) || flashSaleItems.length === 0) {
     console.log('Không có sản phẩm Flash Sale để hoàn lại');
@@ -142,48 +130,53 @@ async function rollbackFlashSalePurchase(flashSaleItems, session = null) {
     
     // Xử lý từng Flash Sale
     for (const [flashSaleId, items] of Object.entries(flashSaleGroups)) {
-      // Tìm Flash Sale
-      const flashSale = await FlashSale.findById(flashSaleId).session(session);
-      
-      if (!flashSale) {
-        console.warn(`Không tìm thấy Flash Sale (ID: ${flashSaleId}) để hoàn lại số lượng`);
-        continue;
-      }
-      
-      let hasChanges = false;
-      
-      // Xử lý từng sản phẩm trong Flash Sale
       for (const item of items) {
-        // Tìm sản phẩm trong Flash Sale
-        const productIndex = flashSale.products.findIndex(p => 
-          p.productId.toString() === item.idsp.toString() &&
-          (p.dungluongId ? p.dungluongId.toString() === item.dungluong.toString() : true) &&
-          (p.mausacId ? p.mausacId.toString() === item.idmausac.toString() : true)
+        // Sử dụng atomic operations để hoàn lại số lượng
+        const now = new Date();
+        const result = await FlashSale.findOneAndUpdate(
+          { 
+            _id: flashSaleId,
+            'products': {
+              $elemMatch: {
+                productId: item.idsp,
+                dungluongId: item.dungluong || null,
+                mausacId: item.idmausac || null
+              }
+            }
+          },
+          [
+            { 
+              $set: {
+                'products.$.soldQuantity': { 
+                  $max: [0, { $subtract: ['$products.$.soldQuantity', item.soluong] }] 
+                },
+                'products.$.status': {
+                  $cond: {
+                    if: { 
+                      $and: [
+                        { $lt: [{ $subtract: ['$products.$.soldQuantity', item.soluong] }, '$products.$.quantity'] },
+                        { $lte: [now, '$endTime'] },
+                        { $gte: [now, '$startTime'] },
+                        '$isActive'
+                      ] 
+                    },
+                    then: 'available',
+                    else: '$products.$.status'
+                  }
+                }
+              }
+            }
+          ],
+          { 
+            new: true,
+            session 
+          }
         );
         
-        if (productIndex === -1) {
+        if (!result) {
           console.warn(`Không tìm thấy sản phẩm trong Flash Sale để hoàn lại số lượng`);
           continue;
         }
-        
-        // Hoàn lại số lượng đã bán
-        flashSale.products[productIndex].soldQuantity = Math.max(0, flashSale.products[productIndex].soldQuantity - item.soluong);
-        
-        // Cập nhật trạng thái nếu đã có sản phẩm
-        if (flashSale.products[productIndex].soldQuantity < flashSale.products[productIndex].quantity) {
-          const now = new Date();
-          if (now >= flashSale.startTime && now <= flashSale.endTime && flashSale.isActive) {
-            flashSale.products[productIndex].status = 'available';
-          }
-        }
-        
-        hasChanges = true;
-      }
-      
-      // Lưu Flash Sale nếu có thay đổi
-      if (hasChanges) {
-        await flashSale.save({ session });
-        console.log(`Đã hoàn lại số lượng cho Flash Sale ${flashSaleId}`);
       }
     }
     
@@ -193,6 +186,8 @@ async function rollbackFlashSalePurchase(flashSaleItems, session = null) {
     return { success: false, error };
   }
 }
+
+
 router.get('/gethoadon', async (req, res) => {
   try {
     const hoadon = await HoaDon.hoadon.find({}).lean()
@@ -230,6 +225,7 @@ router.post('/deletehoaddon', async (req, res) => {
     res.status(500).json({ message: 'Lỗi trong quá trình xóa' })
   }
 })
+
 async function restoreInventory(sanphams, session = null) {
   if (!sanphams || !Array.isArray(sanphams) || sanphams.length === 0) {
     console.log('Không có sản phẩm để khôi phục tồn kho');
@@ -967,91 +963,62 @@ router.post('/settrangthai/:idhoadon', async (req, res) => {
     // Ghi log để debug
     console.log(`Chuyển trạng thái đơn hàng ${idhoadon} từ '${oldTrangthai}' sang '${trangthai}'`);
     
-    // TRƯỜNG HỢP 1: Hủy đơn hàng
+    // Xử lý các trường hợp chuyển trạng thái - tất cả được thực hiện trong transaction
     if (trangthai === 'Hủy Đơn Hàng' && oldTrangthai !== 'Hủy Đơn Hàng') {
-      console.log(`Đơn hàng ${idhoadon} đang bị hủy. Kiểm tra để hoàn tồn kho.`);
-      
       // Chỉ hoàn tồn kho nếu đơn hàng đã giảm tồn kho
-      // Đã giảm tồn kho nếu: đã thanh toán HOẶC trạng thái không phải thất bại/hết hạn/hủy
       const nonReducedStatuses = ['Thanh toán thất bại', 'Thanh toán hết hạn', 'Hủy Đơn Hàng'];
       const inventoryWasReduced = oldThanhtoan || (!oldThanhtoan && !nonReducedStatuses.includes(oldTrangthai));
       
       if (inventoryWasReduced) {
-        console.log(`Khôi phục tồn kho khi hủy đơn hàng ${idhoadon} từ trạng thái ${oldTrangthai}`);
-        
-        // Khôi phục tồn kho cho sản phẩm thường
+        // Khôi phục tồn kho
         if (regularItems.length > 0) {
           await restoreInventory(regularItems, session);
         }
         
-        // Khôi phục tồn kho Flash Sale
         if (flashSaleItems.length > 0) {
           await rollbackFlashSalePurchase(flashSaleItems, session);
         }
-      } else {
-        console.log(`Không cần khôi phục tồn kho cho đơn hàng ${idhoadon}, vì tồn kho chưa bị giảm`);
       }
     }
-    
-    // TRƯỜNG HỢP 2: Đánh dấu thất bại/hết hạn thanh toán (nếu chưa hủy và đã giảm tồn kho)
     else if ((trangthai === 'Thanh toán thất bại' || trangthai === 'Thanh toán hết hạn') && 
-             oldTrangthai !== 'Thanh toán thất bại' && 
-             oldTrangthai !== 'Thanh toán hết hạn' && 
-             oldTrangthai !== 'Hủy Đơn Hàng') {
+             !['Thanh toán thất bại', 'Thanh toán hết hạn', 'Hủy Đơn Hàng'].includes(oldTrangthai)) {
       
       // Kiểm tra xem đã giảm tồn kho chưa
       const nonReducedStatuses = ['Thanh toán thất bại', 'Thanh toán hết hạn', 'Hủy Đơn Hàng'];
       const inventoryWasReduced = oldThanhtoan || (!oldThanhtoan && !nonReducedStatuses.includes(oldTrangthai));
       
       if (inventoryWasReduced) {
-        console.log(`Khôi phục tồn kho khi đánh dấu thất bại/hết hạn thanh toán ${idhoadon}`);
-        
-        // Khôi phục tồn kho cho sản phẩm thường
+        // Khôi phục tồn kho
         if (regularItems.length > 0) {
           await restoreInventory(regularItems, session);
         }
         
-        // Khôi phục tồn kho Flash Sale
         if (flashSaleItems.length > 0) {
           await rollbackFlashSalePurchase(flashSaleItems, session);
         }
       }
     }
-    
-    // TRƯỜNG HỢP 3: Trả hàng sau khi đã nhận
     else if ((oldTrangthai === 'Đã nhận' || oldTrangthai === 'Hoàn thành') && 
              trangthai === 'Trả hàng/Hoàn tiền') {
-      console.log(`Khôi phục tồn kho khi trả hàng ${idhoadon}`);
       
-      // Khôi phục tồn kho cho sản phẩm thường
+      // Khôi phục tồn kho khi trả hàng
       if (regularItems.length > 0) {
         await restoreInventory(regularItems, session);
       }
       
-      // Khôi phục tồn kho Flash Sale
-      // Lưu ý: Flash Sale có thể đã kết thúc, nhưng vẫn cố gắng hoàn lại
       if (flashSaleItems.length > 0) {
         await rollbackFlashSalePurchase(flashSaleItems, session);
       }
     }
-    
-    // TRƯỜNG HỢP 4: Từ trạng thái thất bại/hết hạn/hủy sang trạng thái thành công
-    else// TRƯỜNG HỢP 4: Từ trạng thái thất bại/hết hạn/hủy sang trạng thái thành công
-    // (trường hợp khách hàng quyết định thanh toán lại sau khi thất bại)
-    else if ((oldTrangthai === 'Thanh toán thất bại' || 
-              oldTrangthai === 'Thanh toán hết hạn' || 
-              oldTrangthai === 'Hủy Đơn Hàng') && 
-             (trangthai === 'Đã thanh toán' || trangthai === 'Đang xử lý') && 
+    else if (['Thanh toán thất bại', 'Thanh toán hết hạn', 'Hủy Đơn Hàng'].includes(oldTrangthai) && 
+             ['Đã thanh toán', 'Đang xử lý'].includes(trangthai) && 
              (thanhtoan === true || trangthai === 'Đã thanh toán')) {
       
-      console.log(`Đơn hàng ${idhoadon} đang được kích hoạt lại (thanh toán lại)`);
-      
-      // Giảm tồn kho cho sản phẩm thường
+      // Xử lý khi kích hoạt lại đơn hàng đã hủy/thất bại
       if (regularItems.length > 0) {
         try {
           await reduceInventory(regularItems, session);
         } catch (error) {
-          // Nếu không đủ tồn kho, không cho chuyển trạng thái
           await session.abortTransaction();
           session.endSession();
           return res.status(400).json({ 
@@ -1061,7 +1028,6 @@ router.post('/settrangthai/:idhoadon', async (req, res) => {
         }
       }
       
-      // Xử lý Flash Sale - kiểm tra nếu Flash Sale còn hoạt động không
       if (flashSaleItems.length > 0) {
         try {
           const processResult = await processFlashSaleItems(flashSaleItems, session);
@@ -1075,7 +1041,6 @@ router.post('/settrangthai/:idhoadon', async (req, res) => {
             });
           }
         } catch (error) {
-          // Nếu xử lý Flash Sale lỗi, không cho chuyển trạng thái
           await session.abortTransaction();
           session.endSession();
           return res.status(400).json({ 
@@ -1085,10 +1050,6 @@ router.post('/settrangthai/:idhoadon', async (req, res) => {
         }
       }
     }
-    
-    // TRƯỜNG HỢP 5: Khi Flash Sale kết thúc và cần hoàn trả số lượng còn dư
-    // Xử lý tự động khi Flash Sale kết thúc (qua scheduled job riêng)
-    // Chỉ đề cập tại đây cho đầy đủ, nhưng không triển khai trong route này
     
     // Cập nhật trạng thái đơn hàng
     hoadon.trangthai = trangthai;
@@ -1107,8 +1068,15 @@ router.post('/settrangthai/:idhoadon', async (req, res) => {
       thanhtoan: hoadon.thanhtoan,
       date: new Date(),
       note: note || '',
-      inventoryUpdated: true // Đánh dấu là đã cập nhật tồn kho
+      inventoryUpdated: true
     });
+    
+    // Hủy timeout nếu đơn hàng được thanh toán hoặc hủy
+    if (['Đã thanh toán', 'Hủy Đơn Hàng', 'Thanh toán thất bại'].includes(trangthai) && 
+        global.paymentTimeouts && global.paymentTimeouts[hoadon._id.toString()]) {
+      clearTimeout(global.paymentTimeouts[hoadon._id.toString()]);
+      delete global.paymentTimeouts[hoadon._id.toString()];
+    }
     
     await hoadon.save({ session });
     await session.commitTransaction();

@@ -203,40 +203,6 @@ router.get('/check-product-in-flash-sale/:productId', async (req, res) => {
     });
   }
 });
-// Function cập nhật trạng thái Flash Sale
-const updateFlashSaleStatus = async (flashSale) => {
-  const now = new Date();
-
-  // Nếu Flash Sale quá thời gian kết thúc
-  if (now > flashSale.endTime) {
-    if (flashSale.isActive) {
-      flashSale.isActive = false;
-      await flashSale.save();
-    }
-    
-    // Cập nhật trạng thái cho từng sản phẩm
-    flashSale.products.forEach(product => {
-      if (product.status !== 'ended') {
-        product.status = 'ended';
-      }
-    });
-    await flashSale.save();
-    return;
-  }
-
-  // Nếu Flash Sale đã bắt đầu
-  if (now >= flashSale.startTime && now <= flashSale.endTime) {
-    // Cập nhật trạng thái cho từng sản phẩm
-    flashSale.products.forEach(product => {
-      if (product.soldQuantity >= product.quantity) {
-        product.status = 'soldout';
-      } else if (product.status === 'upcoming') {
-        product.status = 'available';
-      }
-    });
-    await flashSale.save();
-  }
-};
 
 // 1. [ADMIN] Lấy danh sách Flash Sale
 router.get('/admin/flash-sales', checkAdminAuth, async (req, res) => {
