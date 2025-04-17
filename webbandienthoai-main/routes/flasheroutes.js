@@ -615,10 +615,11 @@ router.delete('/admin/flash-sales/:id', checkAdminAuth, async (req, res) => {
 });
 
 // 6. [ADMIN] Cập nhật trạng thái Flash Sale
+// Cập nhật API endpoint thay đổi trạng thái
 router.patch('/admin/flash-sales/:id/status', checkAdminAuth, async (req, res) => {
   try {
     const { id } = req.params;
-    const { isActive } = req.body;
+    const { isActive, forceActivation = false } = req.body;
 
     if (isActive === undefined) {
       return res.status(400).json({
@@ -635,14 +636,16 @@ router.patch('/admin/flash-sales/:id/status', checkAdminAuth, async (req, res) =
       });
     }
 
-    // Kiểm tra nếu Flash Sale đã kết thúc
-    if (new Date() > flashSale.endTime) {
+    // Chỉ kiểm tra thời gian kết thúc nếu KHÔNG có forceActivation
+    const now = new Date();
+    if (new Date(flashSale.endTime) < now && !forceActivation) {
       return res.status(400).json({
         success: false,
         message: 'Flash Sale đã kết thúc, không thể thay đổi trạng thái'
       });
     }
 
+    // Cập nhật trạng thái
     flashSale.isActive = isActive === 'true' || isActive === true;
     await flashSale.save();
 
@@ -654,7 +657,7 @@ router.patch('/admin/flash-sales/:id/status', checkAdminAuth, async (req, res) =
     console.error('Lỗi khi cập nhật trạng thái Flash Sale:', error);
     res.status(500).json({
       success: false,
-      message: 'Lỗi khi cập nhật trạng thái Flash Sale'
+      message: 'Lỗi khi cập nhật trạng thái Flash Sale: ' + error.message
     });
   }
 });
@@ -805,7 +808,131 @@ router.get('/flash-sales', async (req, res) => {
   }
 });
 
-// 9. [PUBLIC] Lấy chi tiết Flash Sale
+// Thêm API thống kê Flash Sale
+router.get('/admin/flash-sales/:id/stats', checkAdminAuth, async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    // Tìm Flash Sale
+    const flashSale = await FlashSale.findOne({
+      _id: id,
+      isDeleted: false
+    })
+    .populate('products.productId', 'name image')
+    .populate('products.dungluongId', 'name')
+    .populate('products.mausacId', 'name');
+    
+    if (!flashSale) {
+      return res.status(404).json({
+        success: false,
+        message: 'Không tìm thấy Flash Sale'
+      });
+    }
+    
+    // Xác định trạng thái hiện tại
+    const now = new Date();
+    let status = 'upcoming';
+    if (now > flashSale.endTime) {
+      status = 'ended';
+    } else if (now >= flashSale.startTime) {
+      status = 'active';
+    }
+    
+    // Tính toán thống kê
+    const totalQuantity = flashSale.products.reduce((sum, p) => sum + p.quantity, 0);
+    const soldQuantity = flashSale.products.reduce((sum, p) => sum + p.soldQuantity, 0);
+    const soldPercent = totalQuantity > 0 ? Math.round((soldQuantity / totalQuantity) * 100) : 0;
+    
+    // Thống kê sản phẩm theo trạng thái
+    const productStats = {
+      available: flashSale.products.filter(p => p.status === 'available').length,
+      soldout: flashSale.products.filter(p => p.status === 'soldout').length,
+      upcoming: flashSale.products.filter(p => p.status === 'upcoming').length,
+      ended: flashSale.products.filter(p => p.status === 'ended').length
+    };
+    
+    // Lấy top 5 sản phẩm bán chạy
+    const topProducts = await Promise.all(
+      flashSale.products
+        .sort((a, b) => (b.soldQuantity / b.quantity) - (a.soldQuantity / a.quantity))
+        .slice(0, 5)
+        .map(async (product) => {
+          return {
+            _id: product._id,
+            name: product.productId.name,
+            image: product.productId.image,
+            dungluongName: product.dungluongId ? product.dungluongId.name : null,
+            mausacName: product.mausacId ? product.mausacId.name : null,
+            quantity: product.quantity,
+            soldQuantity: product.soldQuantity,
+            soldPercent: product.quantity > 0 ? Math.round((product.soldQuantity / product.quantity) * 100) : 0,
+            status: product.status
+          };
+        })
+    );
+    
+    // Thống kê biến thể
+    const variantStats = [];
+    // Nhóm các sản phẩm theo dung lượng và màu sắc
+    const variantGroups = {};
+    
+    for (const product of flashSale.products) {
+      const dungluongId = product.dungluongId ? product.dungluongId._id.toString() : 'all';
+      const mausacId = product.mausacId ? product.mausacId._id.toString() : 'all';
+      const key = `${dungluongId}_${mausacId}`;
+      
+      if (!variantGroups[key]) {
+        variantGroups[key] = {
+          dungluongId: product.dungluongId ? product.dungluongId._id : null,
+          dungluongName: product.dungluongId ? product.dungluongId.name : 'Tất cả',
+          mausacId: product.mausacId ? product.mausacId._id : null,
+          mausacName: product.mausacId ? product.mausacId.name : 'Tất cả',
+          quantity: 0,
+          soldQuantity: 0
+        };
+      }
+      
+      variantGroups[key].quantity += product.quantity;
+      variantGroups[key].soldQuantity += product.soldQuantity;
+    }
+    
+    // Chuyển đổi thành mảng và tính toán tỷ lệ
+    for (const key in variantGroups) {
+      const variant = variantGroups[key];
+      variant.remainingQuantity = variant.quantity - variant.soldQuantity;
+      variant.soldPercent = variant.quantity > 0 ? Math.round((variant.soldQuantity / variant.quantity) * 100) : 0;
+      variantStats.push(variant);
+    }
+    
+    // Trả về kết quả
+    res.json({
+      success: true,
+      data: {
+        _id: flashSale._id,
+        name: flashSale.name,
+        startTime: flashSale.startTime,
+        endTime: flashSale.endTime,
+        status,
+        stats: {
+          totalProducts: flashSale.products.length,
+          totalQuantity,
+          soldQuantity,
+          soldPercent,
+          totalVariants: flashSale.products.filter(p => p.dungluongId || p.mausacId).length,
+          productStats
+        },
+        topProducts,
+        variantStats
+      }
+    });
+  } catch (error) {
+    console.error('Lỗi khi lấy thống kê Flash Sale:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Lỗi khi lấy thống kê Flash Sale: ' + error.message
+    });
+  }
+});
 
 
 // Cập nhật API 9. [PUBLIC] Lấy chi tiết Flash Sale
@@ -1157,6 +1284,7 @@ const safeUpdateStock = async (stockId, quantity, session) => {
 
   throw new Error(`Không thể cập nhật tồn kho sau ${maxAttempts} lần thử`);
 };
+
 
 // Hàm để cập nhật số lượng Flash Sale một cách an toàn
 const safeUpdateFlashSaleQuantity = async (flashSaleId, productIndex, quantity, session) => {
