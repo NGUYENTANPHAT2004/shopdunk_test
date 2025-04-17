@@ -13,7 +13,8 @@ import {
   faInfoCircle,
   faSpinner,
   faMemory,
-  faPalette
+  faPalette,
+  faExclamationTriangle
 } from '@fortawesome/free-solid-svg-icons';
 import axios from 'axios';
 import moment from 'moment';
@@ -35,6 +36,47 @@ const FlashSaleAdmin = () => {
   const [totalPages, setTotalPages] = useState(1);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
 
+  // Hàm kiểm tra ngày hợp lệ
+  const isValidDate = (dateString) => {
+    if (!dateString) return false;
+    
+    // Thử phân tích theo định dạng ISO
+    let date = moment(dateString);
+    
+    // Nếu không thành công, thử với định dạng "DD/MM/YYYY HH:mm"
+    if (!date.isValid() && typeof dateString === 'string') {
+      date = moment(dateString, 'DD/MM/YYYY HH:mm');
+    }
+    
+    return date.isValid();
+  };
+  
+  // Định dạng thời gian - cập nhật để xử lý cả định dạng "DD/MM/YYYY HH:mm"
+  const formatDateISO = (dateString) => {
+    try {
+      if (!dateString) return "N/A";
+      
+      // Thử phân tích theo định dạng ISO
+      let date = moment(dateString);
+      
+      // Nếu không thành công, thử với định dạng "DD/MM/YYYY HH:mm"
+      if (!date.isValid() && typeof dateString === 'string') {
+        date = moment(dateString, 'DD/MM/YYYY HH:mm');
+      }
+      
+      if (!date.isValid()) {
+        console.warn('Không thể chuyển đổi ngày:', dateString);
+        return 'Thời gian không hợp lệ';
+      }
+      
+      // Trả về định dạng tiêu chuẩn
+      return date.format('DD/MM/YYYY HH:mm');
+    } catch (error) {
+      console.error('Lỗi định dạng ngày:', error, dateString);
+      return 'Lỗi định dạng';
+    }
+  };
+
   // Fetch Flash Sales
   useEffect(() => {
     fetchFlashSales();
@@ -46,7 +88,36 @@ const FlashSaleAdmin = () => {
       const response = await axios.get(`http://localhost:3005/admin/flash-sales?status=${filter}&page=${page}&limit=10`);
       
       if (response.data.success) {
-        setFlashSales(response.data.data);
+        // Log để debug
+        console.log('Nhận dữ liệu gốc từ API:', response.data.data[0]);
+        
+        // Kiểm tra và xử lý dữ liệu nếu cần
+        const processedData = response.data.data.map(sale => {
+          // Nếu startTime và endTime đã là định dạng DD/MM/YYYY HH:mm, bạn không cần chuyển đổi
+          // Chỉ cần đảm bảo nó được giữ nguyên
+          
+          // Kiểm tra xem dữ liệu có hợp lệ không bằng cách thử xử lý thời gian
+          try {
+            // Log thông tin thời gian để debug
+            console.log(`Flash Sale ${sale.name}:`, {
+              startTime: sale.startTime,
+              endTime: sale.endTime,
+              startTimeValid: isValidDate(sale.startTime),
+              endTimeValid: isValidDate(sale.endTime)
+            });
+            
+            // Nếu không hợp lệ, ghi vào console để debug
+            if (!isValidDate(sale.startTime) || !isValidDate(sale.endTime)) {
+              console.warn('Thời gian không hợp lệ cho Flash Sale:', sale.name);
+            }
+          } catch (err) {
+            console.error('Lỗi khi kiểm tra thời gian:', err);
+          }
+          
+          return sale;
+        });
+        
+        setFlashSales(processedData);
         setTotalPages(response.data.pagination.totalPages);
       } else {
         toast.error('Không thể tải danh sách Flash Sale');
@@ -76,7 +147,7 @@ const FlashSaleAdmin = () => {
   const handleViewStats = async (id) => {
     try {
       setLoading(true);
-      const response = await axios.get(`http://localhost:3005/admin/flash-sales/${id}`);
+      const response = await axios.get(`http://localhost:3005/admin/flash-sales/${id}/stats`);
       
       if (response.data.success) {
         setSelectedFlashSale(response.data.data);
@@ -119,19 +190,28 @@ const FlashSaleAdmin = () => {
   const handleToggleStatus = async (id, currentStatus) => {
     try {
       setLoading(true);
+      console.log(`Thay đổi trạng thái Flash Sale ${id} từ ${currentStatus ? 'bật' : 'tắt'} sang ${!currentStatus ? 'bật' : 'tắt'}`);
+      
       const response = await axios.patch(`http://localhost:3005/admin/flash-sales/${id}/status`, {
-        isActive: !currentStatus
+        isActive: !currentStatus,
+        forceActivation: true // Quan trọng: Luôn dùng tham số này để bỏ qua kiểm tra thời gian
       });
       
       if (response.data.success) {
-        toast.success(response.data.message);
+        toast.success(response.data.message || 'Đã thay đổi trạng thái Flash Sale thành công');
         setRefreshTrigger(prev => prev + 1);
       } else {
         toast.error('Không thể thay đổi trạng thái Flash Sale');
       }
     } catch (error) {
       console.error('Lỗi khi thay đổi trạng thái Flash Sale:', error);
-      toast.error('Lỗi khi thay đổi trạng thái Flash Sale');
+      
+      // Hiển thị thông báo lỗi chi tiết từ phản hồi API
+      if (error.response?.data?.message) {
+        toast.error(error.response.data.message);
+      } else {
+        toast.error('Lỗi khi thay đổi trạng thái Flash Sale');
+      }
     } finally {
       setLoading(false);
     }
@@ -149,37 +229,82 @@ const FlashSaleAdmin = () => {
 
   // Format thời gian còn lại
   const formatRemainingTime = (startTime, endTime) => {
-    const now = new Date();
-    if (now < new Date(startTime)) {
-      // Sắp diễn ra
-      const diff = moment(startTime).diff(moment());
-      const duration = moment.duration(diff);
-      return `Còn ${duration.days()}d ${duration.hours()}h để bắt đầu`;
-    } else if (now < new Date(endTime)) {
-      // Đang diễn ra
-      const diff = moment(endTime).diff(moment());
-      const duration = moment.duration(diff);
-      return `Còn ${duration.hours()}h ${duration.minutes()}m để kết thúc`;
-    } else {
-      // Đã kết thúc
-      return 'Đã kết thúc';
+    try {
+      // Xử lý định dạng "DD/MM/YYYY HH:mm"
+      let start = moment(startTime);
+      if (!start.isValid() && typeof startTime === 'string') {
+        start = moment(startTime, 'DD/MM/YYYY HH:mm');
+      }
+      
+      let end = moment(endTime);
+      if (!end.isValid() && typeof endTime === 'string') {
+        end = moment(endTime, 'DD/MM/YYYY HH:mm');
+      }
+      
+      const now = moment();
+      
+      // Kiểm tra tính hợp lệ của thời gian sau khi parse
+      if (!start.isValid() || !end.isValid()) {
+        console.warn('Thời gian không hợp lệ:', { startTime, endTime });
+        return 'Thời gian không hợp lệ';
+      }
+      
+      if (now.isBefore(start)) {
+        // Sắp diễn ra
+        const diff = start.diff(now);
+        const duration = moment.duration(diff);
+        return `Còn ${duration.days()}d ${duration.hours()}h để bắt đầu`;
+      } else if (now.isBefore(end)) {
+        // Đang diễn ra
+        const diff = end.diff(now);
+        const duration = moment.duration(diff);
+        return `Còn ${duration.hours()}h ${duration.minutes()}m để kết thúc`;
+      } else {
+        // Đã kết thúc
+        return 'Đã kết thúc';
+      }
+    } catch (error) {
+      console.error('Lỗi khi tính thời gian còn lại:', error);
+      return 'Lỗi định dạng thời gian';
     }
   };
 
   // Render badge trạng thái
   const renderStatusBadge = (startTime, endTime, isActive) => {
-    const now = new Date();
-    
-    if (!isActive) {
-      return <span className="status-badge inactive">Không hoạt động</span>;
-    }
-    
-    if (now < new Date(startTime)) {
-      return <span className="status-badge upcoming">Sắp diễn ra</span>;
-    } else if (now < new Date(endTime)) {
-      return <span className="status-badge active">Đang diễn ra</span>;
-    } else {
-      return <span className="status-badge ended">Đã kết thúc</span>;
+    try {
+      // Xử lý định dạng "DD/MM/YYYY HH:mm"
+      let start = moment(startTime);
+      if (!start.isValid() && typeof startTime === 'string') {
+        start = moment(startTime, 'DD/MM/YYYY HH:mm');
+      }
+      
+      let end = moment(endTime);
+      if (!end.isValid() && typeof endTime === 'string') {
+        end = moment(endTime, 'DD/MM/YYYY HH:mm');
+      }
+      
+      const now = moment();
+      
+      // Kiểm tra tính hợp lệ của thời gian
+      if (!start.isValid() || !end.isValid()) {
+        console.warn('Thời gian không hợp lệ cho trạng thái:', { startTime, endTime });
+        return <span className="status-badge error">Lỗi dữ liệu</span>;
+      }
+      
+      if (!isActive) {
+        return <span className="status-badge inactive">Không hoạt động</span>;
+      }
+      
+      if (now.isBefore(start)) {
+        return <span className="status-badge upcoming">Sắp diễn ra</span>;
+      } else if (now.isBefore(end)) {
+        return <span className="status-badge active">Đang diễn ra</span>;
+      } else {
+        return <span className="status-badge ended">Đã kết thúc</span>;
+      }
+    } catch (error) {
+      console.error('Lỗi khi xác định trạng thái:', error);
+      return <span className="status-badge error">Lỗi dữ liệu</span>;
     }
   };
 
@@ -286,9 +411,15 @@ const FlashSaleAdmin = () => {
                     <div className="time-info">
                       <div className="time-range">
                         <FontAwesomeIcon icon={faCalendarAlt} />
-                        <span>{moment(flashSale.startTime).format('DD/MM/YYYY HH:mm')}</span>
-                        <span> - </span>
-                        <span>{moment(flashSale.endTime).format('DD/MM/YYYY HH:mm')}</span>
+                        {isValidDate(flashSale.startTime) && isValidDate(flashSale.endTime) ? (
+                          <>
+                            <span>{formatDateISO(flashSale.startTime)}</span>
+                            <span> - </span>
+                            <span>{formatDateISO(flashSale.endTime)}</span>
+                          </>
+                        ) : (
+                          <span className="error-text">Thời gian không hợp lệ</span>
+                        )}
                       </div>
                       <div className="remaining-time">
                         <FontAwesomeIcon icon={faClock} />

@@ -36,6 +36,7 @@ const { initSocket } = require('./config/socket');
 const { initSocketHandlers } = require('./socket/index');
 const chatAnalyticsService = require('./socket/chat/services/ChatAnalyticsService');
 const flasheroutes = require('./routes/flasheroutes.js')
+const { scheduleAllFlashSales } = require('./service/flashSaleScheduler');
 // Get MongoDB URI from environment variables
 const uri = process.env.MONGODB_URI || 'mongodb+srv://phat1z:123@ez88.akrq2.mongodb.net/datn?retryWrites=true&w=majority&appName=ez88';
 
@@ -129,7 +130,7 @@ const setupDailyAnalytics = () => {
 
 // Start scheduled tasks
 setupDailyAnalytics();
-
+scheduleAllFlashSales();
 // Get port from environment variables or default to 3005
 const PORT = process.env.PORT || 3005;
 
