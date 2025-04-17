@@ -70,6 +70,7 @@ const flashSaleSchema = new db.mongoose.Schema({
       type: Number,
       default: 0 
     },
+    originalStock: { type: Number }, // Lưu trữ số lượng kho chính ban đầu (để hoàn trả)
     limit: { 
       type: Number, 
       default: 5 
@@ -109,6 +110,18 @@ flashSaleSchema.index({ 'products.dungluongId': 1 });
 flashSaleSchema.index({ 'products.mausacId': 1 });
 flashSaleSchema.index({ 'products.status': 1 });
 
+flashSaleSchema.pre('save', function(next) {
+  if (this.isModified('products')) {
+    this.products.forEach(product => {
+      if (product.soldQuantity >= product.quantity) {
+        product.status = 'soldout';
+      } else if (new Date() >= this.startTime && new Date() <= this.endTime) {
+        product.status = 'available';
+      }
+    });
+  }
+  next();
+});
 const FlashSale = db.mongoose.model('FlashSale', flashSaleSchema);
 
 module.exports = { FlashSale };

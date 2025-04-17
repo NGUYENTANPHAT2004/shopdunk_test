@@ -5,6 +5,7 @@ const Sp = require('../models/chitietSpModel');
 const LoaiSP = require('../models/LoaiSanPham');
 const { User } = require('../models/user.model');
 const moment = require('moment');
+const ProductSizeStock = require('../models/ProductSizeStockmodel')
 const uploads = require('./upload');
 
 // Middleware để kiểm tra quyền admin
@@ -38,7 +39,170 @@ const checkAdminAuth = async (req, res, next) => {
     });
   }
 };
+// Thêm vào flasheroutes.js
+// Cron job hoặc function chạy khi Flash Sale bắt đầu
+const startFlashSale = async (flashSaleId) => {
+  const session = await db.mongoose.startSession();
+  session.startTransaction();
+  
+  try {
+    const flashSale = await FlashSale.findById(flashSaleId).session(session);
+    if (!flashSale || !flashSale.isActive) return;
+    
+    // Cập nhật trạng thái các sản phẩm và lưu lại thông tin tồn kho ban đầu
+    for (const product of flashSale.products) {
+      // Tìm thông tin tồn kho hiện tại
+      const stockRecord = await ProductSizeStock.findOne({
+        productId: product.productId,
+        dungluongId: product.dungluongId || null,
+        mausacId: product.mausacId || null
+      }).session(session);
+      
+      if (!stockRecord) continue;
+      
+      // Lưu lại số lượng tồn kho ban đầu để hoàn trả sau này
+      product.originalStock = stockRecord.unlimitedStock ? null : stockRecord.quantity;
+      
+      // Cập nhật trạng thái sản phẩm
+      product.status = 'available';
+    }
+    
+    await flashSale.save({ session });
+    await session.commitTransaction();
+  } catch (error) {
+    await session.abortTransaction();
+    console.error('Lỗi khi bắt đầu Flash Sale:', error);
+  } finally {
+    session.endSession();
+  }
+};
 
+// Cron job hoặc function chạy khi Flash Sale kết thúc
+const endFlashSale = async (flashSaleId) => {
+  const session = await db.mongoose.startSession();
+  session.startTransaction();
+  
+  try {
+    const flashSale = await FlashSale.findById(flashSaleId).session(session);
+    if (!flashSale) return;
+    
+    // Đánh dấu Flash Sale đã kết thúc
+    flashSale.isActive = false;
+    
+    // Hoàn trả tồn kho cho các sản phẩm còn lại
+    for (const product of flashSale.products) {
+      // Bỏ qua các sản phẩm đã bán hết
+      if (product.soldQuantity >= product.quantity) {
+        product.status = 'soldout';
+        continue;
+      }
+      
+      // Đánh dấu sản phẩm đã kết thúc
+      product.status = 'ended';
+      
+      // Tính toán số lượng cần hoàn trả
+      const remainingQuantity = product.quantity - product.soldQuantity;
+      
+      // Nếu có ghi nhận tồn kho ban đầu (không phải unlimited)
+      if (product.originalStock !== null && product.originalStock !== undefined) {
+        // Hoàn trả số lượng vào kho chính
+        await ProductSizeStock.findOneAndUpdate(
+          {
+            productId: product.productId,
+            dungluongId: product.dungluongId || null,
+            mausacId: product.mausacId || null,
+            unlimitedStock: { $ne: true }
+          },
+          {
+            $inc: { quantity: remainingQuantity }
+          },
+          { session }
+        );
+      }
+    }
+    
+    await flashSale.save({ session });
+    await session.commitTransaction();
+  } catch (error) {
+    await session.abortTransaction();
+    console.error('Lỗi khi kết thúc Flash Sale:', error);
+  } finally {
+    session.endSession();
+  }
+};
+
+// Cập nhật hàm updateFlashSaleStatus để gọi startFlashSale và endFlashSale khi cần
+const updateFlashSaleStatus = async (flashSale) => {
+  const now = new Date();
+  
+  // Nếu Flash Sale quá thời gian kết thúc và đang active
+  if (now > flashSale.endTime && flashSale.isActive) {
+    await endFlashSale(flashSale._id);
+    return;
+  }
+  
+  // Nếu Flash Sale đã đến thời gian bắt đầu nhưng chưa bắt đầu
+  if (now >= flashSale.startTime && now <= flashSale.endTime) {
+    const needToStart = flashSale.products.some(product => product.status === 'upcoming');
+    if (needToStart) {
+      await startFlashSale(flashSale._id);
+    }
+  }
+};
+router.get('/check-product-in-flash-sale/:productId', async (req, res) => {
+  try {
+    const { productId } = req.params;
+    const now = new Date();
+    
+    // Tìm Flash Sale đang diễn ra có chứa sản phẩm này
+    const flashSale = await FlashSale.findOne({
+      isActive: true,
+      isDeleted: false,
+      startTime: { $lte: now },
+      endTime: { $gt: now },
+      'products.productId': productId
+    }).lean();
+    
+    if (!flashSale) {
+      return res.json({
+        inFlashSale: false
+      });
+    }
+    
+    // Tìm biến thể sản phẩm đang Flash Sale
+    const flashSaleProduct = flashSale.products.find(p => 
+      p.productId.toString() === productId && 
+      p.status === 'available' &&
+      p.soldQuantity < p.quantity
+    );
+    
+    if (!flashSaleProduct) {
+      return res.json({
+        inFlashSale: false
+      });
+    }
+    
+    res.json({
+      inFlashSale: true,
+      flashSaleInfo: {
+        flashSaleId: flashSale._id,
+        productId: flashSaleProduct.productId,
+        dungluongId: flashSaleProduct.dungluongId,
+        mausacId: flashSaleProduct.mausacId,
+        originalPrice: flashSaleProduct.originalPrice,
+        salePrice: flashSaleProduct.salePrice,
+        discountPercent: flashSaleProduct.discountPercent,
+        remainingQuantity: flashSaleProduct.quantity - flashSaleProduct.soldQuantity
+      }
+    });
+  } catch (error) {
+    console.error('Lỗi khi kiểm tra sản phẩm Flash Sale:', error);
+    res.status(500).json({
+      inFlashSale: false,
+      error: error.message
+    });
+  }
+});
 // Function cập nhật trạng thái Flash Sale
 const updateFlashSaleStatus = async (flashSale) => {
   const now = new Date();
@@ -1177,6 +1341,74 @@ const safeUpdateFlashSaleQuantity = async (flashSaleId, productIndex, quantity, 
   
   throw new Error(`Không thể cập nhật số lượng Flash Sale sau ${maxAttempts} lần thử`);
 };
-
+// Thêm vào flasheroutes.js
+router.get('/product-flash-sale-variants/:productId', async (req, res) => {
+  try {
+    const { productId } = req.params;
+    const now = new Date();
+    
+    // Tìm tất cả Flash Sale đang diễn ra có chứa sản phẩm này
+    const flashSales = await FlashSale.find({
+      isActive: true,
+      isDeleted: false,
+      startTime: { $lte: now },
+      endTime: { $gt: now },
+      'products.productId': productId
+    }).lean();
+    
+    if (!flashSales || flashSales.length === 0) {
+      return res.json({
+        success: true,
+        variants: []
+      });
+    }
+    
+    // Lấy tất cả biến thể Flash Sale cho sản phẩm này
+    const flashSaleVariants = [];
+    let defaultVariant = null;
+    
+    flashSales.forEach(flashSale => {
+      flashSale.products.forEach(product => {
+        if (product.productId.toString() === productId && 
+            product.status === 'available' &&
+            product.soldQuantity < product.quantity) {
+          
+          const variant = {
+            flashSaleId: flashSale._id,
+            productId: product.productId,
+            dungluongId: product.dungluongId,
+            mausacId: product.mausacId,
+            originalPrice: product.originalPrice,
+            salePrice: product.salePrice,
+            discountPercent: product.discountPercent,
+            remainingQuantity: product.quantity - product.soldQuantity
+          };
+          
+          flashSaleVariants.push(variant);
+          
+          // Lưu biến thể đầu tiên làm mặc định nếu chưa có
+          if (!defaultVariant) {
+            defaultVariant = {
+              dungluongId: product.dungluongId,
+              mausacId: product.mausacId
+            };
+          }
+        }
+      });
+    });
+    
+    res.json({
+      success: true,
+      variants: flashSaleVariants,
+      defaultVariant
+    });
+  } catch (error) {
+    console.error('Lỗi khi lấy biến thể Flash Sale:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Lỗi khi lấy biến thể Flash Sale'
+    });
+  }
+});
 // Xuất router
 module.exports = router;

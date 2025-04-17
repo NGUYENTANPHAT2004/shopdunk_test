@@ -32,7 +32,167 @@ function sortObject (obj) {
   }
   return sorted
 }
+async function processFlashSaleItems(flashSaleItems, session = null) {
+  if (!flashSaleItems || !Array.isArray(flashSaleItems) || flashSaleItems.length === 0) {
+    return { success: true, message: 'Không có sản phẩm Flash Sale' };
+  }
+  
+  try {
+    // Nhóm các sản phẩm theo Flash Sale ID để tối ưu số lượng queries
+    const flashSaleGroups = {};
+    for (const item of flashSaleItems) {
+      if (!item.flashSaleId) continue;
+      
+      if (!flashSaleGroups[item.flashSaleId]) {
+        flashSaleGroups[item.flashSaleId] = [];
+      }
+      
+      flashSaleGroups[item.flashSaleId].push(item);
+    }
+    
+    // Xử lý từng Flash Sale
+    for (const [flashSaleId, items] of Object.entries(flashSaleGroups)) {
+      // Tìm Flash Sale
+      const flashSale = await FlashSale.findById(flashSaleId).session(session);
+      
+      if (!flashSale) {
+        return { 
+          success: false, 
+          message: `Không tìm thấy Flash Sale (ID: ${flashSaleId})` 
+        };
+      }
+      
+      // Kiểm tra Flash Sale có còn hoạt động không
+      const now = new Date();
+      if (now < flashSale.startTime || now > flashSale.endTime || !flashSale.isActive) {
+        return { 
+          success: false, 
+          message: 'Flash Sale đã kết thúc hoặc chưa bắt đầu' 
+        };
+      }
+      
+      // Xử lý từng sản phẩm trong Flash Sale
+      for (const item of items) {
+        // Tìm sản phẩm trong Flash Sale
+        const productIndex = flashSale.products.findIndex(p => 
+          p.productId.toString() === item.idsp.toString() &&
+          (p.dungluongId ? p.dungluongId.toString() === item.dungluong.toString() : true) &&
+          (p.mausacId ? p.mausacId.toString() === item.idmausac.toString() : true)
+        );
+        
+        if (productIndex === -1) {
+          return { 
+            success: false, 
+            message: `Sản phẩm không tồn tại trong Flash Sale` 
+          };
+        }
+        
+        const product = flashSale.products[productIndex];
+        
+        // Kiểm tra số lượng còn lại
+        if (product.soldQuantity + item.soluong > product.quantity) {
+          return { 
+            success: false, 
+            message: `Sản phẩm Flash Sale không đủ số lượng. Hiện chỉ còn ${product.quantity - product.soldQuantity} sản phẩm.` 
+          };
+        }
+        
+        // Cập nhật số lượng đã bán
+        flashSale.products[productIndex].soldQuantity += item.soluong;
+        
+        // Cập nhật trạng thái nếu đã hết hàng
+        if (flashSale.products[productIndex].soldQuantity >= flashSale.products[productIndex].quantity) {
+          flashSale.products[productIndex].status = 'soldout';
+        }
+      }
+      
+      // Lưu Flash Sale
+      await flashSale.save({ session });
+    }
+    
+    return { success: true };
+  } catch (error) {
+    console.error('Lỗi khi xử lý sản phẩm Flash Sale:', error);
+    return { 
+      success: false, 
+      message: 'Lỗi khi xử lý sản phẩm Flash Sale: ' + error.message 
+    };
+  }
+}
 
+// Hàm hoàn lại số lượng Flash Sale khi hủy đơn hoặc thanh toán thất bại
+async function rollbackFlashSalePurchase(flashSaleItems, session = null) {
+  if (!flashSaleItems || !Array.isArray(flashSaleItems) || flashSaleItems.length === 0) {
+    console.log('Không có sản phẩm Flash Sale để hoàn lại');
+    return { success: true };
+  }
+  
+  try {
+    // Nhóm các sản phẩm theo Flash Sale ID để tối ưu số lượng queries
+    const flashSaleGroups = {};
+    for (const item of flashSaleItems) {
+      if (!item.flashSaleId) continue;
+      
+      if (!flashSaleGroups[item.flashSaleId]) {
+        flashSaleGroups[item.flashSaleId] = [];
+      }
+      
+      flashSaleGroups[item.flashSaleId].push(item);
+    }
+    
+    // Xử lý từng Flash Sale
+    for (const [flashSaleId, items] of Object.entries(flashSaleGroups)) {
+      // Tìm Flash Sale
+      const flashSale = await FlashSale.findById(flashSaleId).session(session);
+      
+      if (!flashSale) {
+        console.warn(`Không tìm thấy Flash Sale (ID: ${flashSaleId}) để hoàn lại số lượng`);
+        continue;
+      }
+      
+      let hasChanges = false;
+      
+      // Xử lý từng sản phẩm trong Flash Sale
+      for (const item of items) {
+        // Tìm sản phẩm trong Flash Sale
+        const productIndex = flashSale.products.findIndex(p => 
+          p.productId.toString() === item.idsp.toString() &&
+          (p.dungluongId ? p.dungluongId.toString() === item.dungluong.toString() : true) &&
+          (p.mausacId ? p.mausacId.toString() === item.idmausac.toString() : true)
+        );
+        
+        if (productIndex === -1) {
+          console.warn(`Không tìm thấy sản phẩm trong Flash Sale để hoàn lại số lượng`);
+          continue;
+        }
+        
+        // Hoàn lại số lượng đã bán
+        flashSale.products[productIndex].soldQuantity = Math.max(0, flashSale.products[productIndex].soldQuantity - item.soluong);
+        
+        // Cập nhật trạng thái nếu đã có sản phẩm
+        if (flashSale.products[productIndex].soldQuantity < flashSale.products[productIndex].quantity) {
+          const now = new Date();
+          if (now >= flashSale.startTime && now <= flashSale.endTime && flashSale.isActive) {
+            flashSale.products[productIndex].status = 'available';
+          }
+        }
+        
+        hasChanges = true;
+      }
+      
+      // Lưu Flash Sale nếu có thay đổi
+      if (hasChanges) {
+        await flashSale.save({ session });
+        console.log(`Đã hoàn lại số lượng cho Flash Sale ${flashSaleId}`);
+      }
+    }
+    
+    return { success: true };
+  } catch (error) {
+    console.error('Lỗi khi hoàn lại số lượng Flash Sale:', error);
+    return { success: false, error };
+  }
+}
 router.get('/gethoadon', async (req, res) => {
   try {
     const hoadon = await HoaDon.hoadon.find({}).lean()
@@ -369,163 +529,216 @@ async function validateVoucher(magiamgia, phone, totalAmount, userId = null) {
   };
 }
 router.post('/create_payment_url', async (req, res) => {
-  process.env.TZ = 'Asia/Ho_Chi_Minh'
-
-  let date = new Date()
-  let createDate = moment(date).format('YYYYMMDDHHmmss')
-
-  let ipAddr =
-    req.headers['x-forwarded-for'] ||
-    req.connection.remoteAddress ||
-    req.socket.remoteAddress ||
-    req.connection.socket.remoteAddress
-
-  let config = require('config')
-
-  let tmnCode = config.get('vnp_TmnCode')
-  let secretKey = config.get('vnp_HashSecret')
-  let vnpUrl = config.get('vnp_Url')
-  let returnUrl = config.get('vnp_ReturnUrl')
-  let orderId = moment(date).format('DDHHmmss')
-  let amount = req.body.amount  // Lấy amount từ frontend (đã bao gồm phí vận chuyển)
-  let bankCode = req.body.bankCode
-
-  let locale = req.body.language || 'vn'
-  const { name, nguoinhan, phone, sex, giaotannoi, address, ghichu, magiamgia, sanphams, userId } =
-    req.body
-
-  let currCode = 'VND'
-  let vnp_Params = {}
-  vnp_Params['vnp_Version'] = '2.1.0'
-  vnp_Params['vnp_Command'] = 'pay'
-  vnp_Params['vnp_TmnCode'] = tmnCode
-  vnp_Params['vnp_Locale'] = locale
-  vnp_Params['vnp_CurrCode'] = currCode
-  vnp_Params['vnp_TxnRef'] = orderId
-  vnp_Params['vnp_OrderInfo'] = 'Thanh toan cho ma GD:' + orderId
-  vnp_Params['vnp_OrderType'] = 'other'
-  vnp_Params['vnp_Amount'] = amount * 100  // Sử dụng amount từ frontend
-  vnp_Params['vnp_ReturnUrl'] = returnUrl
-  vnp_Params['vnp_IpAddr'] = ipAddr
-  vnp_Params['vnp_CreateDate'] = createDate
-  if (bankCode !== null && bankCode !== '') {
-    vnp_Params['vnp_BankCode'] = bankCode
-  }
-  const ngaymua = momenttimezone().toDate()
-  const hoadon = new HoaDon.hoadon({
-    name,
-    phone,
-    sex,
-    nguoinhan,
-    giaotannoi,
-    ngaymua,
-    trangthai: 'Đang xử lý',
-    tongtien: amount,  // Lưu amount vào tongtien thay vì tính lại
-    orderId,
-    thanhtoan: false,
-    userId: userId || null
-  })
-
-  hoadon.maHDL = 'HD' + hoadon._id.toString().slice(-4)
+  // Tạo session để đảm bảo tính nguyên vẹn dữ liệu
+  const session = await db.mongoose.startSession();
+  session.startTransaction();
   
-  // Vẫn cần tính tongtien_sanpham để lưu thông tin sản phẩm vào hóa đơn
-  let tongtien_sanpham = 0
-
-  for (const sanpham of sanphams) {
-    const { idsp, soluong, dungluong, idmausac, price, mausac } = sanpham
-    const productDetails = await SanPham.ChitietSp.findById(idsp);
-    const dungluongDetails = await DungLuong.dungluong.findById(dungluong);
-    hoadon.sanpham.push({
-      idsp,
-      soluong,
-      price,
-      dungluong,
-      idmausac,
-      mausac,
-      productSnapshot: {
-        name: productDetails ? productDetails.name : "Sản phẩm không xác định",
-        image: productDetails ? productDetails.image : "",
-        dungluongName: dungluongDetails ? dungluongDetails.name : "",
-        mausacName: mausac || ""
-      }
-    })
-    tongtien_sanpham += price * soluong
-  }
-
-  if (magiamgia) {
-    // Sử dụng amount làm cơ sở tính mã giảm giá (bao gồm cả phí vận chuyển)
-    const validationResult = await validateVoucher(magiamgia, phone, amount);
-    
-    if (!validationResult.valid) {
-      return res.json({ message: validationResult.message });
-    }
-    
-    const magiamgia1 = validationResult.voucher;
-    
-    hoadon.magiamgia = magiamgia;
-    const giamGia = magiamgia1.sophantram / 100;
-    // Áp dụng giảm giá vào amount
-    const discountedAmount = amount - amount * giamGia;
-    hoadon.tongtien = discountedAmount;
-    vnp_Params['vnp_Amount'] = discountedAmount * 100;
-    
-    if (magiamgia1.isOneTimePerUser && !magiamgia1.appliedUsers.includes(phone)) {
-      magiamgia1.appliedUsers.push(phone);
-      await magiamgia1.save();
-    }
-  }
-
-  if (giaotannoi) {
-    hoadon.address = address
-  }
-  if (ghichu) {
-    hoadon.ghichu = ghichu
-  }
-
   try {
-    // Check and reduce inventory before saving the order
-    await reduceInventory(hoadon.sanpham);
+    process.env.TZ = 'Asia/Ho_Chi_Minh'
+
+    let date = new Date()
+    let createDate = moment(date).format('YYYYMMDDHHmmss')
+
+    let ipAddr =
+      req.headers['x-forwarded-for'] ||
+      req.connection.remoteAddress ||
+      req.socket.remoteAddress ||
+      req.connection.socket.remoteAddress
+
+    let config = require('config')
+
+    let tmnCode = config.get('vnp_TmnCode')
+    let secretKey = config.get('vnp_HashSecret')
+    let vnpUrl = config.get('vnp_Url')
+    let returnUrl = config.get('vnp_ReturnUrl')
+    let orderId = moment(date).format('DDHHmmss')
+    let amount = req.body.amount  // Lấy amount từ frontend (đã bao gồm phí vận chuyển)
+    let bankCode = req.body.bankCode
+
+    let locale = req.body.language || 'vn'
+    const { name, nguoinhan, phone, sex, giaotannoi, address, ghichu, magiamgia, sanphams, userId } =
+      req.body
+
+    // Phân loại sản phẩm thường và Flash Sale
+    const regularItems = sanphams.filter(item => !item.isFlashSale);
+    const flashSaleItems = sanphams.filter(item => item.isFlashSale);
     
-    // Save the order with payment pending
-    await hoadon.save();
-    
-    // Create an expiration timeout for the order payment
-    setTimeout(async () => {
-      try {
-        const order = await HoaDon.hoadon.findById(hoadon._id);
-        if (order && !order.thanhtoan && order.trangthai !== 'Hủy Đơn Hàng') {
-          // Payment wasn't completed within the timeframe
-          await restoreInventory(order.sanpham);
-          order.trangthai = 'Thanh toán hết hạn';
-          await order.save();
-          console.log(`Payment timeout for order ${order._id}, inventory restored`);
-        }
-      } catch (err) {
-        console.error('Error handling payment timeout:', err);
+    // Xử lý Flash Sale trước
+    if (flashSaleItems.length > 0) {
+      const processResult = await processFlashSaleItems(flashSaleItems, session);
+      
+      if (!processResult.success) {
+        await session.abortTransaction();
+        session.endSession();
+        return res.status(400).json({ 
+          success: false, 
+          message: processResult.message 
+        });
       }
-    }, 15 * 60 * 1000); // 15 minutes timeout
+    }
+
+    let currCode = 'VND'
+    let vnp_Params = {}
+    vnp_Params['vnp_Version'] = '2.1.0'
+    vnp_Params['vnp_Command'] = 'pay'
+    vnp_Params['vnp_TmnCode'] = tmnCode
+    vnp_Params['vnp_Locale'] = locale
+    vnp_Params['vnp_CurrCode'] = currCode
+    vnp_Params['vnp_TxnRef'] = orderId
+    vnp_Params['vnp_OrderInfo'] = 'Thanh toan cho ma GD:' + orderId
+    vnp_Params['vnp_OrderType'] = 'other'
+    vnp_Params['vnp_Amount'] = amount * 100  // Sử dụng amount từ frontend
+    vnp_Params['vnp_ReturnUrl'] = returnUrl
+    vnp_Params['vnp_IpAddr'] = ipAddr
+    vnp_Params['vnp_CreateDate'] = createDate
+    if (bankCode !== null && bankCode !== '') {
+      vnp_Params['vnp_BankCode'] = bankCode
+    }
+    const ngaymua = momenttimezone().toDate()
+    const hoadon = new HoaDon.hoadon({
+      name,
+      phone,
+      sex,
+      nguoinhan,
+      giaotannoi,
+      ngaymua,
+      trangthai: 'Đang xử lý',
+      tongtien: amount,  // Lưu amount vào tongtien thay vì tính lại
+      orderId,
+      thanhtoan: false,
+      userId: userId || null
+    })
+
+    hoadon.maHDL = 'HD' + hoadon._id.toString().slice(-4)
     
+    // Vẫn cần tính tongtien_sanpham để lưu thông tin sản phẩm vào hóa đơn
+    let tongtien_sanpham = 0
+
+    for (const sanpham of sanphams) {
+      const { idsp, soluong, dungluong, idmausac, price, mausac, isFlashSale, flashSaleId } = sanpham
+      const productDetails = await Sp.ChitietSp.findById(idsp).session(session);
+      const dungluongDetails = await DungLuong.dungluong.findById(dungluong).session(session);
+      
+      // Thêm thông tin Flash Sale vào hóa đơn
+      hoadon.sanpham.push({
+        idsp,
+        soluong,
+        price,
+        dungluong,
+        idmausac,
+        mausac,
+        isFlashSale: isFlashSale || false,
+        flashSaleId: flashSaleId || null,
+        productSnapshot: {
+          name: productDetails ? productDetails.name : "Sản phẩm không xác định",
+          image: productDetails ? productDetails.image : "",
+          dungluongName: dungluongDetails ? dungluongDetails.name : "",
+          mausacName: mausac || ""
+        }
+      })
+      tongtien_sanpham += price * soluong
+    }
+
+    if (magiamgia) {
+      // Sử dụng amount làm cơ sở tính mã giảm giá (bao gồm cả phí vận chuyển)
+      const validationResult = await validateVoucher(magiamgia, phone, amount, userId, session);
+      
+      if (!validationResult.valid) {
+        await session.abortTransaction();
+        session.endSession();
+        return res.json({ message: validationResult.message });
+      }
+      
+      const magiamgia1 = validationResult.voucher;
+      
+      hoadon.magiamgia = magiamgia;
+      const giamGia = magiamgia1.sophantram / 100;
+      // Áp dụng giảm giá vào amount
+      const discountedAmount = amount - amount * giamGia;
+      hoadon.tongtien = discountedAmount;
+      vnp_Params['vnp_Amount'] = discountedAmount * 100;
+      
+      if (magiamgia1.isOneTimePerUser && !magiamgia1.appliedUsers.includes(phone)) {
+        magiamgia1.appliedUsers.push(phone);
+        await magiamgia1.save({ session });
+      }
+    }
+
+    if (giaotannoi) {
+      hoadon.address = address
+    }
+    if (ghichu) {
+      hoadon.ghichu = ghichu
+    }
+
+    try {
+      // Chỉ xử lý tồn kho cho sản phẩm không phải Flash Sale
+      // Sản phẩm Flash Sale đã được xử lý trong hàm processFlashSaleItems
+      if (regularItems.length > 0) {
+        await reduceInventory(regularItems, session);
+      }
+      
+      // Lưu hóa đơn
+      await hoadon.save({ session });
+      
+      // Thiết lập timeout cho đơn hàng
+      setTimeout(async () => {
+        try {
+          const order = await HoaDon.hoadon.findById(hoadon._id);
+          if (order && !order.thanhtoan && order.trangthai !== 'Hủy Đơn Hàng') {
+            // Payment wasn't completed within the timeframe
+            
+            // Khôi phục tồn kho cho sản phẩm thường
+            if (regularItems.length > 0) {
+              await restoreInventory(regularItems);
+            }
+            
+            // Khôi phục tồn kho Flash Sale
+            if (flashSaleItems.length > 0) {
+              await rollbackFlashSalePurchase(flashSaleItems);
+            }
+            
+            order.trangthai = 'Thanh toán hết hạn';
+            await order.save();
+            console.log(`Payment timeout for order ${order._id}, inventory restored`);
+          }
+        } catch (err) {
+          console.error('Error handling payment timeout:', err);
+        }
+      }, 15 * 60 * 1000); // 15 minutes timeout
+      
+      // Commit giao dịch
+      await session.commitTransaction();
+      session.endSession();
+    } catch (error) {
+      console.error('Error processing order:', error);
+      await session.abortTransaction();
+      session.endSession();
+      return res.status(400).json({ message: error.message || 'Lỗi khi xử lý đơn hàng' });
+    }
+
+    vnp_Params = sortObject(vnp_Params)
+
+    let querystring = require('qs')
+    let signData = querystring.stringify(vnp_Params, { encode: false })
+    let crypto = require('crypto')
+    let hmac = crypto.createHmac('sha512', secretKey)
+    let signed = hmac.update(new Buffer(signData, 'utf-8')).digest('hex')
+    vnp_Params['vnp_SecureHash'] = signed
+    vnpUrl += '?' + querystring.stringify(vnp_Params, { encode: false })
+
+    res.json(vnpUrl)
   } catch (error) {
-    console.error('Error processing order:', error);
-    return res.status(400).json({ message: error.message || 'Lỗi khi xử lý đơn hàng' });
+    console.error('Lỗi khi tạo URL thanh toán:', error);
+    if (session.inTransaction()) {
+      await session.abortTransaction();
+    }
+    session.endSession();
+    res.status(500).json({ message: error.message || 'Lỗi khi xử lý thanh toán' });
   }
-
-  vnp_Params = sortObject(vnp_Params)
-
-  let querystring = require('qs')
-  let signData = querystring.stringify(vnp_Params, { encode: false })
-  let crypto = require('crypto')
-  let hmac = crypto.createHmac('sha512', secretKey)
-  let signed = hmac.update(new Buffer(signData, 'utf-8')).digest('hex')
-  vnp_Params['vnp_SecureHash'] = signed
-  vnpUrl += '?' + querystring.stringify(vnp_Params, { encode: false })
-
-  res.json(vnpUrl)
 })
 
-// Trong HoaDonRoutes.js, cập nhật phần xử lý voucher sau thanh toán thành công
-
-// Cập nhật đoạn code trong route /vnpay_return
+// 4. Cập nhật route vnpay_return để xử lý Flash Sale sau khi thanh toán
 router.get('/vnpay_return', async (req, res) => {
   let vnp_Params = req.query
 
@@ -643,8 +856,21 @@ router.get('/vnpay_return', async (req, res) => {
       
       return res.redirect('https://localhost:3000/thanhcong?success=true');
     } else {
-      // Payment failed, restore inventory
-      await restoreInventory(hoadon.sanpham);
+      // Payment failed
+      
+      // Phân loại sản phẩm thường và Flash Sale
+      const regularItems = hoadon.sanpham.filter(item => !item.isFlashSale);
+      const flashSaleItems = hoadon.sanpham.filter(item => item.isFlashSale);
+      
+      // Khôi phục tồn kho cho sản phẩm thường
+      if (regularItems.length > 0) {
+        await restoreInventory(regularItems);
+      }
+      
+      // Khôi phục tồn kho Flash Sale
+      if (flashSaleItems.length > 0) {
+        await rollbackFlashSalePurchase(flashSaleItems);
+      }
       
       // Mark the order as payment failed
       hoadon.thanhtoan = false;
@@ -660,6 +886,7 @@ router.get('/vnpay_return', async (req, res) => {
     return res.redirect('https://localhost:3000/thanhcong');
   }
 })
+
 router.get('/checknewvouchers/:phone', async (req, res) => {
   try {
     const { phone } = req.params;
@@ -733,6 +960,10 @@ router.post('/settrangthai/:idhoadon', async (req, res) => {
     const oldTrangthai = hoadon.trangthai;
     const oldThanhtoan = hoadon.thanhtoan;
     
+    // Phân loại sản phẩm thường và Flash Sale
+    const regularItems = hoadon.sanpham.filter(item => !item.isFlashSale);
+    const flashSaleItems = hoadon.sanpham.filter(item => item.isFlashSale);
+    
     // Ghi log để debug
     console.log(`Chuyển trạng thái đơn hàng ${idhoadon} từ '${oldTrangthai}' sang '${trangthai}'`);
     
@@ -748,8 +979,15 @@ router.post('/settrangthai/:idhoadon', async (req, res) => {
       if (inventoryWasReduced) {
         console.log(`Khôi phục tồn kho khi hủy đơn hàng ${idhoadon} từ trạng thái ${oldTrangthai}`);
         
-        // Sử dụng session để đảm bảo tính nguyên vẹn dữ liệu
-        await restoreInventory(hoadon.sanpham, session);
+        // Khôi phục tồn kho cho sản phẩm thường
+        if (regularItems.length > 0) {
+          await restoreInventory(regularItems, session);
+        }
+        
+        // Khôi phục tồn kho Flash Sale
+        if (flashSaleItems.length > 0) {
+          await rollbackFlashSalePurchase(flashSaleItems, session);
+        }
       } else {
         console.log(`Không cần khôi phục tồn kho cho đơn hàng ${idhoadon}, vì tồn kho chưa bị giảm`);
       }
@@ -767,7 +1005,16 @@ router.post('/settrangthai/:idhoadon', async (req, res) => {
       
       if (inventoryWasReduced) {
         console.log(`Khôi phục tồn kho khi đánh dấu thất bại/hết hạn thanh toán ${idhoadon}`);
-        await restoreInventory(hoadon.sanpham, session);
+        
+        // Khôi phục tồn kho cho sản phẩm thường
+        if (regularItems.length > 0) {
+          await restoreInventory(regularItems, session);
+        }
+        
+        // Khôi phục tồn kho Flash Sale
+        if (flashSaleItems.length > 0) {
+          await rollbackFlashSalePurchase(flashSaleItems, session);
+        }
       }
     }
     
@@ -775,10 +1022,21 @@ router.post('/settrangthai/:idhoadon', async (req, res) => {
     else if ((oldTrangthai === 'Đã nhận' || oldTrangthai === 'Hoàn thành') && 
              trangthai === 'Trả hàng/Hoàn tiền') {
       console.log(`Khôi phục tồn kho khi trả hàng ${idhoadon}`);
-      await restoreInventory(hoadon.sanpham, session);
+      
+      // Khôi phục tồn kho cho sản phẩm thường
+      if (regularItems.length > 0) {
+        await restoreInventory(regularItems, session);
+      }
+      
+      // Khôi phục tồn kho Flash Sale
+      // Lưu ý: Flash Sale có thể đã kết thúc, nhưng vẫn cố gắng hoàn lại
+      if (flashSaleItems.length > 0) {
+        await rollbackFlashSalePurchase(flashSaleItems, session);
+      }
     }
     
     // TRƯỜNG HỢP 4: Từ trạng thái thất bại/hết hạn/hủy sang trạng thái thành công
+    else// TRƯỜNG HỢP 4: Từ trạng thái thất bại/hết hạn/hủy sang trạng thái thành công
     // (trường hợp khách hàng quyết định thanh toán lại sau khi thất bại)
     else if ((oldTrangthai === 'Thanh toán thất bại' || 
               oldTrangthai === 'Thanh toán hết hạn' || 
@@ -786,26 +1044,51 @@ router.post('/settrangthai/:idhoadon', async (req, res) => {
              (trangthai === 'Đã thanh toán' || trangthai === 'Đang xử lý') && 
              (thanhtoan === true || trangthai === 'Đã thanh toán')) {
       
-      console.log(`Giảm tồn kho khi đơn hàng được thanh toán lại ${idhoadon}`);
-      try {
-        await reduceInventory(hoadon.sanpham);
-      } catch (error) {
-        // Nếu không đủ tồn kho, không cho chuyển trạng thái
-        await session.abortTransaction();
-        session.endSession();
-        return res.status(400).json({ 
-          message: 'Không thể thanh toán lại đơn hàng do tồn kho không đủ',
-          error: error.message
-        });
+      console.log(`Đơn hàng ${idhoadon} đang được kích hoạt lại (thanh toán lại)`);
+      
+      // Giảm tồn kho cho sản phẩm thường
+      if (regularItems.length > 0) {
+        try {
+          await reduceInventory(regularItems, session);
+        } catch (error) {
+          // Nếu không đủ tồn kho, không cho chuyển trạng thái
+          await session.abortTransaction();
+          session.endSession();
+          return res.status(400).json({ 
+            message: 'Không thể thanh toán lại đơn hàng do tồn kho không đủ',
+            error: error.message
+          });
+        }
+      }
+      
+      // Xử lý Flash Sale - kiểm tra nếu Flash Sale còn hoạt động không
+      if (flashSaleItems.length > 0) {
+        try {
+          const processResult = await processFlashSaleItems(flashSaleItems, session);
+          
+          if (!processResult.success) {
+            await session.abortTransaction();
+            session.endSession();
+            return res.status(400).json({ 
+              message: 'Không thể thanh toán lại đơn hàng Flash Sale: ' + processResult.message,
+              isFlashSaleError: true
+            });
+          }
+        } catch (error) {
+          // Nếu xử lý Flash Sale lỗi, không cho chuyển trạng thái
+          await session.abortTransaction();
+          session.endSession();
+          return res.status(400).json({ 
+            message: 'Không thể thanh toán lại đơn hàng Flash Sale: ' + error.message,
+            isFlashSaleError: true
+          });
+        }
       }
     }
     
-    // TRƯỜNG HỢP 5: Khi chuyển từ đang xử lý sang đang vận chuyển
-    // KHÔNG giảm tồn kho trong trường hợp này, vì tồn kho đã giảm từ khi tạo đơn
-    else if (oldTrangthai === 'Đang xử lý' && trangthai === 'Đang vận chuyển') {
-      console.log(`Chuyển từ đang xử lý sang đang vận chuyển, không thay đổi tồn kho`);
-      // Không làm gì với tồn kho
-    }
+    // TRƯỜNG HỢP 5: Khi Flash Sale kết thúc và cần hoàn trả số lượng còn dư
+    // Xử lý tự động khi Flash Sale kết thúc (qua scheduled job riêng)
+    // Chỉ đề cập tại đây cho đầy đủ, nhưng không triển khai trong route này
     
     // Cập nhật trạng thái đơn hàng
     hoadon.trangthai = trangthai;

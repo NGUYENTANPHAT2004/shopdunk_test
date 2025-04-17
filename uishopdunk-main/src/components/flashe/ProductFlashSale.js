@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faBolt, faClock } from '@fortawesome/free-solid-svg-icons';
+import { faBolt, faClock, faShoppingCart } from '@fortawesome/free-solid-svg-icons';
 import moment from 'moment';
 import './ProductFlashSale.scss';
 import { useFlashSale } from '../../context/Flashecontext';
@@ -36,7 +36,7 @@ const ProductFlashSale = ({ productId, dungluongId, mausacId }) => {
       }
     };
     
-    if (productId) {
+    if (productId && dungluongId && mausacId) {
       checkFlashSale();
     }
   }, [productId, dungluongId, mausacId, checkProductInFlashSale]);
@@ -82,11 +82,15 @@ const ProductFlashSale = ({ productId, dungluongId, mausacId }) => {
     return () => clearInterval(timerId);
   }, [flashSaleInfo]);
 
-  if (loading || !productId) return null;
+  if (loading || !productId || !dungluongId || !mausacId) return null;
   
   if (!flashSaleInfo) return null;
   
   const { hours, minutes, seconds } = remainingTime;
+  
+  // Tính toán số lượng còn lại
+  const remainingQuantity = flashSaleInfo.quantity - flashSaleInfo.soldQuantity;
+  const soldPercent = Math.round((flashSaleInfo.soldQuantity / flashSaleInfo.quantity) * 100);
   
   return (
     <div className="product-flash-sale">
@@ -117,15 +121,22 @@ const ProductFlashSale = ({ productId, dungluongId, mausacId }) => {
         <div className="flash-sale-progress">
           <div className="progress-text">
             <span>Đã bán {flashSaleInfo.soldQuantity}</span>
-            <span>Còn lại {flashSaleInfo.remainingQuantity}</span>
+            <span>Còn lại {remainingQuantity}</span>
           </div>
           <div className="progress-bar">
             <div 
               className="progress-fill" 
-              style={{ width: `${Math.min((flashSaleInfo.soldQuantity / flashSaleInfo.quantity) * 100, 100)}%` }}
+              style={{ width: `${soldPercent}%` }}
             ></div>
           </div>
         </div>
+        
+        {remainingQuantity <= 5 && (
+          <div className="flash-sale-warning">
+            <FontAwesomeIcon icon={faShoppingCart} />
+            <span>Nhanh tay! Chỉ còn {remainingQuantity} sản phẩm</span>
+          </div>
+        )}
       </div>
       
       <Link to={`/flash-sale/${flashSaleInfo.flashSaleId}`} className="view-all-flash-sales">
