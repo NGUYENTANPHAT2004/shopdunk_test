@@ -1,51 +1,8 @@
+// service/flashSaleScheduler.js
 const cron = require('node-cron');
+const schedule = require('node-schedule'); // Thêm import schedule
 const { FlashSale } = require('../models/flashemodel');
 const { startFlashSale, endFlashSale } = require('./flashSaleHelper');
-
-/**
- * Lên lịch cho tất cả các Flash Sale hiện tại
- * Gọi hàm này khi khởi động server
- */
-const scheduleAllFlashSales = async () => {
-  try {
-    // Lấy tất cả Flash Sale chưa kết thúc và chưa bị xóa
-    const flashSales = await FlashSale.find({
-      isDeleted: false,
-      endTime: { $gt: new Date() }
-    });
-    
-    console.log(`Lên lịch cho ${flashSales.length} Flash Sale`);
-    
-    // Lên lịch cho từng Flash Sale
-    flashSales.forEach(flashSale => {
-      scheduleFlashSale(flashSale);
-    });
-    
-    // Thiết lập cron job để kiểm tra các Flash Sale mới hàng giờ
-    cron.schedule('0 * * * *', async () => {
-      try {
-        // Tìm các Flash Sale chưa được lên lịch
-        const newFlashSales = await FlashSale.find({
-          isDeleted: false,
-          endTime: { $gt: new Date() },
-          _id: { $nin: scheduledFlashSaleIds }
-        });
-        
-        console.log(`Tìm thấy ${newFlashSales.length} Flash Sale mới cần lên lịch`);
-        
-        // Lên lịch cho các Flash Sale mới
-        newFlashSales.forEach(flashSale => {
-          scheduleFlashSale(flashSale);
-        });
-      } catch (error) {
-        console.error('Lỗi khi kiểm tra Flash Sale mới:', error);
-      }
-    });
-    
-  } catch (error) {
-    console.error('Lỗi khi lên lịch Flash Sale:', error);
-  }
-};
 
 // Lưu trữ các ID của Flash Sale đã được lên lịch
 const scheduledFlashSaleIds = new Set();
@@ -88,6 +45,51 @@ const scheduleFlashSale = (flashSale) => {
     
     // Lưu lại ID để tránh lập lịch trùng lặp
     scheduledFlashSaleIds.add(flashSale._id.toString());
+  }
+};
+
+/**
+ * Lên lịch cho tất cả các Flash Sale hiện tại
+ * Gọi hàm này khi khởi động server
+ */
+const scheduleAllFlashSales = async () => {
+  try {
+    // Lấy tất cả Flash Sale chưa kết thúc và chưa bị xóa
+    const flashSales = await FlashSale.find({
+      isDeleted: false,
+      endTime: { $gt: new Date() }
+    });
+    
+    console.log(`Lên lịch cho ${flashSales.length} Flash Sale`);
+    
+    // Lên lịch cho từng Flash Sale
+    flashSales.forEach(flashSale => {
+      scheduleFlashSale(flashSale);
+    });
+    
+    // Thiết lập cron job để kiểm tra các Flash Sale mới hàng giờ
+    cron.schedule('0 * * * *', async () => {
+      try {
+        // Tìm các Flash Sale chưa được lên lịch
+        const newFlashSales = await FlashSale.find({
+          isDeleted: false,
+          endTime: { $gt: new Date() },
+          _id: { $nin: Array.from(scheduledFlashSaleIds) }
+        });
+        
+        console.log(`Tìm thấy ${newFlashSales.length} Flash Sale mới cần lên lịch`);
+        
+        // Lên lịch cho các Flash Sale mới
+        newFlashSales.forEach(flashSale => {
+          scheduleFlashSale(flashSale);
+        });
+      } catch (error) {
+        console.error('Lỗi khi kiểm tra Flash Sale mới:', error);
+      }
+    });
+    
+  } catch (error) {
+    console.error('Lỗi khi lên lịch Flash Sale:', error);
   }
 };
 

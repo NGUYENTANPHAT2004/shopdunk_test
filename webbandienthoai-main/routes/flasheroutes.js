@@ -1,3 +1,4 @@
+// routes/flasheroutes.js
 const express = require('express');
 const router = express.Router();
 const { FlashSale } = require('../models/flashemodel');
@@ -5,32 +6,19 @@ const Sp = require('../models/chitietSpModel');
 const LoaiSP = require('../models/LoaiSanPham');
 const { User } = require('../models/user.model');
 const moment = require('moment');
-const {ProductSizeStock} = require('../models/ProductSizeStockmodel')
+const { ProductSizeStock } = require('../models/ProductSizeStockmodel')
 const uploads = require('./upload');
-const db = require("../models/db")
+const db = require("../models/db");
+// Import hàm từ flashSaleHelper thay vì định nghĩa lại
+const { startFlashSale, endFlashSale } = require('../service/flashSaleHelper');
+// Import scheduler để đăng ký flash sale mới
+const { scheduleNewFlashSale, unscheduleFlashSale } = require('../service/flashSaleScheduler');
 
 // Middleware để kiểm tra quyền admin
 const checkAdminAuth = async (req, res, next) => {
   try {
     // Trong một ứng dụng thực tế, cần kiểm tra token JWT và quyền admin
     // Đây là một ví dụ đơn giản, bạn có thể thay thế bằng mã xác thực thực tế
-    // const token = req.headers.authorization?.split(' ')[1];
-    // if (!token) {
-    //   return res.status(401).json({ 
-    //     success: false, 
-    //     message: 'Không có quyền truy cập' 
-    //   });
-    // }
-
-    // Kiểm tra quyền Admin (code mẫu, cần thay thế)
-    // const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    // if (decoded.role !== 'admin') {
-    //   return res.status(403).json({ 
-    //     success: false, 
-    //     message: 'Chỉ quản trị viên mới có quyền thực hiện thao tác này' 
-    //   });
-    // }
-
     next();
   } catch (error) {
     console.error('Lỗi xác thực:', error);
@@ -40,99 +28,8 @@ const checkAdminAuth = async (req, res, next) => {
     });
   }
 };
-// Thêm vào flasheroutes.js
-// Cron job hoặc function chạy khi Flash Sale bắt đầu
-const startFlashSale = async (flashSaleId) => {
-  const session = await db.mongoose.startSession();
-  session.startTransaction();
 
-  try {
-    const flashSale = await FlashSale.findById(flashSaleId).session(session);
-    if (!flashSale || !flashSale.isActive) return;
-
-    // Cập nhật trạng thái các sản phẩm và lưu lại thông tin tồn kho ban đầu
-    for (const product of flashSale.products) {
-      // Tìm thông tin tồn kho hiện tại
-      const stockRecord = await ProductSizeStock.findOne({
-        productId: product.productId,
-        dungluongId: product.dungluongId || null,
-        mausacId: product.mausacId || null
-      }).session(session);
-
-      if (!stockRecord) continue;
-
-      // Lưu lại số lượng tồn kho ban đầu để hoàn trả sau này
-      product.originalStock = stockRecord.unlimitedStock ? null : stockRecord.quantity;
-
-      // Cập nhật trạng thái sản phẩm
-      product.status = 'available';
-    }
-
-    await flashSale.save({ session });
-    await session.commitTransaction();
-  } catch (error) {
-    await session.abortTransaction();
-    console.error('Lỗi khi bắt đầu Flash Sale:', error);
-  } finally {
-    session.endSession();
-  }
-};
-
-// Cron job hoặc function chạy khi Flash Sale kết thúc
-const endFlashSale = async (flashSaleId) => {
-  const session = await db.mongoose.startSession();
-  session.startTransaction();
-
-  try {
-    const flashSale = await FlashSale.findById(flashSaleId).session(session);
-    if (!flashSale) return;
-
-    // Đánh dấu Flash Sale đã kết thúc
-    flashSale.isActive = false;
-
-    // Hoàn trả tồn kho cho các sản phẩm còn lại
-    for (const product of flashSale.products) {
-      // Bỏ qua các sản phẩm đã bán hết
-      if (product.soldQuantity >= product.quantity) {
-        product.status = 'soldout';
-        continue;
-      }
-
-      // Đánh dấu sản phẩm đã kết thúc
-      product.status = 'ended';
-
-      // Tính toán số lượng cần hoàn trả
-      const remainingQuantity = product.quantity - product.soldQuantity;
-
-      // Nếu có ghi nhận tồn kho ban đầu (không phải unlimited)
-      if (product.originalStock !== null && product.originalStock !== undefined) {
-        // Hoàn trả số lượng vào kho chính
-        await ProductSizeStock.findOneAndUpdate(
-          {
-            productId: product.productId,
-            dungluongId: product.dungluongId || null,
-            mausacId: product.mausacId || null,
-            unlimitedStock: { $ne: true }
-          },
-          {
-            $inc: { quantity: remainingQuantity }
-          },
-          { session }
-        );
-      }
-    }
-
-    await flashSale.save({ session });
-    await session.commitTransaction();
-  } catch (error) {
-    await session.abortTransaction();
-    console.error('Lỗi khi kết thúc Flash Sale:', error);
-  } finally {
-    session.endSession();
-  }
-};
-
-// Cập nhật hàm updateFlashSaleStatus để gọi startFlashSale và endFlashSale khi cần
+// Cập nhật hàm updateFlashSaleStatus để sử dụng các hàm từ helper
 const updateFlashSaleStatus = async (flashSale) => {
   const now = new Date();
 
@@ -150,6 +47,8 @@ const updateFlashSaleStatus = async (flashSale) => {
     }
   }
 };
+
+// Các routes hiện tại...
 router.get('/check-product-in-flash-sale/:productId', async (req, res) => {
   try {
     const { productId } = req.params;
@@ -420,6 +319,9 @@ router.post('/admin/flash-sales',
       await session.commitTransaction();
       session.endSession();
 
+      // Thêm flash sale vào scheduler
+      scheduleNewFlashSale(flashSale);
+
       res.json({
         success: true,
         message: 'Tạo Flash Sale thành công',
@@ -568,7 +470,14 @@ router.put('/admin/flash-sales/:id',
       // Cập nhật trạng thái Flash Sale và sản phẩm
       await updateFlashSaleStatus(flashSale);
 
+      // Lưu thay đổi
       await flashSale.save();
+
+      // Cập nhật lại lịch flash sale
+      // Hủy lịch cũ
+      unscheduleFlashSale(flashSale._id);
+      // Tạo lịch mới
+      scheduleNewFlashSale(flashSale);
 
       res.json({
         success: true,
@@ -601,6 +510,9 @@ router.delete('/admin/flash-sales/:id', checkAdminAuth, async (req, res) => {
     flashSale.isDeleted = true;
     await flashSale.save();
 
+    // Hủy lịch flash sale
+    unscheduleFlashSale(flashSale._id);
+
     res.json({
       success: true,
       message: 'Xóa Flash Sale thành công'
@@ -615,7 +527,6 @@ router.delete('/admin/flash-sales/:id', checkAdminAuth, async (req, res) => {
 });
 
 // 6. [ADMIN] Cập nhật trạng thái Flash Sale
-// Cập nhật API endpoint thay đổi trạng thái
 router.patch('/admin/flash-sales/:id/status', checkAdminAuth, async (req, res) => {
   try {
     const { id } = req.params;
@@ -648,6 +559,14 @@ router.patch('/admin/flash-sales/:id/status', checkAdminAuth, async (req, res) =
     // Cập nhật trạng thái
     flashSale.isActive = isActive === 'true' || isActive === true;
     await flashSale.save();
+
+    // Nếu đã kích hoạt, thêm vào scheduler
+    if (flashSale.isActive) {
+      scheduleNewFlashSale(flashSale);
+    } else {
+      // Nếu bị vô hiệu hóa, hủy lịch
+      unscheduleFlashSale(flashSale._id);
+    }
 
     res.json({
       success: true,
@@ -812,23 +731,24 @@ router.get('/flash-sales', async (req, res) => {
 router.get('/admin/flash-sales/:id/stats', checkAdminAuth, async (req, res) => {
   try {
     const { id } = req.params;
-    
+
     // Tìm Flash Sale
     const flashSale = await FlashSale.findOne({
       _id: id,
       isDeleted: false
     })
-    .populate('products.productId', 'name image')
-    .populate('products.dungluongId', 'name')
-    .populate('products.mausacId', 'name');
-    
+      .populate('products.productId', 'name image')
+      .populate('products.dungluongId', 'name')
+      .populate('products.mausacId', 'name');
+
+
     if (!flashSale) {
       return res.status(404).json({
         success: false,
         message: 'Không tìm thấy Flash Sale'
       });
     }
-    
+
     // Xác định trạng thái hiện tại
     const now = new Date();
     let status = 'upcoming';
@@ -837,12 +757,12 @@ router.get('/admin/flash-sales/:id/stats', checkAdminAuth, async (req, res) => {
     } else if (now >= flashSale.startTime) {
       status = 'active';
     }
-    
+
     // Tính toán thống kê
     const totalQuantity = flashSale.products.reduce((sum, p) => sum + p.quantity, 0);
     const soldQuantity = flashSale.products.reduce((sum, p) => sum + p.soldQuantity, 0);
     const soldPercent = totalQuantity > 0 ? Math.round((soldQuantity / totalQuantity) * 100) : 0;
-    
+
     // Thống kê sản phẩm theo trạng thái
     const productStats = {
       available: flashSale.products.filter(p => p.status === 'available').length,
@@ -850,7 +770,7 @@ router.get('/admin/flash-sales/:id/stats', checkAdminAuth, async (req, res) => {
       upcoming: flashSale.products.filter(p => p.status === 'upcoming').length,
       ended: flashSale.products.filter(p => p.status === 'ended').length
     };
-    
+
     // Lấy top 5 sản phẩm bán chạy
     const topProducts = await Promise.all(
       flashSale.products
@@ -870,17 +790,17 @@ router.get('/admin/flash-sales/:id/stats', checkAdminAuth, async (req, res) => {
           };
         })
     );
-    
+
     // Thống kê biến thể
     const variantStats = [];
     // Nhóm các sản phẩm theo dung lượng và màu sắc
     const variantGroups = {};
-    
+
     for (const product of flashSale.products) {
       const dungluongId = product.dungluongId ? product.dungluongId._id.toString() : 'all';
       const mausacId = product.mausacId ? product.mausacId._id.toString() : 'all';
       const key = `${dungluongId}_${mausacId}`;
-      
+
       if (!variantGroups[key]) {
         variantGroups[key] = {
           dungluongId: product.dungluongId ? product.dungluongId._id : null,
@@ -891,11 +811,11 @@ router.get('/admin/flash-sales/:id/stats', checkAdminAuth, async (req, res) => {
           soldQuantity: 0
         };
       }
-      
+
       variantGroups[key].quantity += product.quantity;
       variantGroups[key].soldQuantity += product.soldQuantity;
     }
-    
+
     // Chuyển đổi thành mảng và tính toán tỷ lệ
     for (const key in variantGroups) {
       const variant = variantGroups[key];
@@ -903,7 +823,7 @@ router.get('/admin/flash-sales/:id/stats', checkAdminAuth, async (req, res) => {
       variant.soldPercent = variant.quantity > 0 ? Math.round((variant.soldQuantity / variant.quantity) * 100) : 0;
       variantStats.push(variant);
     }
-    
+
     // Trả về kết quả
     res.json({
       success: true,
@@ -1118,6 +1038,7 @@ router.get('/flash-sale-products/:productId', async (req, res) => {
     });
   }
 });
+
 // 11. [PUBLIC] Cập nhật số lượng bán khi mua sản phẩm Flash Sale
 router.post('/flash-sale-purchase', async (req, res) => {
   try {
@@ -1369,6 +1290,7 @@ const safeUpdateFlashSaleQuantity = async (flashSaleId, productIndex, quantity, 
 
   throw new Error(`Không thể cập nhật số lượng Flash Sale sau ${maxAttempts} lần thử`);
 };
+
 // Thêm vào flasheroutes.js
 router.get('/product-flash-sale-variants/:productId', async (req, res) => {
   try {
@@ -1438,5 +1360,6 @@ router.get('/product-flash-sale-variants/:productId', async (req, res) => {
     });
   }
 });
+
 // Xuất router
 module.exports = router;

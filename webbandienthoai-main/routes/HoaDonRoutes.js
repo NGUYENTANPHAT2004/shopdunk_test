@@ -1910,8 +1910,6 @@ function calculateAvgOrdersPerMonth(orders) {
 // Hàm hỗ trợ tính trung bình đơn hàng mỗi tháng
 
 
-
-
 router.post('/timkiemhoadon', async (req, res) => {
   try {
     const { phone } = req.body

@@ -16,8 +16,8 @@ const setupAdminSocket = (io) => {
     socket.on('check_stock', () => handleCheckStock(socket));
     
     // Order management events
-    socket.on('new_order', (data) => handleNewOrder(socket, adminNamespace, data));
-    socket.on('update_order_status', (data) => handleOrderStatusUpdate(socket, adminNamespace, data));
+    // socket.on('new_order', (data) => handleNewOrder(socket, adminNamespace, data));
+    // socket.on('update_order_status', (data) => handleOrderStatusUpdate(socket, adminNamespace, data));
     
     // Dashboard events
     socket.on('get_dashboard_stats', () => {

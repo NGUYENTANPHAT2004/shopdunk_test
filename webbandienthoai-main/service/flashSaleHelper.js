@@ -1,7 +1,9 @@
+// service/flashSaleHelper.js
 const { FlashSale } = require('../models/flashemodel');
 const { ProductSizeStock } = require('../models/ProductSizeStockmodel');
 const db = require("../models/db");
-const { io } = require('../socket'); // Giả sử bạn đã setup Socket.IO
+// Thay đổi cách import io
+const { getIo } = require('../config/socket'); // Sử dụng hàm getIo từ config/socket
 
 // Hàm bắt đầu Flash Sale
 const startFlashSale = async (flashSaleId) => {
@@ -44,12 +46,15 @@ const startFlashSale = async (flashSaleId) => {
     await flashSale.save({ session });
     await session.commitTransaction();
     
-    // Thông báo qua Socket.IO nếu có
-    if (io) {
+    // Thông báo qua Socket.IO - Sử dụng try-catch để tránh lỗi nếu chưa khởi tạo
+    try {
+      const io = getIo();
       io.emit('flashSale:started', {
         flashSaleId: flashSale._id,
         name: flashSale.name
       });
+    } catch (socketError) {
+      console.log('Socket chưa sẵn sàng hoặc có lỗi:', socketError.message);
     }
     
     console.log(`Flash Sale ID: ${flashSaleId} đã bắt đầu thành công`);
@@ -115,12 +120,15 @@ const endFlashSale = async (flashSaleId) => {
     await flashSale.save({ session });
     await session.commitTransaction();
     
-    // Thông báo qua Socket.IO nếu có
-    if (io) {
+    // Thông báo qua Socket.IO - Sử dụng try-catch để tránh lỗi nếu chưa khởi tạo
+    try {
+      const io = getIo();
       io.emit('flashSale:ended', {
         flashSaleId: flashSale._id,
         name: flashSale.name
       });
+    } catch (socketError) {
+      console.log('Socket chưa sẵn sàng hoặc có lỗi:', socketError.message);
     }
     
     console.log(`Flash Sale ID: ${flashSaleId} đã kết thúc thành công`);

@@ -12,7 +12,7 @@ import DoiTra from '../Layout/DeafaultLayout/HuongDan/DoiTra/DoiTra'
 import CamKet from '../Layout/DeafaultLayout/HuongDan/CamKet/CamKet'
 import BaoMat from '../Layout/DeafaultLayout/HuongDan/BaoMat/BaoMat'
 import GioiThieu from '../Layout/DeafaultLayout/GioiThieu/GioiThieu'
-import TimKiemLayout from '../Layout/TimKiemLayout/TiemKiemLayout'
+import TiemKiemTheoSDT from '../Layout/lichsudonhang/TimKiemdonhang'
 import { AdminLayout } from '../Layout/Admin/TrangChuLayout'
 import { DangNhapLayout } from '../Layout/Admin/DangNhapLayout'
 import DangKiLayout from '../Layout/DangKiLayout/DangKiLayout'
@@ -44,7 +44,7 @@ const publicRoutes = [
   { path: '/login-admin', component: DangNhapLayout, layout: null },
   { path: '/login', component: DangNhap, layout: null },
   { path: '/register', component: DangKiLayout, layout: null },
-  { path: '/search/:keyword', component: TimKiemLayout },
+  { path: '/search/:keyword', component: TiemKiemTheoSDT },
   { path: '/search-sanpham/:keyword', component: TimKiemSanPhamLayout },
   { path: '/locsanpham', component: TimKiemSanPhamLayout },
   { path: '/orders', component: LichSuDonHangLayout },

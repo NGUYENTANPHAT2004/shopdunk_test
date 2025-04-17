@@ -1,6 +1,6 @@
 import React, { createContext, useState, useContext, useEffect } from 'react';
 import axios from 'axios';
-
+import io from 'socket.io-client';
 const FlashSaleContext = createContext();
 
 export const useFlashSale = () => useContext(FlashSaleContext);
@@ -11,11 +11,12 @@ export const FlashSaleProvider = ({ children }) => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [hasNewFlashSale, setHasNewFlashSale] = useState(false);
+  const [socket, setSocket] = useState(null);
   const [lastCheckedFlashSale, setLastCheckedFlashSale] = useState(() => {
-    const saved = localStorage.getItem('lastCheckedFlashSale');
-    return saved ? JSON.parse(saved) : null;
+    // Lấy thông tin lần check cuối từ localStorage nếu có
+    const savedData = localStorage.getItem('lastCheckedFlashSale');
+    return savedData ? JSON.parse(savedData) : null;
   });
-
   // Tính toán thời gian còn lại
   const calculateRemainingTime = (endTime) => {
     if (!endTime) return null;
@@ -200,13 +201,72 @@ export const FlashSaleProvider = ({ children }) => {
 
   // Fetch Flash Sale khi component mount
   useEffect(() => {
+    try {
+      // Sử dụng try-catch để tránh crash ứng dụng nếu không kết nối được
+      const newSocket = io('http://localhost:3005', {
+        reconnectionAttempts: 3,
+        reconnectionDelay: 1000,
+        transports: ['polling'], // Tạm thời dùng polling thay vì websocket
+        timeout: 10000
+      });
+      
+      newSocket.on('connect_error', (error) => {
+        console.error('Socket connection error:', error);
+        // Không hiển thị thông báo lỗi để tránh làm phiền người dùng
+      });
+      
+      newSocket.on('connect', () => {
+        console.log('Flash Sale socket connected');
+        setSocket(newSocket);
+      });
+      
+      // Lắng nghe sự kiện bắt đầu Flash Sale
+      newSocket.on('flashSale:started', (data) => {
+        console.log('Flash Sale đã bắt đầu:', data.name);
+        // Tải lại dữ liệu để cập nhật UI
+        fetchFlashSales();
+      });
+      
+      // Lắng nghe sự kiện kết thúc Flash Sale
+      newSocket.on('flashSale:ended', (data) => {
+        console.log('Flash Sale đã kết thúc:', data.name);
+        // Tải lại dữ liệu để cập nhật UI
+        fetchFlashSales();
+      });
+      
+      return () => {
+        if (newSocket) newSocket.disconnect();
+      };
+    } catch (error) {
+      console.error('Lỗi khi khởi tạo socket:', error);
+    }
+  }, []);
+
+  // Fetch Flash Sale khi component mount
+  useEffect(() => {
     fetchFlashSales();
     
-    // Thiết lập interval để cập nhật định kỳ
-    const intervalId = setInterval(fetchFlashSales, 5 * 60 * 1000); // 5 phút
+    // Cập nhật định kỳ mỗi 5 phút
+    const intervalId = setInterval(fetchFlashSales, 5 * 60 * 1000);
     
     return () => clearInterval(intervalId);
   }, []);
+
+  // Thiết lập interval để cập nhật thời gian còn lại - giữ nguyên
+  useEffect(() => {
+    if (!activeFlashSale) return;
+    
+    const intervalId = setInterval(() => {
+      const remainingTime = calculateRemainingTime(activeFlashSale.endTime);
+      
+      if (!remainingTime) {
+        // Flash Sale đã kết thúc, fetch lại dữ liệu
+        fetchFlashSales();
+      }
+    }, 1000);
+    
+    return () => clearInterval(intervalId);
+  }, [activeFlashSale]);
 
   // Thiết lập interval để cập nhật thời gian còn lại
   useEffect(() => {
