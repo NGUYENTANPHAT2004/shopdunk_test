@@ -5,6 +5,7 @@ const DungLuong = require('../models/DungLuongModel');
 const MauSac = require('../models/MauSacModel');
 const LoaiSP = require('../models/LoaiSanPham');
 
+
 router.post('/stock/add', async (req, res) => {
   try {
     console.log("🚀 Dữ liệu nhận được từ request:", req.body);

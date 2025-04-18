@@ -8,6 +8,9 @@ const chitietspSchema = new db.mongoose.Schema({
   idloaisp: { type: db.mongoose.Schema.Types.ObjectId, ref: 'loaisp' },
   namekhongdau: { type: String },
   isDeleted: { type: Boolean, default: false },
+  selectedDungluongs: [{ type: db.mongoose.Schema.Types.ObjectId, ref: 'dungluong' }],
+  selectedMausacs: [{ type: db.mongoose.Schema.Types.ObjectId, ref: 'mausac' }]
+  
 })
 chitietspSchema.index({ name: 'text', content: 'text' });
 chitietspSchema.index({ namekhongdau: 1 });
