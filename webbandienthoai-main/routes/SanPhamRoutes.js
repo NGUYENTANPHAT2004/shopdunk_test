@@ -2,6 +2,7 @@ const router = require('express').Router()
 const { dungluong } = require('../models/DungLuongModel')
 const LoaiSP = require('../models/LoaiSanPham')
 const { mausac } = require('../models/MauSacModel')
+const { ProductSizeStock } = require('../models/ProductSizeStockmodel')
 const Sp = require('../models/chitietSpModel')
 const uploads = require('./upload')
 
@@ -14,7 +15,36 @@ function removeSpecialChars (str) {
     .replace(/-+/g, '-')
     .replace(/^-|-$/g, '')
 }
-
+// Hàm helper để tạo/cập nhật tồn kho
+async function createOrUpdateStock(productId, dungluongId, mausacId, quantity = 0) {
+  try {
+    // Kiểm tra xem đã có record tồn kho nào cho combo này chưa
+    let stock = await ProductSizeStock.findOne({
+      productId,
+      dungluongId: dungluongId || null,
+      mausacId: mausacId || null
+    });
+    
+    // Nếu chưa có, tạo mới
+    if (!stock) {
+      const sku = `${productId}-${dungluongId || 'default'}-${mausacId || 'default'}`;
+      stock = new ProductSizeStock({
+        productId,
+        dungluongId: dungluongId || null,
+        mausacId: mausacId || null,
+        quantity,
+        sku
+      });
+      await stock.save();
+      console.log(`Đã tạo mới tồn kho cho sản phẩm: ${productId}, dung lượng: ${dungluongId}, màu sắc: ${mausacId}`);
+    }
+    
+    return stock;
+  } catch (error) {
+    console.error('Lỗi khi tạo/cập nhật tồn kho:', error);
+    throw error;
+  }
+}
 router.get('/sanpham', async (req, res) => {
   try {
     const theloai = await LoaiSP.LoaiSP.find().lean()
@@ -241,20 +271,22 @@ router.get('/search-suggestions', async (req, res) => {
     res.status(500).json({ success: false, message: 'Lỗi server' });
   }
 });
+// Trong route postchitietsp
 router.post(
   '/postchitietsp/:id',
   uploads.fields([{ name: 'image', maxCount: 1 }]),
   async (req, res) => {
     try {
-      const id = req.params.id
-      const { name, content, price } = req.body
-      const domain = 'http://localhost:3005'
+      // Code cũ
+      const id = req.params.id;
+      const { name, content, price } = req.body;
+      const domain = 'http://localhost:3005';
 
       const image = req.files['image']
         ? `${domain}/${req.files['image'][0].filename}`
-        : null
-      const namekhongdau1 = unicode(name)
-      const namekhongdau = removeSpecialChars(namekhongdau1)
+        : null;
+      const namekhongdau1 = unicode(name);
+      const namekhongdau = removeSpecialChars(namekhongdau1);
 
       const chitietsp = new Sp.ChitietSp({
         image,
@@ -262,23 +294,37 @@ router.post(
         content,
         price,
         namekhongdau
-      })
-      const tensp = await LoaiSP.LoaiSP.findById(id)
+      });
+      const tensp = await LoaiSP.LoaiSP.findById(id);
       if (!tensp) {
-        res.status(403).json({ message: 'khong tim thay tensp' })
+        res.status(403).json({ message: 'khong tim thay tensp' });
       }
-      chitietsp.idloaisp = id
-      chitietsp.loaisp = tensp.name
-      tensp.chitietsp.push(chitietsp._id)
-      await chitietsp.save()
-      await tensp.save()
-      res.json(chitietsp)
+      chitietsp.idloaisp = id;
+      chitietsp.loaisp = tensp.name;
+      tensp.chitietsp.push(chitietsp._id);
+      await chitietsp.save();
+      await tensp.save();
+      
+      // Thêm mới: Lấy tất cả dung lượng của loại SP này
+      const dungluongs = await dungluong.find({ idloaisp: id, isDeleted: false });
+      
+      // Với mỗi dung lượng, tạo tồn kho cho tất cả màu sắc
+      for (const dl of dungluongs) {
+        const mausacs = await mausac.find({ dungluong: dl._id, isDeleted: false });
+        
+        // Tạo tồn kho cho từng màu sắc
+        for (const ms of mausacs) {
+          await createOrUpdateStock(chitietsp._id, dl._id, ms._id, 0);
+        }
+      }
+
+      res.json(chitietsp);
     } catch (error) {
-      console.error(error)
-      res.status(500).json({ message: `Đã xảy ra lỗi: ${error}` })
+      console.error(error);
+      res.status(500).json({ message: `Đã xảy ra lỗi: ${error}` });
     }
   }
-)
+);
 router.get('/search-all', async (req, res) => {
   try {
     const keyword = req.query.keyword || '';
@@ -386,23 +432,145 @@ router.post(
 
 router.post('/deletechitietsp/:id', async (req, res) => {
   try {
-    const id = req.params.id
-    const chitietsp = await Sp.ChitietSp.findById(id)
+    const id = req.params.id;
+    const chitietsp = await Sp.ChitietSp.findById(id);
     if (!chitietsp) {
-      return res.status(404).json({ message: 'Không tìm thấy chi tiết sản phẩm' })
+      return res.status(404).json({ message: 'Không tìm thấy chi tiết sản phẩm' });
     }
 
     // Thực hiện xóa mềm
-    chitietsp.isDeleted = true
-    await chitietsp.save()
+    chitietsp.isDeleted = true;
+    await chitietsp.save();
+    
+    // Không cần xóa tồn kho, hàm hiển thị đã lọc sản phẩm bị xóa
 
-    res.json({ message: 'Xóa thành công' })
+    res.json({ message: 'Xóa thành công' });
   } catch (error) {
-    console.error(error)
-    res.status(500).json({ message: `Đã xảy ra lỗi: ${error}` })
+    console.error(error);
+    res.status(500).json({ message: `Đã xảy ra lỗi: ${error}` });
   }
-})
+});
+router.get('/tonkho/sanpham', async (req, res) => {
+  try {
+    // Lấy tất cả sản phẩm không bị xóa mềm
+    const sanphams = await Sp.ChitietSp.find({ isDeleted: false }).lean();
 
+    // Xử lý từng sản phẩm
+    const productList = await Promise.all(
+      sanphams.map(async (product) => {
+        try {
+          // Lấy danh sách dung lượng của sản phẩm không bị xóa mềm
+          const dungluongs = await dungluong.find({ 
+            idloaisp: product.idloaisp,
+            isDeleted: false
+          }).lean();
+
+          // Nếu không có dung lượng nào, bỏ qua sản phẩm này
+          if (!dungluongs || dungluongs.length === 0) {
+            return null;
+          }
+
+          // Xử lý mỗi dung lượng và màu sắc
+          const dungLuongData = await Promise.all(
+            dungluongs.map(async (dungluong) => {
+              try {
+                // Lấy tất cả màu sắc cho dung lượng này không bị xóa mềm
+                const mausacs = await mausac.find({ 
+                  dungluong: dungluong._id,
+                  isDeleted: false
+                }).lean();
+
+                if (!mausacs || mausacs.length === 0) {
+                  return null; // Bỏ qua nếu không có màu sắc
+                }
+
+                // Xử lý từng màu sắc
+                const mausacData = await Promise.all(
+                  mausacs.map(async (mausac) => {
+                    try {
+                      // Tìm thông tin tồn kho cho sản phẩm/dung lượng/màu sắc
+                      let stock = await ProductSizeStock.findOne({
+                        productId: product._id,
+                        dungluongId: dungluong._id,
+                        mausacId: mausac._id
+                      }).lean();
+                      
+                      // Nếu chưa có tồn kho, tạo mới
+                      if (!stock) {
+                        // Tạo mới ngay lập tức
+                        await createOrUpdateStock(product._id, dungluong._id, mausac._id, 0);
+                        // Lấy lại thông tin tồn kho
+                        stock = await ProductSizeStock.findOne({
+                          productId: product._id,
+                          dungluongId: dungluong._id,
+                          mausacId: mausac._id
+                        }).lean();
+                      }
+
+                      return {
+                        _id: mausac._id,
+                        name: mausac.name,
+                        price: mausac.price || 0,
+                        images: mausac.image || [],
+                        quantity: stock ? stock.quantity || 0 : 0,
+                      };
+                    } catch (error) {
+                      console.error(`Lỗi khi xử lý màu sắc ${mausac._id}:`, error);
+                      return null;
+                    }
+                  })
+                );
+
+                // Lọc ra màu sắc hợp lệ (không null)
+                const validMauSacData = mausacData.filter(ms => ms !== null);
+
+                if (validMauSacData.length === 0) {
+                  return null; // Bỏ qua dung lượng nếu không có màu sắc hợp lệ
+                }
+
+                return {
+                  _id: dungluong._id,
+                  name: dungluong.name,
+                  mausac: validMauSacData
+                };
+              } catch (error) {
+                console.error(`Lỗi khi xử lý dung lượng ${dungluong._id}:`, error);
+                return null;
+              }
+            })
+          );
+
+          // Lọc ra dung lượng hợp lệ (không null)
+          const filteredDungLuongData = dungLuongData.filter(dl => dl !== null);
+
+          // Nếu không có dung lượng hợp lệ, bỏ qua sản phẩm này
+          if (filteredDungLuongData.length === 0) {
+            return null;
+          }
+
+          return {
+            _id: product._id,
+            name: product.name,
+            image: product.image,
+            price: product.price,
+            dungluong: filteredDungLuongData
+          };
+        } catch (error) {
+          console.error(`Lỗi khi xử lý sản phẩm ${product._id}:`, error);
+          return null;
+        }
+      })
+    );
+
+    // Lọc ra các sản phẩm hợp lệ (không null)
+    const filteredProductList = productList.filter(product => product !== null);
+
+    res.json(filteredProductList);
+  } catch (error) {
+    console.error('Lỗi khi lấy danh sách sản phẩm:', error);
+    res.status(500).json({ message: 'Lỗi server', error: error.message });
+  }
+});
 router.post('/deletechitietsphangloat', async (req, res) => {
   try {
     const { ids } = req.body
