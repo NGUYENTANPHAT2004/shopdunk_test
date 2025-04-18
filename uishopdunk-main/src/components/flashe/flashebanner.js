@@ -18,7 +18,7 @@ const FlashSaleBanner = () => {
     if (!activeFlashSale) return;
     
     const updateCountdown = () => {
-      const timeLeft = calculateRemainingTime();
+      const timeLeft = calculateRemainingTime(activeFlashSale.endTime);
       
       if (!timeLeft) {
         setRemainingTime({ hours: 0, minutes: 0, seconds: 0 });

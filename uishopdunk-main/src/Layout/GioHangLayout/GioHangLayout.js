@@ -6,6 +6,7 @@ import { ModalNhapThongTin } from './ModalNhapThongTin'
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
 import { faCartShopping, faCircleExclamation, faCheckCircle, faSpinner, faExclamationTriangle } from '@fortawesome/free-solid-svg-icons'
 import { useUserContext } from '../../context/Usercontext'
+import { useFlashSale } from '../../context/Flashecontext'
 import axios from 'axios'
 function GioHangLayout() {
   const { user } = useUserContext();
@@ -47,7 +48,7 @@ function GioHangLayout() {
   const [provinces, setProvinces] = useState([]);
   const [isCalculatingShipping, setIsCalculatingShipping] = useState(false);
 
-
+  const { checkProductInFlashSale } = useFlashSale();
   const validateName = (value) => {
     setname(value)
     if (!value.trim()) {
@@ -362,21 +363,42 @@ function GioHangLayout() {
 
   const finalTotalPrice = totalPrice + shippingFee;
 
-  const changeColor = (index, selectedColor, newPrice, colorId) => {
-    const newCart = cart.map((item, i) => {
-      if (i === index) {
-        return {
-          ...item,
-          mausac: selectedColor,
-          pricemausac: newPrice,
-          idmausac: colorId
+  const changeColor = async (index, selectedColor, newPrice, colorId) => {
+    const newCart = [...cart];
+    const currentItem = newCart[index];
+    
+    // Cập nhật màu sắc và giá mặc định
+    currentItem.mausac = selectedColor;
+    currentItem.pricemausac = newPrice;
+    currentItem.idmausac = colorId;
+    
+    // Kiểm tra Flash Sale cho biến thể sản phẩm mới
+    if (currentItem.idsanpham && currentItem.iddungluong && colorId) {
+      try {
+        const result = await checkProductInFlashSale(
+          currentItem.idsanpham, 
+          currentItem.iddungluong, 
+          colorId
+        );
+        
+        if (result.inFlashSale) {
+          // Cập nhật thông tin Flash Sale
+          currentItem.pricemausac = result.flashSaleInfo.salePrice;
+          currentItem.isFlashSale = true;
+          currentItem.flashSaleId = result.flashSaleInfo.flashSaleId;
+        } else {
+          // Đặt lại giá thông thường nếu không có Flash Sale
+          currentItem.isFlashSale = false;
+          currentItem.flashSaleId = null;
         }
+      } catch (error) {
+        console.error('Lỗi khi kiểm tra Flash Sale cho màu mới:', error);
       }
-      return item
-    })
-    setCart(newCart)
-    localStorage.setItem('cart', JSON.stringify(newCart))
-  }
+    }
+    
+    setCart(newCart);
+    localStorage.setItem('cart', JSON.stringify(newCart));
+  };
 
   useEffect(() => {
     const formattedSanphams = cart.map(item => ({

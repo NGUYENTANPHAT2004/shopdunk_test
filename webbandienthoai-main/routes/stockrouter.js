@@ -171,7 +171,7 @@ router.get('/stock/:productId/:dungluongId/:mausacId', async (req, res) => {
   try {
     const { productId, dungluongId, mausacId } = req.params;
     const stock = await ProductSizeStock.findOne({ productId, dungluongId, mausacId });
-
+    console.log(stock);
     if (!stock) return res.status(404).json({ message: 'Không tìm thấy tồn kho' });
 
     res.json({

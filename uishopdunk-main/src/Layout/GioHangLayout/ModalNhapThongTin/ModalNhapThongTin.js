@@ -28,7 +28,7 @@ function ModalNhapThongTin ({
       checkStockAvailability()
     }
   }, [isOpen, sanphams])
-
+  console.log(sanphams)
   const checkStockAvailability = async () => {
     setLoading(true)
     setStockError(null)

@@ -612,7 +612,7 @@ router.post('/create_payment_url', async (req, res) => {
 
     for (const sanpham of sanphams) {
       const { idsp, soluong, dungluong, idmausac, price, mausac, isFlashSale, flashSaleId } = sanpham
-      const productDetails = await Sp.ChitietSp.findById(idsp).session(session);
+      const productDetails = await SanPham.ChitietSp.findById(idsp).session(session);
       const dungluongDetails = await DungLuong.dungluong.findById(dungluong).session(session);
       
       // Thêm thông tin Flash Sale vào hóa đơn
