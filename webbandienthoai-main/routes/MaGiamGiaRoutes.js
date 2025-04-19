@@ -2,7 +2,7 @@ const express = require('express')
 const router = express.Router()
 const MaGiamGia = require('../models/MaGiamGiaModel')
 const moment = require('moment')
-
+const User = require('../models/user.model')
 // Utility function to check if current time is within golden hour
 function isWithinGoldenHour(goldenHourStart, goldenHourEnd) {
   if (!goldenHourStart || !goldenHourEnd) return true;

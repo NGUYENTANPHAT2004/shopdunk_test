@@ -44,7 +44,6 @@ const flashSaleSchema = new db.mongoose.Schema({
       ref: 'mausac',
       default: null
     },
-    // Tham chiếu đến ProductSizeStock
     stockId: {
       type: db.mongoose.Schema.Types.ObjectId,
       ref: 'productSizeStock'
