@@ -271,13 +271,12 @@ router.get('/search-suggestions', async (req, res) => {
     res.status(500).json({ success: false, message: 'Lỗi server' });
   }
 });
-// Trong route postchitietsp
+
 router.post(
   '/postchitietsp/:id',
   uploads.fields([{ name: 'image', maxCount: 1 }]),
   async (req, res) => {
     try {
-      // Code cũ
       const id = req.params.id;
       const { name, content, price } = req.body;
       const domain = 'http://localhost:3005';
@@ -288,16 +287,26 @@ router.post(
       const namekhongdau1 = unicode(name);
       const namekhongdau = removeSpecialChars(namekhongdau1);
 
+      // Lấy danh sách biến thể từ form
+      const variantList = JSON.parse(req.body.variantList || '[]');
+      
+      // Tạo mảng dung lượng và màu sắc đã chọn
+      const selectedDungluongs = [...new Set(variantList.map(v => v.dungluong))].filter(Boolean);
+      const selectedMausacs = [...new Set(variantList.map(v => v.mausac))].filter(Boolean);
+
       const chitietsp = new Sp.ChitietSp({
         image,
         name,
         content,
         price,
-        namekhongdau
+        namekhongdau,
+        selectedDungluongs,
+        selectedMausacs
       });
       const tensp = await LoaiSP.LoaiSP.findById(id);
       if (!tensp) {
         res.status(403).json({ message: 'khong tim thay tensp' });
+        return;
       }
       chitietsp.idloaisp = id;
       chitietsp.loaisp = tensp.name;
@@ -305,19 +314,63 @@ router.post(
       await chitietsp.save();
       await tensp.save();
       
-      // Thêm mới: Lấy tất cả dung lượng của loại SP này
-      const dungluongs = await dungluong.find({ idloaisp: id, isDeleted: false });
-      
-      // Với mỗi dung lượng, tạo tồn kho cho tất cả màu sắc
-      for (const dl of dungluongs) {
-        const mausacs = await mausac.find({ dungluong: dl._id, isDeleted: false });
-        
-        // Tạo tồn kho cho từng màu sắc
-        for (const ms of mausacs) {
-          await createOrUpdateStock(chitietsp._id, dl._id, ms._id, 0);
+      // CHỈ tạo tồn kho cho các biến thể đã chọn trong variantList
+      for (const variant of variantList) {
+        if (variant.dungluong && variant.mausac) {
+          await createOrUpdateStock(
+            chitietsp._id, 
+            variant.dungluong, 
+            variant.mausac, 
+            parseInt(variant.stockQuantity, 10) || 0
+          );
         }
       }
 
+      res.json(chitietsp);
+    } catch (error) {
+      console.error(error);
+      res.status(500).json({ message: `Đã xảy ra lỗi: ${error}` });
+    }
+  }
+);
+router.post(
+  '/updatechitietsp/:id',
+  uploads.fields([{ name: 'image', maxCount: 1 }]),
+  async (req, res) => {
+    try {
+      const id = req.params.id;
+      const { name, content, price } = req.body;
+      
+      // Tìm sản phẩm cần cập nhật
+      const chitietsp = await Sp.ChitietSp.findById(id);
+      if (!chitietsp) {
+        return res.status(404).json({ message: 'Không tìm thấy sản phẩm' });
+      }
+      
+      // Cập nhật thông tin cơ bản
+      chitietsp.name = name;
+      chitietsp.content = content;
+      chitietsp.price = price;
+      
+      // Cập nhật hình ảnh nếu có
+      if (req.files && req.files['image']) {
+        const domain = 'http://localhost:3005';
+        chitietsp.image = `${domain}/${req.files['image'][0].filename}`;
+      }
+      
+      // Xử lý variantList nếu có
+      if (req.body.variantList) {
+        const variantList = JSON.parse(req.body.variantList || '[]');
+        
+        // Cập nhật danh sách dung lượng và màu sắc đã chọn
+        chitietsp.selectedDungluongs = [...new Set(variantList.map(v => v.dungluong))].filter(Boolean);
+        chitietsp.selectedMausacs = [...new Set(variantList.map(v => v.mausac))].filter(Boolean);
+        
+      }
+      
+      // Lưu các thay đổi
+      await chitietsp.save();
+      
       res.json(chitietsp);
     } catch (error) {
       console.error(error);
@@ -388,60 +441,7 @@ router.get('/search-all', async (req, res) => {
     res.status(500).json({ success: false, message: 'Lỗi server' });
   }
 });
-router.post(
-  '/postchitietsp/:id',
-  uploads.fields([{ name: 'image', maxCount: 1 }]),
-  async (req, res) => {
-    try {
-      const id = req.params.id;
-      const { 
-        name, 
-        content, 
-        price, 
-        selectedDungluongs, // Thêm tham số mới - chuỗi các ID dung lượng đã chọn, ngăn cách bởi dấu phẩy
-        selectedMausacs     // Thêm tham số mới - chuỗi các ID màu sắc đã chọn, ngăn cách bởi dấu phẩy
-      } = req.body;
-      
-      const domain = 'http://localhost:3005';
-      const image = req.files['image']
-        ? `${domain}/${req.files['image'][0].filename}`
-        : null;
-      const namekhongdau1 = unicode(name);
-      const namekhongdau = removeSpecialChars(namekhongdau1);
 
-      // Chuyển chuỗi ID thành mảng
-      const dungluongIds = selectedDungluongs ? selectedDungluongs.split(',').filter(Boolean) : [];
-      const mausacIds = selectedMausacs ? selectedMausacs.split(',').filter(Boolean) : [];
-
-      const chitietsp = new Sp.ChitietSp({
-        image,
-        name,
-        content,
-        price,
-        namekhongdau,
-        selectedDungluongs: dungluongIds,
-        selectedMausacs: mausacIds
-      });
-      
-      const tensp = await LoaiSP.LoaiSP.findById(id);
-      if (!tensp) {
-        return res.status(404).json({ message: 'Không tìm thấy thể loại' });
-      }
-      
-      chitietsp.idloaisp = id;
-      chitietsp.loaisp = tensp.name;
-      tensp.chitietsp.push(chitietsp._id);
-      
-      await chitietsp.save();
-      await tensp.save();
-
-      res.json(chitietsp);
-    } catch (error) {
-      console.error(error);
-      res.status(500).json({ message: `Đã xảy ra lỗi: ${error}` });
-    }
-  }
-);
 router.get('/getsanpham-with-variants/:idsp', async (req, res) => {
   try {
     const idsp = req.params.idsp;
@@ -536,127 +536,7 @@ router.post('/deletechitietsp/:id', async (req, res) => {
     res.status(500).json({ message: `Đã xảy ra lỗi: ${error}` });
   }
 });
-router.get('/tonkho/sanpham', async (req, res) => {
-  try {
-    // Lấy tất cả sản phẩm không bị xóa mềm
-    const sanphams = await Sp.ChitietSp.find({ isDeleted: false }).lean();
 
-    // Xử lý từng sản phẩm
-    const productList = await Promise.all(
-      sanphams.map(async (product) => {
-        try {
-          // Lấy danh sách dung lượng của sản phẩm không bị xóa mềm
-          const dungluongs = await dungluong.find({ 
-            idloaisp: product.idloaisp,
-            isDeleted: false
-          }).lean();
-
-          // Nếu không có dung lượng nào, bỏ qua sản phẩm này
-          if (!dungluongs || dungluongs.length === 0) {
-            return null;
-          }
-
-          // Xử lý mỗi dung lượng và màu sắc
-          const dungLuongData = await Promise.all(
-            dungluongs.map(async (dungluong) => {
-              try {
-                // Lấy tất cả màu sắc cho dung lượng này không bị xóa mềm
-                const mausacs = await mausac.find({ 
-                  dungluong: dungluong._id,
-                  isDeleted: false
-                }).lean();
-
-                if (!mausacs || mausacs.length === 0) {
-                  return null; // Bỏ qua nếu không có màu sắc
-                }
-
-                // Xử lý từng màu sắc
-                const mausacData = await Promise.all(
-                  mausacs.map(async (mausac) => {
-                    try {
-                      // Tìm thông tin tồn kho cho sản phẩm/dung lượng/màu sắc
-                      let stock = await ProductSizeStock.findOne({
-                        productId: product._id,
-                        dungluongId: dungluong._id,
-                        mausacId: mausac._id
-                      }).lean();
-                      
-                      // Nếu chưa có tồn kho, tạo mới
-                      if (!stock) {
-                        // Tạo mới ngay lập tức
-                        await createOrUpdateStock(product._id, dungluong._id, mausac._id, 0);
-                        // Lấy lại thông tin tồn kho
-                        stock = await ProductSizeStock.findOne({
-                          productId: product._id,
-                          dungluongId: dungluong._id,
-                          mausacId: mausac._id
-                        }).lean();
-                      }
-
-                      return {
-                        _id: mausac._id,
-                        name: mausac.name,
-                        price: mausac.price || 0,
-                        images: mausac.image || [],
-                        quantity: stock ? stock.quantity || 0 : 0,
-                      };
-                    } catch (error) {
-                      console.error(`Lỗi khi xử lý màu sắc ${mausac._id}:`, error);
-                      return null;
-                    }
-                  })
-                );
-
-                // Lọc ra màu sắc hợp lệ (không null)
-                const validMauSacData = mausacData.filter(ms => ms !== null);
-
-                if (validMauSacData.length === 0) {
-                  return null; // Bỏ qua dung lượng nếu không có màu sắc hợp lệ
-                }
-
-                return {
-                  _id: dungluong._id,
-                  name: dungluong.name,
-                  mausac: validMauSacData
-                };
-              } catch (error) {
-                console.error(`Lỗi khi xử lý dung lượng ${dungluong._id}:`, error);
-                return null;
-              }
-            })
-          );
-
-          // Lọc ra dung lượng hợp lệ (không null)
-          const filteredDungLuongData = dungLuongData.filter(dl => dl !== null);
-
-          // Nếu không có dung lượng hợp lệ, bỏ qua sản phẩm này
-          if (filteredDungLuongData.length === 0) {
-            return null;
-          }
-
-          return {
-            _id: product._id,
-            name: product.name,
-            image: product.image,
-            price: product.price,
-            dungluong: filteredDungLuongData
-          };
-        } catch (error) {
-          console.error(`Lỗi khi xử lý sản phẩm ${product._id}:`, error);
-          return null;
-        }
-      })
-    );
-
-    // Lọc ra các sản phẩm hợp lệ (không null)
-    const filteredProductList = productList.filter(product => product !== null);
-
-    res.json(filteredProductList);
-  } catch (error) {
-    console.error('Lỗi khi lấy danh sách sản phẩm:', error);
-    res.status(500).json({ message: 'Lỗi server', error: error.message });
-  }
-});
 router.post('/deletechitietsphangloat', async (req, res) => {
   try {
     const { ids } = req.body
@@ -771,39 +651,185 @@ router.get('/chitietsanpham/:tieude', async (req, res) => {
   try {
     const tieude = req.params.tieude
     const sanpham = await Sp.ChitietSp.findOne({ namekhongdau: tieude })
+    
+    if (!sanpham) {
+      return res.status(404).json({ message: 'Không tìm thấy sản phẩm' });
+    }
+
+    // Lấy thông tin dung lượng đã chọn
+    let dungluongInfo = [];
+    if (sanpham.selectedDungluongs && sanpham.selectedDungluongs.length > 0) {
+      dungluongInfo = await Promise.all(
+        sanpham.selectedDungluongs.map(async dlId => {
+          const dl = await dungluong.findOne({ _id: dlId, isDeleted: false });
+          if (!dl) return null;
+          return {
+            _id: dl._id,
+            name: dl.name
+          };
+        })
+      );
+      dungluongInfo = dungluongInfo.filter(Boolean);
+    }
+
+    // Lấy thông tin màu sắc đã chọn
+    let mausacInfo = [];
+    if (sanpham.selectedMausacs && sanpham.selectedMausacs.length > 0) {
+      mausacInfo = await Promise.all(
+        sanpham.selectedMausacs.map(async msId => {
+          const ms = await mausac.findOne({ _id: msId, isDeleted: false });
+          if (!ms) return null;
+          return {
+            _id: ms._id,
+            name: ms.name,
+            price: ms.price || 0
+          };
+        })
+      );
+      mausacInfo = mausacInfo.filter(Boolean);
+    }
+
+    // Thể loại để lấy thông tin khuyến mãi
+    const theloai = await LoaiSP.LoaiSP.findById(sanpham.idloaisp);
+    
     const sanphamjson = {
       _id: sanpham._id,
       name: sanpham.name,
       image: sanpham.image,
       price: sanpham.price,
-      mota: sanpham.content
+      mota: sanpham.content,
+      khuyenmai: theloai ? theloai.khuyenmai : 0,
+      dungluongs: dungluongInfo,
+      mausacs: mausacInfo
     }
+    
     res.json(sanphamjson)
   } catch (error) {
     console.log(error)
+    res.status(500).json({ message: 'Lỗi server' })
   }
 })
+// Thêm route mới để lấy thông tin chi tiết kèm biến thể
+router.get('/chitietsanpham-variants/:tieude', async (req, res) => {
+  try {
+    const tieude = req.params.tieude;
+    const sanpham = await Sp.ChitietSp.findOne({ namekhongdau: tieude });
+    
+    if (!sanpham) {
+      return res.status(404).json({ message: 'Không tìm thấy sản phẩm' });
+    }
 
+    // Lấy thông tin cơ bản
+    const result = {
+      _id: sanpham._id,
+      name: sanpham.name,
+      image: sanpham.image,
+      price: sanpham.price,
+      content: sanpham.content,
+      idloaisp: sanpham.idloaisp,
+      namekhongdau: sanpham.namekhongdau,
+      dungluongs: [],
+      mausacs: []
+    };
+    
+    // Lấy thông tin thể loại để tính khuyến mãi
+    const theloai = await LoaiSP.LoaiSP.findById(sanpham.idloaisp);
+    if (theloai) {
+      result.khuyenmai = theloai.khuyenmai || 0;
+    }
+    
+    // Nếu có selectedDungluongs, lấy thông tin từng dung lượng
+    if (sanpham.selectedDungluongs && sanpham.selectedDungluongs.length > 0) {
+      const dungluongs = await Promise.all(
+        sanpham.selectedDungluongs.map(async (dlId) => {
+          try {
+            const dl = await dungluong.findById(dlId);
+            if (!dl || dl.isDeleted) return null;
+            
+            // Lấy danh sách màu sắc cho dung lượng này
+            const mausacs = await Promise.all(
+              dl.mausac.map(async (msId) => {
+                try {
+                  const ms = await mausac.findOne({ 
+                    _id: msId, 
+                    isDeleted: false,
+                    dungluong: dl._id
+                  });
+                  
+                  if (!ms) return null;
+                  
+                  // Kiểm tra xem màu sắc có trong danh sách đã chọn không
+                  const isSelected = sanpham.selectedMausacs && 
+                                   sanpham.selectedMausacs.includes(ms._id.toString());
+                  
+                  if (!isSelected) return null;
+                  
+                  return {
+                    _id: ms._id,
+                    name: ms.name,
+                    price: Number(ms.price) || 0,
+                    giagoc: Number(ms.price) || 0,
+                    khuyenmai: result.khuyenmai || 0,
+                    images: ms.image || []
+                  };
+                } catch (err) {
+                  console.error(`Lỗi khi lấy màu sắc ${msId}:`, err);
+                  return null;
+                }
+              })
+            );
+            
+            return {
+              _id: dl._id,
+              name: dl.name,
+              mausac: mausacs.filter(Boolean)
+            };
+          } catch (err) {
+            console.error(`Lỗi khi lấy dung lượng ${dlId}:`, err);
+            return null;
+          }
+        })
+      );
+      
+      result.dungluongs = dungluongs.filter(dl => dl && dl.mausac.length > 0);
+    }
+    
+    res.json(result);
+  } catch (error) {
+    console.error('Lỗi khi lấy chi tiết sản phẩm:', error);
+    res.status(500).json({ message: 'Lỗi server' });
+  }
+});
 router.get('/getsanpham/:idtheloai', async (req, res) => {
   try {
-    const idtheloai = req.params.idtheloai
-    const theloai = await LoaiSP.LoaiSP.findById(idtheloai)
+    const idtheloai = req.params.idtheloai;
+    const theloai = await LoaiSP.LoaiSP.findById(idtheloai);
+
+    if (!theloai) {
+      return res.status(404).json({ message: 'Không tìm thấy thể loại' });
+    }
+
     const sanpham = await Promise.all(
       theloai.chitietsp.map(async sp => {
-        const sp1 = await Sp.ChitietSp.findById(sp._id)
+        const sp1 = await Sp.ChitietSp.findOne({ _id: sp._id, isDeleted: false });
+        if (!sp1) return null;
+
         return {
           _id: sp1._id,
           name: sp1.name,
           image: sp1.image,
           price: sp1.price
-        }
+        };
       })
-    )
-    res.json(sanpham)
+    );
+
+    res.json(sanpham.filter(Boolean));
   } catch (error) {
-    console.log(error)
+    console.error(error);
+    res.status(500).json({ message: 'Lỗi server', error: error.message });
   }
-})
+});
+
 
 router.get('/getchitietspadmin/:idsp', async (req, res) => {
   try {
@@ -853,6 +879,69 @@ router.get('/getsanphamtrash/:idtheloai', async (req, res) => {
     res.status(500).json({ message: `Đã xảy ra lỗi: ${error}` })
   }
 })
+router.get('/getchitietsp-variants/:id', async (req, res) => {
+  try {
+    const id = req.params.id;
+    const sanpham = await Sp.ChitietSp.findById(id);
+    
+    if (!sanpham) {
+      return res.status(404).json({ message: 'Không tìm thấy sản phẩm' });
+    }
+    
+    console.log(`Lấy biến thể cho sản phẩm ${id}, selectedDungluongs:`, sanpham.selectedDungluongs, "selectedMausacs:", sanpham.selectedMausacs);
+    
+    // Lấy thông tin dung lượng đã chọn
+    const dungluongs = [];
+    if (sanpham.selectedDungluongs && sanpham.selectedDungluongs.length > 0) {
+      for (const dlId of sanpham.selectedDungluongs) {
+        const dl = await dungluong.findById(dlId);
+        if (dl && !dl.isDeleted) {
+          // Lấy danh sách màu sắc cho dung lượng này
+          const mausacs = [];
+          
+          // Lấy tất cả màu sắc từ collection mausac, không chỉ từ dl.mausac
+          const allMausacs = await mausac.find({ 
+            dungluong: dl._id, 
+            isDeleted: false,
+            _id: { $in: sanpham.selectedMausacs || [] }  
+          });
+          
+          for (const ms of allMausacs) {
+            mausacs.push({
+              _id: ms._id,
+              name: ms.name,
+              price: Number(ms.price) || 0,
+              image: ms.image || []
+            });
+          }
+          
+          if (mausacs.length > 0) {
+            dungluongs.push({
+              _id: dl._id,
+              name: dl.name,
+              mausac: mausacs
+            });
+          }
+        }
+      }
+    }
+    
+    console.log(`Kết quả biến thể: ${dungluongs.length} dung lượng`);
+    dungluongs.forEach((dl, idx) => {
+      console.log(`- Dung lượng ${idx+1}: ${dl.name}, ${dl.mausac.length} màu sắc`);
+    });
+    
+    res.json({
+      _id: sanpham._id,
+      name: sanpham.name,
+      image: sanpham.image,
+      dungluongs: dungluongs
+    });
+  } catch (error) {
+    console.error(`Lỗi khi lấy biến thể sản phẩm ${req.params.id}:`, error);
+    res.status(500).json({ message: `Đã xảy ra lỗi: ${error}` });
+  }
+});
 
 // Hoàn tác sản phẩm từ thùng rác
 router.post('/restore-sanpham', async (req, res) => {

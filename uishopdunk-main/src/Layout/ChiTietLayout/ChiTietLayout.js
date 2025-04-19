@@ -27,6 +27,7 @@ const ChiTietLayout = () => {
   const [quantity, setQuantity] = useState(null)
   const [isLoading, setIsLoading] = useState(true)
   const [isStockLoading, setIsStockLoading] = useState(false)
+  const [variantsLoaded, setVariantsLoaded] = useState(false)
   
   // States for product variants
   const [dungluong, setdungluong] = useState([])
@@ -53,6 +54,14 @@ const ChiTietLayout = () => {
   // Product display info
   const [imgsanpham, setimgsanpham] = useState('')
   const [namesanpham, setnamesanpham] = useState('')
+
+  // Helper function to ensure numeric values
+  const ensureNumber = (value) => {
+    if (value === undefined || value === null || isNaN(Number(value))) {
+      return 0;
+    }
+    return Number(value);
+  };
 
   const settings = {
     dots: true,
@@ -193,12 +202,12 @@ const ChiTietLayout = () => {
     if (dungluong.length > 0) {
       setdungluong1(dungluong[0].name);
       setiddungluong(dungluong[0]._id);
-      if (dungluong[0].mausac.length > 0) {
+      if (dungluong[0].mausac && dungluong[0].mausac.length > 0) {
         setmausac1(dungluong[0].mausac[0].name);
         setidmausac(dungluong[0].mausac[0]._id);
-        setpricemausac(dungluong[0].mausac[0].price);
-        setkhuyenmai(dungluong[0].mausac[0].khuyenmai);
-        setgiagoc(dungluong[0].mausac[0].giagoc);
+        setpricemausac(ensureNumber(dungluong[0].mausac[0].price));
+        setkhuyenmai(ensureNumber(dungluong[0].mausac[0].khuyenmai));
+        setgiagoc(ensureNumber(dungluong[0].mausac[0].giagoc));
       }
     }
   }, [dungluong]);
@@ -220,16 +229,16 @@ const ChiTietLayout = () => {
     if (mauHienTai) {
       // Nếu màu hiện tại vẫn tồn tại trong dung lượng mới
       setidmausac(mauHienTai._id);
-      setpricemausac(mauHienTai.price);
-      setkhuyenmai(mauHienTai.khuyenmai);
-      setgiagoc(mauHienTai.giagoc);
-    } else if (dungLuongMoi.mausac.length > 0) {
+      setpricemausac(ensureNumber(mauHienTai.price));
+      setkhuyenmai(ensureNumber(mauHienTai.khuyenmai));
+      setgiagoc(ensureNumber(mauHienTai.giagoc));
+    } else if (dungLuongMoi.mausac && dungLuongMoi.mausac.length > 0) {
       // Nếu không, dùng màu đầu tiên trong dung lượng mới
       setmausac1(dungLuongMoi.mausac[0].name);
       setidmausac(dungLuongMoi.mausac[0]._id);
-      setpricemausac(dungLuongMoi.mausac[0].price);
-      setkhuyenmai(dungLuongMoi.mausac[0].khuyenmai);
-      setgiagoc(dungLuongMoi.mausac[0].giagoc);
+      setpricemausac(ensureNumber(dungLuongMoi.mausac[0].price));
+      setkhuyenmai(ensureNumber(dungLuongMoi.mausac[0].khuyenmai));
+      setgiagoc(ensureNumber(dungLuongMoi.mausac[0].giagoc));
     }
 
     // Flash Sale và tồn kho sẽ được cập nhật tự động qua useEffect
@@ -237,11 +246,13 @@ const ChiTietLayout = () => {
 
   const fetchdungluong = useCallback(async () => {
     try {
+      console.log('Fetching dungluong từ API cũ...');
       const response = await fetch(
         `http://localhost:3005/dungluongmay/${loaisp}`
       );
       if (response.ok) {
         const data = await response.json();
+        console.log('dungluong từ API cũ:', data);
         setdungluong(data);
       }
     } catch (error) {
@@ -252,6 +263,39 @@ const ChiTietLayout = () => {
   const fetchProduct = useCallback(async () => {
     try {
       setIsLoading(true);
+      
+      // Đầu tiên, thử lấy dữ liệu chi tiết với variants từ API mới
+      try {
+        console.log('Thử lấy dữ liệu từ API mới...');
+        const variantsResponse = await fetch(
+          `http://localhost:3005/chitietsanpham-variants/${tieude}`
+        );
+        
+        if (variantsResponse.ok) {
+          const variantsData = await variantsResponse.json();
+          console.log('Dữ liệu từ API mới:', variantsData);
+          
+          // Lưu thông tin sản phẩm cơ bản
+          setProduct(variantsData);
+          setidsanpham(variantsData._id);
+          setnamesanpham(variantsData.name);
+          setimgsanpham(variantsData.image);
+          
+          // Kiểm tra xem có dữ liệu dung lượng và màu sắc không
+          if (variantsData.dungluongs && variantsData.dungluongs.length > 0) {
+            console.log('Đã tìm thấy dữ liệu biến thể:', variantsData.dungluongs);
+            setdungluong(variantsData.dungluongs);
+            setVariantsLoaded(true);
+            setIsLoading(false);
+            return; // Thoát sớm nếu đã tải thành công
+          }
+        }
+      } catch (variantError) {
+        console.warn('Không thể lấy dữ liệu từ API mới:', variantError);
+      }
+      
+      // Fallback sang API cũ nếu API mới không hoạt động
+      console.log('Fallback sang API cũ...');
       const response = await fetch(
         `http://localhost:3005/chitietsanpham/${tieude}`
       );
@@ -261,15 +305,20 @@ const ChiTietLayout = () => {
         setidsanpham(data._id);
         setnamesanpham(data.name);
         setimgsanpham(data.image);
+        
+        // Khi dùng API cũ, cần gọi fetchdungluong riêng
+        fetchdungluong();
       } else {
         console.error('Không tìm thấy sản phẩm');
       }
     } catch (error) {
       console.error('Lỗi khi gọi API:', error);
+      // Fallback về API cũ nếu có lỗi
+      fetchdungluong();
     } finally {
       setIsLoading(false);
     }
-  }, [tieude]);
+  }, [tieude, fetchdungluong]);
 
   const fetchanhmausac = useCallback(async () => {
     try {
@@ -322,10 +371,9 @@ const ChiTietLayout = () => {
 
   // Fetch initial data
   useEffect(() => {
-    fetchdungluong();
     fetchProduct();
     fetchTechSpecs();
-  }, [fetchdungluong, fetchProduct, fetchTechSpecs]);
+  }, [fetchProduct, fetchTechSpecs]);
 
   useEffect(() => {
     fetchanhmausac();
@@ -350,7 +398,7 @@ const ChiTietLayout = () => {
     }
 
     const dungLuongHienTai = dungluong.find(dl => dl.name === dungluong1);
-    const validColors = dungLuongHienTai
+    const validColors = dungLuongHienTai && dungLuongHienTai.mausac
       ? dungLuongHienTai.mausac.map(mau => mau.name)
       : [];
 
@@ -506,12 +554,12 @@ const ChiTietLayout = () => {
               <span className='current-price'>
                 {flashSaleInfo 
                   ? flashSaleInfo.salePrice.toLocaleString('vi-VN')
-                  : (pricemausac ? pricemausac.toLocaleString('vi-VN') : 0)}đ
+                  : (ensureNumber(pricemausac)).toLocaleString('vi-VN')}đ
               </span>
               {flashSaleInfo ? (
                 <span className='old-price'>{flashSaleInfo.originalPrice.toLocaleString('vi-VN')}đ</span>
               ) : (
-                khuyenmai !== 0 && <span className='old-price'>{giagoc.toLocaleString('vi-VN')}đ</span>
+                khuyenmai !== 0 && <span className='old-price'>{ensureNumber(giagoc).toLocaleString('vi-VN')}đ</span>
               )}
             </div>
             <div className='note_VAT'>(Đã bao gồm VAT)</div>
@@ -544,7 +592,7 @@ const ChiTietLayout = () => {
                   <div className='dungluong_container' key={index}>
                     <div className='mausac_container'>
                       {dungluong1 === item.name &&
-                        item.mausac.map((mau, row) => (
+                        item.mausac && item.mausac.map((mau, row) => (
                           <div
                             className={
                               mausac1 === mau.name
@@ -553,20 +601,35 @@ const ChiTietLayout = () => {
                             }
                             key={row}
                             onClick={() => {
-                              console.log('Chọn màu:', mau.name, 'ID:', mau._id);
+                              console.log('Chọn màu:', mau.name, 'ID:', mau._id, 'Giá:', mau.price);
 
                               // Cập nhật tất cả state liên quan đến màu sắc trong một batch
                               setmausac1(mau.name);
                               setidmausac(mau._id);
-                              setpricemausac(mau.price);
-                              setkhuyenmai(mau.khuyenmai);
-                              setgiagoc(mau.giagoc);
+                              setpricemausac(ensureNumber(mau.price));
+                              setkhuyenmai(ensureNumber(mau.khuyenmai));
+                              setgiagoc(ensureNumber(mau.giagoc));
                               // Không cần gọi fetchStock ở đây vì useEffect sẽ xử lý khi idmausac thay đổi
                             }}
                           >
-                            <div
-                              style={{ backgroundColor: `${mau.name}` }}
-                            ></div>
+                            <div className="mausac-display"
+                              style={{ 
+                                backgroundColor: mau.name.startsWith('#') ? mau.name : '', 
+                                position: 'relative'
+                              }}
+                            >
+                              {!mau.name.startsWith('#') && (
+                                <span style={{ 
+                                  position: 'absolute',
+                                  top: '50%',
+                                  left: '50%',
+                                  transform: 'translate(-50%, -50%)',
+                                  fontSize: '10px'
+                                }}>
+                                  {mau.name}
+                                </span>
+                              )}
+                            </div>
                           </div>
                         ))}
                     </div>

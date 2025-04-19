@@ -1,18 +1,12 @@
-const db = require('./db')
+const mongoose = require('mongoose');
 
-let dungluong;
-try {
-  // Kiểm tra xem model đã tồn tại chưa
-  dungluong = db.mongoose.model('dungluong');
-} catch (e) {
-  // Nếu chưa tồn tại, định nghĩa mới
-  const dungluongSchema = new db.mongoose.Schema({
-    name: { type: String },
-    mausac: [{ type: db.mongoose.Schema.Types.ObjectId, ref: 'mausac' }],
-    idloaisp: { type: db.mongoose.Schema.Types.ObjectId, ref: 'loaisp' },
-    isDeleted: { type: Boolean, default: false }
-  });
-  dungluong = db.mongoose.model('dungluong', dungluongSchema);
-}
+const dungluongSchema = new mongoose.Schema({
+  name: { type: String, required: true },
+  idloaisp: { type: mongoose.Schema.Types.ObjectId, ref: 'loaisp' },
+  mausac: [{ type: mongoose.Schema.Types.ObjectId, ref: 'mausac' }],
+  isDeleted: { type: Boolean, default: false }
+});
+
+const dungluong = mongoose.models.dungluong || mongoose.model('dungluong', dungluongSchema);
 
 module.exports = { dungluong };

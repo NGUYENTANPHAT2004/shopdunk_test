@@ -27,9 +27,8 @@ function UpdateSanPham ({
   const [currentVariant, setCurrentVariant] = useState({
     dungluong: '',
     mausac: '',
-    stockQuantity: 0,
-    isExisting: false, // Đánh dấu biến thể đã tồn tại trong DB
-    stockId: null // ID của bản ghi tồn kho nếu đã tồn tại
+    price: 0,
+    isExisting: false // Đánh dấu biến thể đã tồn tại trong DB
   })
   
   const [loading, setLoading] = useState(false)
@@ -129,10 +128,7 @@ function UpdateSanPham ({
                 mausac: stock.mausacId,
                 mausacName: mausacInfo.name,
                 price: mausacInfo.price || 0,
-                stockQuantity: stock.unlimitedStock ? 0 : (stock.quantity || 0),
-                unlimitedStock: stock.unlimitedStock || false,
-                isExisting: true,
-                stockId: stock._id
+                isExisting: true
               });
             }
           }
@@ -192,9 +188,8 @@ function UpdateSanPham ({
     setCurrentVariant({
       dungluong: '',
       mausac: '',
-      stockQuantity: 0,
-      isExisting: false,
-      stockId: null
+      price: 0,
+      isExisting: false
     });
     setEditingVariantIndex(-1);
   }
@@ -203,7 +198,29 @@ function UpdateSanPham ({
     // Kiểm tra nếu đang chỉnh sửa
     if (editingVariantIndex > -1) {
       const newList = [...variantList];
-      newList[editingVariantIndex] = {...currentVariant};
+      
+      // Lấy thông tin dung lượng và màu sắc mới nếu có thay đổi
+      let dungluongName = currentVariant.dungluongName;
+      let mausacName = currentVariant.mausacName;
+      
+      // Cập nhật tên dung lượng nếu ID đã thay đổi
+      if (currentVariant.dungluong !== newList[editingVariantIndex].dungluong) {
+        const dungluongInfo = dungluongs.find(dl => dl._id === currentVariant.dungluong);
+        dungluongName = dungluongInfo ? dungluongInfo.name : 'Không xác định';
+      }
+      
+      // Cập nhật tên màu sắc nếu ID đã thay đổi
+      if (currentVariant.mausac !== newList[editingVariantIndex].mausac) {
+        const mausacInfo = mausacs.find(ms => ms._id === currentVariant.mausac);
+        mausacName = mausacInfo ? mausacInfo.name : 'Không xác định';
+      }
+      
+      newList[editingVariantIndex] = {
+        ...currentVariant,
+        dungluongName,
+        mausacName
+      };
+      
       setVariantList(newList);
       setEditingVariantIndex(-1);
       clearVariantForm();
@@ -244,6 +261,12 @@ function UpdateSanPham ({
   };
 
   const editVariant = (index) => {
+    // Tải màu sắc cho dung lượng của biến thể đang chỉnh sửa
+    const variant = variantList[index];
+    if (variant.dungluong) {
+      fetchMausacs(variant.dungluong);
+    }
+    
     setCurrentVariant({...variantList[index]});
     setEditingVariantIndex(index);
   };
@@ -255,14 +278,14 @@ function UpdateSanPham ({
   };
 
   const handelclose = () => {
-    setname('')
-    setmota('')
-    setprice('')
-    setimage('')
-    setFile(null)
-    setVariantList([])
-    clearVariantForm()
-    onClose()
+    setname('');
+    setmota('');
+    setprice('');
+    setimage('');
+    setFile(null);
+    setVariantList([]);
+    clearVariantForm();
+    onClose();
   }
 
   const handelUpdate = async () => {
@@ -272,7 +295,7 @@ function UpdateSanPham ({
       return;
     }
 
-    if (!price.trim() || isNaN(parseFloat(price))) {
+    if (price === '' || isNaN(parseFloat(price))) {
       alert('Vui lòng nhập giá hợp lệ');
       return;
     }
@@ -284,12 +307,16 @@ function UpdateSanPham ({
 
     setLoading(true);
     try {
-      const formData = new FormData()
-      formData.append('name', name)
-      formData.append('content', mota)
-      formData.append('price', price)
+      const formData = new FormData();
+      formData.append('name', name);
+      formData.append('content', mota);
+      formData.append('price', price);
+      
+      // Thêm danh sách biến thể vào form
+      formData.append('variantList', JSON.stringify(variantList));
+      
       if (file) {
-        formData.append('image', file)
+        formData.append('image', file);
       }
 
       // Cập nhật thông tin cơ bản của sản phẩm
@@ -302,23 +329,8 @@ function UpdateSanPham ({
       );
 
       if (response.ok) {
-        // Cập nhật tồn kho cho từng biến thể
-        for (const variant of variantList) {
-          await fetch('http://localhost:3005/stock/add', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({
-              productId: idsanpham,
-              dungluongId: variant.dungluong,
-              mausacId: variant.mausac,
-              quantity: parseInt(variant.stockQuantity, 10) || 0,
-              unlimitedStock: variant.unlimitedStock || false
-            })
-          });
-        }
-        
+        // Không cần cập nhật tồn kho vì đã có phần riêng
+        alert('Cập nhật sản phẩm thành công!');
         handelclose();
         setSelectedIds([]);
         fetchData();
@@ -390,7 +402,6 @@ function UpdateSanPham ({
                     <th style={{border: '1px solid #ddd', padding: '8px'}}>Dung lượng</th>
                     <th style={{border: '1px solid #ddd', padding: '8px'}}>Màu sắc</th>
                     <th style={{border: '1px solid #ddd', padding: '8px'}}>Giá thêm</th>
-                    <th style={{border: '1px solid #ddd', padding: '8px'}}>Tồn kho</th>
                     <th style={{border: '1px solid #ddd', padding: '8px'}}>Thao tác</th>
                   </tr>
                 </thead>
@@ -400,9 +411,6 @@ function UpdateSanPham ({
                       <td style={{border: '1px solid #ddd', padding: '8px'}}>{variant.dungluongName}</td>
                       <td style={{border: '1px solid #ddd', padding: '8px'}}>{variant.mausacName}</td>
                       <td style={{border: '1px solid #ddd', padding: '8px'}}>{parseInt(variant.price).toLocaleString()}đ</td>
-                      <td style={{border: '1px solid #ddd', padding: '8px'}}>
-                        {variant.unlimitedStock ? 'Không giới hạn' : variant.stockQuantity}
-                      </td>
                       <td style={{border: '1px solid #ddd', padding: '8px'}}>
                         <button 
                           onClick={() => editVariant(index)} 
@@ -428,124 +436,69 @@ function UpdateSanPham ({
           <div className="add-variant-form" style={{marginTop: '10px', padding: '15px', border: '1px solid #e8e8e8', borderRadius: '5px'}}>
             <h4>{editingVariantIndex > -1 ? 'Cập nhật biến thể:' : 'Thêm biến thể mới:'}</h4>
             
-            {/* Nếu đang cập nhật biến thể hiện có */}
-            {editingVariantIndex > -1 ? (
-              <div>
-                <div style={{marginBottom: '15px'}}>
-                  <label>Dung lượng:</label>
-                  <input
-                    type="text"
-                    value={currentVariant.dungluongName}
-                    readOnly
-                    style={{width: '100%', padding: '8px', marginTop: '5px', backgroundColor: '#f5f5f5'}}
-                  />
+            {/* Form chọn dung lượng và màu sắc (cho cả thêm mới và chỉnh sửa) */}
+            <div style={{marginBottom: '15px'}}>
+              <label>Dung lượng:</label>
+              <select 
+                value={currentVariant.dungluong}
+                onChange={handleDungluongChange}
+                style={{width: '100%', padding: '8px', marginTop: '5px'}}
+              >
+                <option value="">-- Chọn dung lượng --</option>
+                {dungluongs.map(dl => (
+                  <option key={dl._id} value={dl._id}>{dl.name}</option>
+                ))}
+              </select>
+              {dungluongs.length === 0 && (
+                <div style={{color: '#ff4d4f', marginTop: '5px', fontSize: '14px'}}>
+                  Thể loại này chưa có dung lượng nào. Vui lòng thêm dung lượng cho thể loại trước.
                 </div>
-                
-                <div style={{marginBottom: '15px'}}>
-                  <label>Màu sắc:</label>
-                  <input
-                    type="text"
-                    value={currentVariant.mausacName}
-                    readOnly
-                    style={{width: '100%', padding: '8px', marginTop: '5px', backgroundColor: '#f5f5f5'}}
-                  />
-                </div>
-                
-                <div style={{marginBottom: '15px'}}>
-                  <label>Giá thêm:</label>
-                  <input
-                    type="number"
-                    value={currentVariant.price}
-                    onChange={(e) => setCurrentVariant({...currentVariant, price: e.target.value})}
-                    placeholder="Nhập giá thêm"
-                    style={{width: '100%', padding: '8px', marginTop: '5px'}}
-                    disabled={currentVariant.isExisting} // Không cho sửa giá nếu là biến thể đã tồn tại
-                  />
-                  {currentVariant.isExisting && (
-                    <div style={{color: '#ff4d4f', fontSize: '12px', marginTop: '3px'}}>
-                      *Không thể thay đổi giá biến thể đã tồn tại. Vui lòng cập nhật trong mục "Quản lý kho hàng".
-                    </div>
-                  )}
-                </div>
-              </div>
-            ) : (
-              <>
-                {/* Chọn dung lượng */}
-                <div style={{marginBottom: '15px'}}>
-                  <label>Dung lượng:</label>
-                  <select 
-                    value={currentVariant.dungluong}
-                    onChange={handleDungluongChange}
-                    style={{width: '100%', padding: '8px', marginTop: '5px'}}
-                  >
-                    <option value="">-- Chọn dung lượng --</option>
-                    {dungluongs.map(dl => (
-                      <option key={dl._id} value={dl._id}>{dl.name}</option>
-                    ))}
-                  </select>
-                  {dungluongs.length === 0 && (
-                    <div style={{color: '#ff4d4f', marginTop: '5px', fontSize: '14px'}}>
-                      Thể loại này chưa có dung lượng nào. Vui lòng thêm dung lượng cho thể loại trước.
-                    </div>
-                  )}
-                </div>
-                
-                {/* Chọn màu sắc */}
-                {currentVariant.dungluong && (
-                  <div style={{marginBottom: '15px'}}>
-                    <label>Màu sắc:</label>
-                    <select 
-                      value={currentVariant.mausac}
-                      onChange={handleMausacChange}
-                      style={{width: '100%', padding: '8px', marginTop: '5px'}}
-                    >
-                      <option value="">-- Chọn màu sắc --</option>
-                      {mausacs.map(ms => (
-                        <option key={ms._id} value={ms._id}>
-                          {ms.name} - Giá: {parseInt(price) + parseInt(ms.price || 0)}đ
-                        </option>
-                      ))}
-                    </select>
-                    {mausacs.length === 0 && (
-                      <div style={{color: '#ff4d4f', marginTop: '5px', fontSize: '14px'}}>
-                        Dung lượng này chưa có màu sắc nào. Vui lòng thêm màu sắc cho dung lượng trước.
-                      </div>
-                    )}
+              )}
+            </div>
+            
+            {/* Chọn màu sắc */}
+            {currentVariant.dungluong && (
+              <div style={{marginBottom: '15px'}}>
+                <label>Màu sắc:</label>
+                <select 
+                  value={currentVariant.mausac}
+                  onChange={handleMausacChange}
+                  style={{width: '100%', padding: '8px', marginTop: '5px'}}
+                >
+                  <option value="">-- Chọn màu sắc --</option>
+                  {mausacs.map(ms => (
+                    <option key={ms._id} value={ms._id}>
+                      {ms.name} - Giá: {parseInt(price) + parseInt(ms.price || 0)}đ
+                    </option>
+                  ))}
+                </select>
+                {mausacs.length === 0 && (
+                  <div style={{color: '#ff4d4f', marginTop: '5px', fontSize: '14px'}}>
+                    Dung lượng này chưa có màu sắc nào. Vui lòng thêm màu sắc cho dung lượng trước.
                   </div>
                 )}
-              </>
+              </div>
             )}
             
-            {/* Số lượng tồn kho */}
-            <div style={{marginBottom: '15px'}}>
-              <label>Số lượng tồn kho:</label>
-              <div style={{display: 'flex', alignItems: 'center', marginTop: '5px'}}>
+            {/* Phần giá */}
+            {currentVariant.mausac && (
+              <div style={{marginBottom: '15px'}}>
+                <label>Giá thêm:</label>
                 <input
                   type="number"
-                  min="0"
-                  value={currentVariant.stockQuantity}
-                  onChange={(e) => setCurrentVariant({...currentVariant, stockQuantity: e.target.value})}
-                  placeholder="Nhập số lượng tồn kho"
-                  style={{flex: 1, padding: '8px'}}
-                  disabled={currentVariant.unlimitedStock}
+                  value={currentVariant.price}
+                  onChange={(e) => setCurrentVariant({...currentVariant, price: e.target.value})}
+                  placeholder="Nhập giá thêm"
+                  style={{width: '100%', padding: '8px', marginTop: '5px'}}
                 />
-                <div style={{marginLeft: '10px', display: 'flex', alignItems: 'center'}}>
-                  <input
-                    type="checkbox"
-                    checked={currentVariant.unlimitedStock}
-                    onChange={(e) => setCurrentVariant({...currentVariant, unlimitedStock: e.target.checked})}
-                    id="unlimitedStock"
-                  />
-                  <label htmlFor="unlimitedStock" style={{marginLeft: '5px'}}>Không giới hạn</label>
-                </div>
               </div>
-            </div>
+            )}
             
             {/* Nút thêm/cập nhật biến thể */}
             <button 
               onClick={addVariant}
               style={{background: '#1890ff', color: 'white', border: 'none', padding: '8px 15px', cursor: 'pointer', borderRadius: '4px'}}
-              disabled={(editingVariantIndex === -1 && (!currentVariant.dungluong || !currentVariant.mausac))}
+              disabled={!currentVariant.dungluong || !currentVariant.mausac}
             >
               {editingVariantIndex > -1 ? 'Cập nhật biến thể' : 'Thêm biến thể'}
             </button>

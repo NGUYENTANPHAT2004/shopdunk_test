@@ -4,8 +4,8 @@ const productSizeStockSchema = new db.mongoose.Schema({
   productId: { type: db.mongoose.Schema.Types.ObjectId, ref: 'chitietsp', required: true },
   dungluongId: { type: db.mongoose.Schema.Types.ObjectId, ref: 'dungluong', default: null },
   mausacId: { type: db.mongoose.Schema.Types.ObjectId, ref: 'mausac', default: null },
-  quantity: { type: Number, default: 0, min: 0 },  // Mặc định là 0 thay vì null
-  unlimitedStock: { type: Boolean, default: false },
+  quantity: { type: Number, default: null, min: 0 },  
+  unlimitedStock: { type: Boolean, default: function() { return this.quantity === null; } },
   sku: { type: String, unique: true },
   __v: { type: Number, default: 0 } 
 });

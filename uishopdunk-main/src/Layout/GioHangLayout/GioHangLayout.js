@@ -283,46 +283,94 @@ function GioHangLayout() {
         cartData.map(async item => {
           try {
             const response = await fetch(
-              `http://localhost:3005/getmausacgh/${item.iddungluong}`
-            )
-            if (!response.ok)
-              throw new Error(`Lỗi khi gọi API với ${item.iddungluong}`)
-            const data = await response.json()
+              `http://localhost:3005/getchitietsp-variants/${item.idsanpham}`
+            );
 
-            // Nếu có dữ liệu màu, đặt mặc định cho sản phẩm
-            if (data.length > 0) {
-              return {
-                ...item,
-                soluong: item.soluong ? item.soluong : 1,
-                mangmausac: data,
-                // Nếu sản phẩm chưa có màu được chọn, lấy mặc định là phần tử đầu tiên
-                mausac: item.mausac ? item.mausac : data[0].name,
-                pricemausac: item.pricemausac ? item.pricemausac : data[0].price,
-                idmausac: item.idmausac ? item.idmausac : data[0]._id
-              }
-            } else {
-              return {
-                ...item,
-                soluong: 1,
-                mangmausac: []
+            if (!response.ok) {
+              throw new Error(`Lỗi khi gọi API với ${item.idsanpham}`);
+            }
+
+            const productDetails = await response.json();
+            console.log("Dữ liệu sản phẩm:", productDetails.name);
+
+            // Mảng chứa tất cả màu sắc
+            let allMausac = [];
+
+            // Thu thập tất cả màu sắc từ tất cả dung lượng
+            if (productDetails.dungluongs) {
+              productDetails.dungluongs.forEach(dl => {
+                if (dl.mausac && dl.mausac.length > 0) {
+                  dl.mausac.forEach(ms => {
+                    allMausac.push({
+                      ...ms,
+                      dungluongId: dl._id,
+                      dungluongName: dl.name
+                    });
+                  });
+                }
+              });
+            }
+
+            // Tìm dung lượng và màu sắc hiện tại
+            let selectedDungluong = null;
+            let selectedMausac = null;
+            let selectedDungluongId = item.iddungluong;
+
+            // Nếu không có iddungluong, thử tìm từ idmausac
+            if (!selectedDungluongId && item.idmausac) {
+              const matchingColor = allMausac.find(ms => ms._id === item.idmausac);
+              if (matchingColor) {
+                selectedDungluongId = matchingColor.dungluongId;
+                console.log(`Đã tìm thấy dungluongId: ${selectedDungluongId} từ màu sắc`);
               }
             }
-          } catch (error) {
-            console.error('Lỗi khi gọi API:', error)
+
+            // Nếu vẫn không có, sử dụng dung lượng đầu tiên
+            if (!selectedDungluongId && productDetails.dungluongs && productDetails.dungluongs.length > 0) {
+              selectedDungluongId = productDetails.dungluongs[0]._id;
+              console.log(`Sử dụng dungluongId mặc định: ${selectedDungluongId}`);
+            }
+
+            // Tìm dung lượng đã chọn
+            if (selectedDungluongId && productDetails.dungluongs) {
+              selectedDungluong = productDetails.dungluongs.find(dl => dl._id === selectedDungluongId);
+            }
+
+            // Tìm màu sắc đã chọn
+            if (selectedDungluong && item.idmausac) {
+              selectedMausac = selectedDungluong.mausac?.find(ms => ms._id === item.idmausac);
+            }
+
+            // Nếu không tìm thấy màu sắc, sử dụng màu đầu tiên của dung lượng
+            if (selectedDungluong && (!selectedMausac) && selectedDungluong.mausac?.length > 0) {
+              selectedMausac = selectedDungluong.mausac[0];
+              console.log(`Sử dụng màu mặc định: ${selectedMausac.name}`);
+            }
+
+            // Trả về item đã cập nhật
             return {
               ...item,
-              soluong: 1,
-              mangmausac: []
-            }
+              soluong: item.soluong || 1,
+              mangmausac: allMausac,
+              iddungluong: selectedDungluongId,
+              dungluong: selectedDungluong ? selectedDungluong.name : (item.dungluong || 'Mặc định'),
+              mausac: selectedMausac ? selectedMausac.name : (item.mausac || 'Mặc định'),
+              idmausac: selectedMausac ? selectedMausac._id : item.idmausac,
+              pricemausac: item.isFlashSale ? item.pricemausac : (selectedMausac ? selectedMausac.price : item.pricemausac || 0)
+            };
+          } catch (error) {
+            console.error('Lỗi khi gọi API:', error);
+            return item; // Giữ nguyên item nếu có lỗi
           }
         })
-      )
-      setCart(updatedData)
-      localStorage.setItem('cart', JSON.stringify(updatedData))
+      );
+
+      setCart(updatedData);
+      localStorage.setItem('cart', JSON.stringify(updatedData));
     } catch (error) {
-      console.error('Lỗi khi gọi API:', error)
+      console.error('Lỗi khi xử lý giỏ hàng:', error);
     }
-  }
+  };
 
   // Khi user nhấn nút tăng số lượng:
   const increaseQuantity = async (index) => {
@@ -363,24 +411,26 @@ function GioHangLayout() {
 
   const finalTotalPrice = totalPrice + shippingFee;
 
-  const changeColor = async (index, selectedColor, newPrice, colorId) => {
+  const changeColor = async (index, selectedColor, newPrice, colorId, dungluongId, dungluongName) => {
     const newCart = [...cart];
     const currentItem = newCart[index];
-    
-    // Cập nhật màu sắc và giá mặc định
+
+    // Cập nhật màu sắc, giá và các ID liên quan
     currentItem.mausac = selectedColor;
     currentItem.pricemausac = newPrice;
     currentItem.idmausac = colorId;
-    
+    currentItem.iddungluong = dungluongId;
+    currentItem.dungluong = dungluongName;
+
     // Kiểm tra Flash Sale cho biến thể sản phẩm mới
-    if (currentItem.idsanpham && currentItem.iddungluong && colorId) {
+    if (currentItem.idsanpham && dungluongId && colorId) {
       try {
         const result = await checkProductInFlashSale(
-          currentItem.idsanpham, 
-          currentItem.iddungluong, 
+          currentItem.idsanpham,
+          dungluongId,
           colorId
         );
-        
+
         if (result.inFlashSale) {
           // Cập nhật thông tin Flash Sale
           currentItem.pricemausac = result.flashSaleInfo.salePrice;
@@ -395,7 +445,7 @@ function GioHangLayout() {
         console.error('Lỗi khi kiểm tra Flash Sale cho màu mới:', error);
       }
     }
-    
+
     setCart(newCart);
     localStorage.setItem('cart', JSON.stringify(newCart));
   };
@@ -589,23 +639,54 @@ function GioHangLayout() {
                       <span>{item.namesanpham}</span>
                       <div className='mausac_container'>
                         {item.mangmausac &&
-                          item.mangmausac.map((mausac, row) => (
-                            <div
-                              className={
-                                item.mausac === mausac.name
-                                  ? `border_mausac border_mausac1`
-                                  : `border_mausac`
-                              }
-                              key={row}
-                              onClick={() =>
-                                changeColor(index, mausac.name, mausac.price, mausac._id)
-                              }
-                            >
+                          item.mangmausac.map((mausac, row) => {
+                            // Thêm debug để kiểm tra giá trị
+                            console.log(`Màu sắc ${row}:`, mausac);
+
+                            return (
                               <div
-                                style={{ backgroundColor: `${mausac.name}` }}
-                              ></div>
-                            </div>
-                          ))}
+                                className={
+                                  item.mausac === mausac.name
+                                    ? `border_mausac border_mausac1`
+                                    : `border_mausac`
+                                }
+                                key={row}
+                                onClick={() => {
+                                  // Debug trước khi gọi
+                                  console.log('Đang chọn màu:', mausac);
+                                  console.log('dungluongId:', mausac.dungluongId || 'không có');
+
+                                  changeColor(
+                                    index,
+                                    mausac.name,
+                                    mausac.price,
+                                    mausac._id,
+                                    mausac.dungluongId,
+                                    mausac.dungluongName
+                                  );
+                                }}
+                              >
+                                <div
+                                  style={{
+                                    backgroundColor: mausac.name.startsWith('#') ? mausac.name : '',
+                                    position: 'relative'
+                                  }}
+                                >
+                                  {!mausac.name.startsWith('#') && (
+                                    <span style={{
+                                      position: 'absolute',
+                                      top: '50%',
+                                      left: '50%',
+                                      transform: 'translate(-50%, -50%)',
+                                      fontSize: '10px'
+                                    }}>
+                                      {mausac.name}
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+                            );
+                          })}
                       </div>
                     </div>
                     <div className='giohang_header_top_right_bottom'>
