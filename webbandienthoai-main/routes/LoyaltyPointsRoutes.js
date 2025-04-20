@@ -343,12 +343,18 @@ router.get('/loyalty/redemption-options', async (req, res) => {
 });
 
 // 4. Đổi điểm lấy voucher - CHỈ DÙNG USER ID
+// Đổi điểm lấy voucher - CHỈ DÙNG USER ID
 router.post('/loyalty/redeem', ensureUserPoints, async (req, res) => {
+  const session = await db.mongoose.startSession();
+  session.startTransaction();
+  
   try {
     const { redemptionId } = req.body;
     const userPoints = req.userPoints;
     
     if (!redemptionId) {
+      await session.abortTransaction();
+      session.endSession();
       return res.status(400).json({
         success: false,
         message: 'Thiếu thông tin quà đổi điểm'
@@ -357,9 +363,12 @@ router.post('/loyalty/redeem', ensureUserPoints, async (req, res) => {
     
     // Lấy thông tin lựa chọn đổi điểm
     const redemptionOption = await PointsRedemption.findById(redemptionId)
-      .populate('voucherId', 'magiamgia sophantram ngaybatdau ngayketthuc minOrderValue maxOrderValue');
+      .populate('voucherId', 'magiamgia sophantram ngaybatdau ngayketthuc minOrderValue maxOrderValue')
+      .session(session);
     
     if (!redemptionOption) {
+      await session.abortTransaction();
+      session.endSession();
       return res.status(404).json({
         success: false,
         message: 'Không tìm thấy quà đổi điểm'
@@ -368,66 +377,78 @@ router.post('/loyalty/redeem', ensureUserPoints, async (req, res) => {
     
     // Kiểm tra xem lựa chọn còn hoạt động không
     if (!redemptionOption.isActive || redemptionOption.remainingQuantity <= 0) {
+      await session.abortTransaction();
+      session.endSession();
       return res.status(400).json({
         success: false,
         message: 'Quà đổi điểm không còn khả dụng'
       });
     }
     
-    // Kiểm tra xem ngày hiện tại có nằm trong thời gian đổi điểm không
+    // Kiểm tra ngày hợp lệ
     const now = new Date();
     if (now < redemptionOption.startDate || now > redemptionOption.endDate) {
+      await session.abortTransaction();
+      session.endSession();
       return res.status(400).json({
         success: false,
         message: 'Quà đổi điểm không trong thời gian khả dụng'
       });
     }
     
-    // Kiểm tra tính đủ điều kiện của cấp thành viên
+    // Kiểm tra cấp thành viên
     if (redemptionOption.availableTiers.length > 0 && 
         !redemptionOption.availableTiers.includes(userPoints.tier)) {
+      await session.abortTransaction();
+      session.endSession();
       return res.status(403).json({
         success: false,
         message: `Quà đổi điểm chỉ dành cho hạng ${redemptionOption.availableTiers.join(', ')}`
       });
     }
     
-    // Kiểm tra xem người dùng có đủ điểm không
+    // Kiểm tra số điểm
     if (userPoints.availablePoints < redemptionOption.pointsCost) {
+      await session.abortTransaction();
+      session.endSession();
       return res.status(400).json({
         success: false,
         message: `Bạn cần ${redemptionOption.pointsCost} điểm để đổi quà này. Hiện bạn chỉ có ${userPoints.availablePoints} điểm khả dụng.`
       });
     }
     
-    // Kiểm tra giới hạn đổi điểm cho mỗi người dùng
+    // Kiểm tra giới hạn đổi điểm
     const userRedemptionCount = await RedemptionHistory.countDocuments({
       userId: userPoints.userId,
       redemptionId: redemptionOption._id,
       status: { $in: ['active', 'used'] }
-    });
+    }).session(session);
     
     if (userRedemptionCount >= redemptionOption.limitPerUser) {
+      await session.abortTransaction();
+      session.endSession();
       return res.status(400).json({
         success: false,
         message: `Bạn đã đạt giới hạn đổi quà ${redemptionOption.limitPerUser} lần cho ưu đãi này`
       });
     }
     
-    // Tạo mã giảm giá dựa trên voucher liên kết
-    const linkedVoucher = await magiamgia.findById(redemptionOption.voucherId);
+    // Tạo mã giảm giá
+    const linkedVoucher = await magiamgia.findById(redemptionOption.voucherId).session(session);
     
     if (!linkedVoucher) {
+      await session.abortTransaction();
+      session.endSession();
       return res.status(404).json({
         success: false,
         message: 'Không tìm thấy mã giảm giá liên kết'
       });
     }
     
-    // Tạo mã giảm giá mới từ mã gốc
+    // Tạo mã giảm giá mới
     const voucherCode = `REWARD-${userPoints.userId.toString().slice(-4)}-${Math.floor(Math.random() * 10000).toString().padStart(4, '0')}`;
     
-    // Đặt thời gian hết hạn cho voucher (mặc định 30 ngày hoặc theo ngày hết hạn của voucher gốc)
+    // Đặt thời gian hết hạn
     const expiryDate = linkedVoucher.ngayketthuc ? 
       new Date(linkedVoucher.ngayketthuc) : 
       new Date(new Date().setDate(new Date().getDate() + 30));
@@ -459,15 +480,17 @@ router.post('/loyalty/redeem', ensureUserPoints, async (req, res) => {
       date: new Date()
     });
     
-    // Cập nhật số lượng còn lại của tùy chọn đổi điểm
+    // Cập nhật số lượng còn lại
     redemptionOption.remainingQuantity -= 1;
     
     // Lưu tất cả thay đổi
-    await Promise.all([
-      userPoints.save(),
-      redemptionHistory.save(),
-      redemptionOption.save()
-    ]);
+    await redemptionHistory.save({ session });
+    await userPoints.save({ session });
+    await redemptionOption.save({ session });
+    
+    // Commit transaction
+    await session.commitTransaction();
+    session.endSession();
     
     res.json({
       success: true,
@@ -483,6 +506,9 @@ router.post('/loyalty/redeem', ensureUserPoints, async (req, res) => {
       remainingPoints: userPoints.availablePoints
     });
   } catch (error) {
+    await session.abortTransaction();
+    session.endSession();
+    
     console.error('Lỗi khi đổi điểm:', error);
     res.status(500).json({
       success: false,

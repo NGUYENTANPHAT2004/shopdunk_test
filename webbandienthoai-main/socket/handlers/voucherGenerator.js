@@ -6,13 +6,16 @@ const HoaDon = require('../../models/HoaDonModel');
 const User = require('../../models/user.model');
 
 /**
- * Tạo voucher ngẫu nhiên cho người dùng đã đăng nhập (yêu cầu userId)
+ * Tạo voucher ngẫu nhiên cho người dùng đã đăng nhập
  * @param {string} userId - ID người dùng đã đăng nhập
  * @param {string} reason - Lý do tạo voucher (first-order, third-order, new-account)
  * @param {number} expiryDays - Số ngày đến khi voucher hết hạn
  * @returns {Promise<object>} - Đối tượng voucher đã tạo
  */
 async function generateVoucherForUser(userId, reason = 'reward', expiryDays = 30) {
+  const session = await db.mongoose.startSession();
+  session.startTransaction();
+  
   try {
     // Validate userId
     if (!userId || !/^[0-9a-fA-F]{24}$/.test(userId)) {
@@ -23,13 +26,14 @@ async function generateVoucherForUser(userId, reason = 'reward', expiryDays = 30
     console.log(`Generating ${reason} voucher for user ${userId}`);
 
     // Get user details
-    const user = await User.User.findById(userId);
+    const user = await User.User.findById(userId).session(session);
     if (!user) {
-      console.error(`User not found with userId ${userId}`);
+      await session.abortTransaction();
+      session.endSession();
       throw new Error('User not found');
     }
 
-    // Check how many active vouchers this user already has
+    // Check existing vouchers
     const activeVouchers = await MaGiamGia.magiamgia.find({
       ngayketthuc: { $gte: new Date() },
       soluong: { $gt: 0 },
@@ -38,28 +42,27 @@ async function generateVoucherForUser(userId, reason = 'reward', expiryDays = 30
         { intended_users: userId }
       ],
       isDeleted: { $ne: true }
-    });
+    }).session(session);
 
     // Limit personal vouchers
     const userSpecificVouchers = activeVouchers.filter(v => !v.isServerWide);
     const VOUCHER_LIMIT = 5; // Max 5 personal vouchers
     
     if (userSpecificVouchers.length >= VOUCHER_LIMIT && reason !== 'new-account') {
-      console.log(`User ${userId} already has ${userSpecificVouchers.length} active vouchers`);
+      await session.abortTransaction();
+      session.endSession();
       
-      if (reason !== 'new-account') {
-        return {
-          code: userSpecificVouchers[0].magiamgia,
-          discount: userSpecificVouchers[0].sophantram,
-          minOrderValue: userSpecificVouchers[0].minOrderValue,
-          expiresAt: moment(userSpecificVouchers[0].ngayketthuc).format('DD/MM/YYYY'),
-          message: 'Bạn đã có sẵn mã giảm giá!',
-          isNew: false
-        };
-      }
+      return {
+        code: userSpecificVouchers[0].magiamgia,
+        discount: userSpecificVouchers[0].sophantram,
+        minOrderValue: userSpecificVouchers[0].minOrderValue,
+        expiresAt: moment(userSpecificVouchers[0].ngayketthuc).format('DD/MM/YYYY'),
+        message: 'Bạn đã có sẵn mã giảm giá!',
+        isNew: false
+      };
     }
 
-    // Check if user already has a voucher of this type
+    // Check if user already has a voucher of this type USING USER ID
     const existingVoucher = await MaGiamGia.magiamgia.findOne({
       magiamgia: { $regex: new RegExp(`^${getVoucherPrefix(reason)}`) },
       ngayketthuc: { $gte: new Date() },
@@ -69,10 +72,12 @@ async function generateVoucherForUser(userId, reason = 'reward', expiryDays = 30
         { intended_users: userId }
       ],
       isDeleted: { $ne: true }
-    });
+    }).session(session);
     
     if (existingVoucher && reason !== 'reward') {
-      console.log(`User ${userId} already has an active ${reason} voucher`);
+      await session.abortTransaction();
+      session.endSession();
+      
       return {
         code: existingVoucher.magiamgia,
         discount: existingVoucher.sophantram,
@@ -112,7 +117,10 @@ async function generateVoucherForUser(userId, reason = 'reward', expiryDays = 30
       userId: userId
     });
     
-    await magg.save();
+    await magg.save({ session });
+    
+    await session.commitTransaction();
+    session.endSession();
     
     console.log(`Created ${reason} voucher ${voucherCode} for user ${userId}`);
     
@@ -126,6 +134,9 @@ async function generateVoucherForUser(userId, reason = 'reward', expiryDays = 30
       isNew: true
     };
   } catch (error) {
+    await session.abortTransaction();
+    session.endSession();
+    
     console.error('Error generating voucher:', error);
     throw error;
   }
@@ -218,7 +229,7 @@ function getVoucherDescription(reason) {
  */
 async function isFirstOrderVoucherEligible(userId) {
   try {
-    // Yêu cầu userId hợp lệ - chỉ phát voucher cho người dùng đã đăng ký
+    // Yêu cầu userId hợp lệ
     if (!userId || !/^[0-9a-fA-F]{24}$/.test(userId)) {
       console.log("Không thể kiểm tra tư cách nhận voucher đơn đầu: Không có userId hợp lệ");
       return false;
@@ -231,49 +242,32 @@ async function isFirstOrderVoucherEligible(userId) {
       return false;
     }
     
-    // Thêm điều kiện lọc chỉ đơn hàng thành công
-    const query = {
+    // Đếm đơn hàng thành công
+    const orderCount = await HoaDon.hoadon.countDocuments({
       userId: userId,
-      thanhtoan: true, // Chỉ đếm đơn hàng đã thanh toán
-      trangthai: { $in: ['Đã thanh toán', 'Hoàn thành', 'Đã nhận'] } // Trạng thái thành công
-    };
-    
-    // Đếm số đơn hàng đã hoàn thành
-    const orderCount = await HoaDon.hoadon.countDocuments(query);
+      thanhtoan: true,
+      trangthai: { $in: ['Đã thanh toán', 'Hoàn thành', 'Đã nhận'] }
+    });
     
     console.log(`Người dùng ${userId} có ${orderCount} đơn hàng hoàn thành`);
     
-    // Đủ điều kiện nếu đây là đơn hàng đầu tiên của họ
-    // orderCount = 1 vì chúng ta đang đếm TRONG HÀM NÀY sau khi đơn hàng hiện tại đã được đánh dấu là hoàn thành
+    // Điều kiện: đơn hàng đầu tiên
     const eligible = orderCount === 1;
-    console.log(`Đủ điều kiện nhận voucher đơn đầu: ${eligible}`);
     
-    // Nếu đủ điều kiện, kiểm tra xem người dùng đã có voucher FIRST chưa
+    // Nếu đủ điều kiện, kiểm tra đã có voucher chưa
     if (eligible) {
-      const phone = user.phone;
-      const email = user.email;
-      
-      // Nếu không có thông tin liên hệ, không phát voucher
-      if (!phone && !email) {
-        return false;
-      }
-      
-      // Tìm bất kỳ voucher FIRST nào đã cấp cho người dùng này mà vẫn còn hiệu lực
-      let voucherQuery = {
+      // CHỈ TÌM BẰNG userId
+      const existingVoucher = await MaGiamGia.magiamgia.findOne({
         magiamgia: { $regex: /^FIRST/ },
-        ngayketthuc: { $gte: new Date() }
-      };
-      
-      const queryConditions = [];
-      if (phone) queryConditions.push({ intended_users: phone });
-      if (email) queryConditions.push({ intended_users: email });
-      
-      voucherQuery.$or = queryConditions;
-      
-      const existingVoucher = await MaGiamGia.magiamgia.findOne(voucherQuery);
+        ngayketthuc: { $gte: new Date() },
+        $or: [
+          { userId: userId },
+          { intended_users: userId }
+        ]
+      });
       
       if (existingVoucher) {
-        console.log(`Người dùng ${userId} đã có voucher FIRST còn hiệu lực: ${existingVoucher.magiamgia}`);
+        console.log(`Người dùng ${userId} đã có voucher FIRST còn hiệu lực`);
         return false;
       }
     }
