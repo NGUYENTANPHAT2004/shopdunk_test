@@ -38,10 +38,9 @@ function ModalNhapThongTin ({
       const missingStockItems = [];
       
       for (const item of sanphams) {
-        if (!item.idsp || !item.dungluong || !item.idmausac) {
+        // Kiểm tra thông tin sản phẩm cơ bản
+        if (!item.idsp) {
           console.warn('Thiếu thông tin sản phẩm:', item);
-          
-          // Thêm thông tin lỗi chi tiết hơn
           missingStockItems.push({
             productId: item.idsp || 'unknown',
             dungluongId: item.dungluong || 'unknown',
@@ -51,26 +50,77 @@ function ModalNhapThongTin ({
         }
         
         try {
-          const response = await fetch(`http://localhost:3005/stock/${item.idsp}/${item.dungluong}/${item.idmausac}`);
-          
-          if (!response.ok) {
-            const errorText = await response.text();
-            console.warn(`Lỗi kiểm tra tồn kho (${response.status}): ${errorText}`);
-            continue; // Bỏ qua và tiếp tục với sản phẩm khác
-          }
-          
-          const stockInfo = await response.json();
-  
-          if (!stockInfo.unlimitedStock && stockInfo.stock !== 'Không giới hạn' && stockInfo.stock < item.soluong) {
-            setStockError({
-              productId: item.idsp,
-              available: stockInfo.stock,
-              requested: item.soluong,
-              message: `Sản phẩm không đủ số lượng trong kho. Hiện chỉ còn ${stockInfo.stock} sản phẩm.`
-            })
-            setIsStockChecked(true)
-            setLoading(false)
-            return;
+          // Kiểm tra xem sản phẩm có phải là Flash Sale không
+          if (item.isFlashSale) {
+            // Kiểm tra tồn kho Flash Sale
+            const flashSaleUrl = `http://localhost:3005/flash-sale-products/${item.idsp}`;
+            const flashSaleParams = new URLSearchParams();
+            if (item.dungluong) flashSaleParams.append('dungluongId', item.dungluong);
+            if (item.idmausac) flashSaleParams.append('mausacId', item.idmausac);
+            
+            const flashSaleResponse = await fetch(`${flashSaleUrl}?${flashSaleParams.toString()}`);
+            
+            if (!flashSaleResponse.ok) {
+              const errorText = await flashSaleResponse.text();
+              console.warn(`Lỗi kiểm tra Flash Sale (${flashSaleResponse.status}): ${errorText}`);
+              setStockError({
+                productId: item.idsp,
+                message: 'Sản phẩm Flash Sale không còn hiệu lực hoặc không tồn tại.'
+              });
+              setIsStockChecked(true);
+              setLoading(false);
+              return;
+            }
+            
+            const flashSaleInfo = await flashSaleResponse.json();
+            
+            if (!flashSaleInfo.success || !flashSaleInfo.data) {
+              setStockError({
+                productId: item.idsp,
+                message: 'Sản phẩm Flash Sale không tồn tại hoặc đã kết thúc.'
+              });
+              setIsStockChecked(true);
+              setLoading(false);
+              return;
+            }
+            
+            const remainingQuantity = flashSaleInfo.data.remainingQuantity;
+            
+            if (remainingQuantity < item.soluong) {
+              setStockError({
+                productId: item.idsp,
+                available: remainingQuantity,
+                requested: item.soluong,
+                message: `Sản phẩm Flash Sale không đủ số lượng. Hiện chỉ còn ${remainingQuantity} sản phẩm.`
+              });
+              setIsStockChecked(true);
+              setLoading(false);
+              return;
+            }
+          } else {
+            // Kiểm tra tồn kho thông thường
+            const stockUrl = `http://localhost:3005/stock/${item.idsp}/${item.dungluong || 'null'}/${item.idmausac || 'null'}`;
+            const response = await fetch(stockUrl);
+            
+            if (!response.ok) {
+              const errorText = await response.text();
+              console.warn(`Lỗi kiểm tra tồn kho (${response.status}): ${errorText}`);
+              continue;
+            }
+            
+            const stockInfo = await response.json();
+            
+            if (!stockInfo.unlimitedStock && stockInfo.stock !== 'Không giới hạn' && stockInfo.stock < item.soluong) {
+              setStockError({
+                productId: item.idsp,
+                available: stockInfo.stock,
+                requested: item.soluong,
+                message: `Sản phẩm không đủ số lượng trong kho. Hiện chỉ còn ${stockInfo.stock} sản phẩm.`
+              });
+              setIsStockChecked(true);
+              setLoading(false);
+              return;
+            }
           }
         } catch (error) {
           console.error(`Lỗi xử lý sản phẩm ${item.idsp}:`, error);
@@ -84,15 +134,15 @@ function ModalNhapThongTin ({
         // Nhưng không dừng quá trình - cho phép thanh toán tiếp
       }
   
-      setIsStockChecked(true)
-      setLoading(false)
+      setIsStockChecked(true);
+      setLoading(false);
     } catch (error) {
-      console.error('Lỗi kiểm tra tồn kho:', error)
+      console.error('Lỗi kiểm tra tồn kho:', error);
       setStockError({
         message: 'Không thể kiểm tra tồn kho. Vui lòng thử lại sau.'
-      })
-      setIsStockChecked(true)
-      setLoading(false)
+      });
+      setIsStockChecked(true);
+      setLoading(false);
     }
   }
 

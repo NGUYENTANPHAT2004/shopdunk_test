@@ -224,7 +224,6 @@ router.post('/admin/flash-sales',
 
         // Validate từng sản phẩm
         for (const product of parsedProducts) {
-          // Kiểm tra thông tin cơ bản
           if (!product.productId || !product.originalPrice || !product.salePrice || !product.quantity) {
             await session.abortTransaction();
             session.endSession();
@@ -264,7 +263,7 @@ router.post('/admin/flash-sales',
               message: `Không tìm thấy thông tin tồn kho cho sản phẩm ${existProduct.name} ${product.dungluongId ? '(dungluong)' : ''} ${product.mausacId ? '(mausac)' : ''}`
             });
           }
-
+          product.originalStock = stockRecord.unlimitedStock ? null : stockRecord.quantity;
           // Kiểm tra số lượng tồn kho
           if (!stockRecord.unlimitedStock && stockRecord.quantity < product.quantity) {
             await session.abortTransaction();

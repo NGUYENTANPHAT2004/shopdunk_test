@@ -376,18 +376,47 @@ function GioHangLayout() {
   const increaseQuantity = async (index) => {
     const newCart = [...cart];
     const product = newCart[index];
-
-    // Gọi API check stock cho product.idsanpham, product.iddungluong, product.idmausac
-    const response = await fetch(`http://localhost:3005/stock/${product.idsanpham}/${product.iddungluong}/${product.idmausac}`);
-    const data = await response.json();
-
-    // Nếu còn hàng, tăng
-    if (data.stock > product.soluong) {
-      newCart[index].soluong += 1;
-      setCart(newCart);
-      localStorage.setItem('cart', JSON.stringify(newCart));
+  
+    if (product.isFlashSale) {
+      // Kiểm tra tồn kho Flash Sale
+      try {
+        const flashSaleResponse = await fetch(`http://localhost:3005/flash-sale-products/${product.idsanpham}?dungluongId=${product.iddungluong}&mausacId=${product.idmausac}`);
+        const flashSaleData = await flashSaleResponse.json();
+        
+        if (flashSaleData.success && flashSaleData.data) {
+          const remainingQuantity = flashSaleData.data.remainingQuantity;
+          
+          if (remainingQuantity > product.soluong) {
+            newCart[index].soluong += 1;
+            setCart(newCart);
+            localStorage.setItem('cart', JSON.stringify(newCart));
+          } else {
+            alert('Số lượng Flash Sale không đủ');
+          }
+        } else {
+          alert('Sản phẩm này không còn trong chương trình Flash Sale');
+        }
+      } catch (error) {
+        console.error('Lỗi khi kiểm tra tồn kho Flash Sale:', error);
+        alert('Không thể kiểm tra tồn kho Flash Sale');
+      }
     } else {
-      alert('Không đủ hàng');
+      // Kiểm tra tồn kho thông thường
+      try {
+        const response = await fetch(`http://localhost:3005/stock/${product.idsanpham}/${product.iddungluong}/${product.idmausac}`);
+        const data = await response.json();
+        
+        if (data.stock === 'Không giới hạn' || data.unlimitedStock || data.stock > product.soluong) {
+          newCart[index].soluong += 1;
+          setCart(newCart);
+          localStorage.setItem('cart', JSON.stringify(newCart));
+        } else {
+          alert('Không đủ hàng');
+        }
+      } catch (error) {
+        console.error('Lỗi khi kiểm tra tồn kho:', error);
+        alert('Không thể kiểm tra tồn kho');
+      }
     }
   };
 

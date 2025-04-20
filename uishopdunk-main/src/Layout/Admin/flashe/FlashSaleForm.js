@@ -153,20 +153,17 @@ const FlashSaleForm = ({ isEdit, flashSale, onClose, onSubmit }) => {
   };
 
   // Fetch product variants (dungluong and mausac)
-  const fetchProductVariants = async (productId, nametheloai) => {
+  const fetchProductVariants = async (productId) => {
     try {
-      if (!nametheloai) {
-        console.error('Thiếu thông tin nametheloai cho sản phẩm');
-        return;
-      }
-      
       setLoadingVariants(true);
-      const response = await axios.get(`http://localhost:3005/dungluongmay/${nametheloai}`);
       
-      if (response.data) {
+      // Sử dụng endpoint lấy biến thể của sản phẩm thay vì thể loại
+      const response = await axios.get(`http://localhost:3005/getchitietsp-variants/${productId}`);
+      
+      if (response.data && response.data.dungluongs) {
         setProductVariants(prev => ({
           ...prev,
-          [productId]: response.data
+          [productId]: response.data.dungluongs
         }));
       }
     } catch (error) {
@@ -359,18 +356,25 @@ const FlashSaleForm = ({ isEdit, flashSale, onClose, onSubmit }) => {
       }
       
       // Add products as JSON string
-      const productsData = selectedProducts.map(product => ({
-        productId: product.id,
-        originalPrice: parseFloat(product.originalPrice),
-        salePrice: parseFloat(product.salePrice),
-        discountPercent: parseFloat(product.discountPercent),
-        quantity: parseInt(product.quantity),
-        limit: parseInt(product.limit) || 5,
-        dungluongId: product.dungluongId,
-        mausacId: product.mausacId
-      }));
-      
-      formDataObj.append('products', JSON.stringify(productsData));
+      const productsData = selectedProducts.map(async (product) => {
+        // Kiểm tra tồn kho
+        const stockResponse = await axios.get(`http://localhost:3005/stock/${product.id}/${product.dungluongId || 'null'}/${product.mausacId || 'null'}`);
+        const stockData = stockResponse.data;
+        
+        return {
+          productId: product.id,
+          originalPrice: parseFloat(product.originalPrice),
+          salePrice: parseFloat(product.salePrice),
+          discountPercent: parseFloat(product.discountPercent),
+          quantity: parseInt(product.quantity),
+          limit: parseInt(product.limit) || 5,
+          dungluongId: product.dungluongId,
+          mausacId: product.mausacId,
+          originalStock: stockData.unlimitedStock ? null : stockData.stock
+        };
+      })
+      const resolvedProductsData = await Promise.all(productsData);
+      formDataObj.append('products', JSON.stringify(resolvedProductsData));
       
       let response;
       if (isEdit && flashSale) {
@@ -544,7 +548,7 @@ const FlashSaleForm = ({ isEdit, flashSale, onClose, onSubmit }) => {
             <h4>Sản phẩm Flash Sale</h4>
             
             <div className="product-search">
-              <div className="search-container">
+              <div className="search-container-flashe">
                 <input
                   type="text"
                   placeholder="Tìm kiếm sản phẩm..."
