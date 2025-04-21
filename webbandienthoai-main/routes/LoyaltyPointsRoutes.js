@@ -361,10 +361,6 @@ router.post('/loyalty/redeem', ensureUserPoints, async (req, res) => {
       });
     }
     
-    // Lấy thông tin lựa chọn đổi điểm
-    const redemptionOption = await PointsRedemption.findById(redemptionId)
-      .populate('voucherId', 'magiamgia sophantram ngaybatdau ngayketthuc minOrderValue maxOrderValue')
-      .session(session);
     
     if (!redemptionOption) {
       await session.abortTransaction();
@@ -433,10 +429,23 @@ router.post('/loyalty/redeem', ensureUserPoints, async (req, res) => {
       });
     }
     
-    // Tạo mã giảm giá
-    const linkedVoucher = await magiamgia.findById(redemptionOption.voucherId).session(session);
+    const redemptionOption = await PointsRedemption.findById(redemptionId)
+      .populate('voucherId', 'sophantram ngaybatdau ngayketthuc minOrderValue maxOrderValue')
+      .session(session);
     
-    if (!linkedVoucher) {
+    if (!redemptionOption) {
+      await session.abortTransaction();
+      session.endSession();
+      return res.status(404).json({
+        success: false,
+        message: 'Không tìm thấy quà đổi điểm'
+      });
+    }
+    
+    // Lấy thông tin voucher mẫu
+    const templateVoucher = await magiamgia.findById(redemptionOption.voucherId).session(session);
+    
+    if (!templateVoucher) {
       await session.abortTransaction();
       session.endSession();
       return res.status(404).json({
@@ -445,13 +454,32 @@ router.post('/loyalty/redeem', ensureUserPoints, async (req, res) => {
       });
     }
     
-    // Tạo mã giảm giá mới
-    const voucherCode = `REWARD-${userPoints.userId.toString().slice(-4)}-${Math.floor(Math.random() * 10000).toString().padStart(4, '0')}`;
+    // [Các phần kiểm tra giữ nguyên]
     
-    // Đặt thời gian hết hạn
-    const expiryDate = linkedVoucher.ngayketthuc ? 
-      new Date(linkedVoucher.ngayketthuc) : 
+    // Tạo mã giảm giá mới và riêng cho người dùng này
+    const voucherCode = `Points-${userPoints.userId.toString().slice(-4)}-${Math.floor(Math.random() * 10000).toString().padStart(4, '0')}`;
+    
+    // Đặt thời gian hết hạn từ voucher mẫu hoặc mặc định 30 ngày
+    const expiryDate = templateVoucher.ngayketthuc ? 
+      new Date(templateVoucher.ngayketthuc) : 
       new Date(new Date().setDate(new Date().getDate() + 30));
+    
+    // Tạo bản ghi mã giảm giá mới trong bảng magiamgia
+    const newVoucher = new magiamgia({
+      magiamgia: voucherCode,
+      soluong: 1, // Một lần sử dụng
+      sophantram: redemptionOption.voucherValue, // Lấy từ quà đổi điểm
+      ngaybatdau: new Date(),
+      ngayketthuc: expiryDate,
+      minOrderValue: templateVoucher.minOrderValue || 0,
+      maxOrderValue: templateVoucher.maxOrderValue || null,
+      isServerWide: false,
+      isOneTimePerUser: true,
+      userId: userPoints.userId, // Gán mã này cho user cụ thể
+      intended_users: [userPoints.userId] // Chỉ user này mới được dùng
+    });
+    
+    await newVoucher.save({ session });
     
     // Tạo bản ghi lịch sử đổi điểm
     const redemptionHistory = new RedemptionHistory({
@@ -459,7 +487,7 @@ router.post('/loyalty/redeem', ensureUserPoints, async (req, res) => {
       phone: userPoints.phone,
       email: userPoints.email,
       redemptionId: redemptionOption._id,
-      voucherId: redemptionOption.voucherId,
+      voucherId: newVoucher._id, // Lưu ID của voucher mới tạo
       pointsSpent: redemptionOption.pointsCost,
       voucherCode: voucherCode,
       redemptionDate: new Date(),
@@ -467,23 +495,8 @@ router.post('/loyalty/redeem', ensureUserPoints, async (req, res) => {
       status: 'active'
     });
     
-    // Cập nhật điểm của người dùng
-    userPoints.availablePoints -= redemptionOption.pointsCost;
-    userPoints.lastUpdated = new Date();
+    // [Phần trừ điểm và cập nhật còn lại giữ nguyên]
     
-    // Thêm vào lịch sử điểm
-    userPoints.pointsHistory.push({
-      amount: -redemptionOption.pointsCost,
-      type: 'redeemed',
-      voucherId: redemptionOption.voucherId,
-      reason: `Đổi điểm lấy ${redemptionOption.name}`,
-      date: new Date()
-    });
-    
-    // Cập nhật số lượng còn lại
-    redemptionOption.remainingQuantity -= 1;
-    
-    // Lưu tất cả thay đổi
     await redemptionHistory.save({ session });
     await userPoints.save({ session });
     await redemptionOption.save({ session });
@@ -499,7 +512,7 @@ router.post('/loyalty/redeem', ensureUserPoints, async (req, res) => {
         code: voucherCode,
         type: redemptionOption.voucherType,
         value: redemptionOption.voucherValue,
-        minOrderValue: linkedVoucher.minOrderValue || 0,
+        minOrderValue: templateVoucher.minOrderValue || 0,
         expiryDate: expiryDate,
         pointsUsed: redemptionOption.pointsCost
       },

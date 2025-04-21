@@ -10,6 +10,8 @@ import 'react-toastify/dist/ReactToastify.css';
 import axios from 'axios';
 import moment from 'moment';
 import 'moment/locale/vi';
+import RedemptionDetailModal from './RedemptionDetailModal';
+import VoucherResultModal from './VoucherResultModal';
 
 moment.locale('vi');
 const UserPointsPage = () => {
@@ -24,7 +26,11 @@ const UserPointsPage = () => {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const isFetchingRef = useRef(false);
   const hasPointsDataRef = useRef(false);
-
+  const [redemptionModalOpen, setRedemptionModalOpen] = useState(false);
+  const [voucherModalOpen, setVoucherModalOpen] = useState(false);
+  const [selectedOption, setSelectedOption] = useState(null);
+  const [voucherDetails, setVoucherDetails] = useState(null);
+  const [currentVoucher, setCurrentVoucher] = useState(null);
   // Get user information from context and localStorage
   useEffect(() => {
     const storedUser = localStorage.getItem('user');
@@ -366,7 +372,6 @@ const UserPointsPage = () => {
     return Math.min(Math.max(percentage, 0), 100);
   };
 
-  // If the user is not logged in at all, show the login required message
   if (!isLoggedIn) {
     return (
       <div className="points-page">
@@ -392,7 +397,122 @@ const UserPointsPage = () => {
       </div>
     );
   }
-
+  const confirmRedemption = async () => {
+    if (!selectedOption || loadingRedeem) {
+      return;
+    }
+    
+    // Get user ID from localStorage
+    const userData = JSON.parse(localStorage.getItem('user') || '{}');
+    const userId = userData?._id || userData?.user?._id || userData?.id || userData?.user?.id;
+    
+    if (!userId) {
+      toast.error('Không thể xác định ID người dùng. Vui lòng đăng nhập lại.');
+      return;
+    }
+    
+    try {
+      setLoadingRedeem(true);
+      
+      // Make API request with userId only
+      const response = await axios.post('http://localhost:3005/loyalty/redeem', {
+        userId, // Only send userId now
+        redemptionId: selectedOption._id
+      });
+      
+      if (response.data.success) {
+        // Update user points immediately
+        setUserPoints(prevPoints => ({
+          ...prevPoints,
+          availablePoints: prevPoints.availablePoints - selectedOption.pointsCost
+        }));
+        
+        // Show success message
+        toast.success('Đổi điểm thành công!');
+        
+        // Update redemption options status
+        setRedemptionOptions(prevOptions => 
+          prevOptions.map(opt => 
+            opt._id === selectedOption._id 
+              ? { ...opt, isRedeemed: true, canRedeem: opt.limitPerUser > 1 }
+              : opt
+          )
+        );
+        
+        // Đóng modal chi tiết
+        setRedemptionModalOpen(false);
+        
+        // Hiển thị modal kết quả với thông tin voucher
+        setCurrentVoucher({
+          code: response.data.voucher.code,
+          type: response.data.voucher.type,
+          value: response.data.voucher.value,
+          minOrderValue: response.data.voucher.minOrderValue,
+          expiryDate: response.data.voucher.expiryDate,
+          pointsUsed: response.data.voucher.pointsUsed
+        });
+        setVoucherModalOpen(true);
+        
+        // Fetch updated data in background
+        refreshPoints();
+      } else {
+        toast.error(response.data.message || 'Đổi điểm thất bại');
+      }
+    } catch (error) {
+      console.error('Error redeeming points:', error);
+      const errorMessage = error.response?.data?.message || 'Lỗi khi đổi điểm';
+      toast.error(errorMessage);
+    } finally {
+      setLoadingRedeem(false);
+    }
+  };
+  const openRedemptionModal = async (redemptionId) => {
+    // Tìm thông tin quà đổi điểm
+    const option = redemptionOptions.find(opt => opt._id === redemptionId);
+    if (!option) {
+      toast.error('Không tìm thấy thông tin quà đổi điểm');
+      return;
+    }
+    
+    setSelectedOption(option);
+    setLoadingRedeem(true);
+    
+    try {
+      // Lấy thông tin chi tiết của voucher gốc
+      const response = await axios.get(`http://localhost:3005/getchitietmagg/${option.voucherId}`);
+      
+      if (response.data) {
+        setVoucherDetails(response.data);
+        setRedemptionModalOpen(true);
+      } else {
+        toast.error('Không thể lấy thông tin chi tiết mã giảm giá');
+      }
+    } catch (error) {
+      console.error('Lỗi khi lấy thông tin chi tiết mã giảm giá:', error);
+      toast.error('Không thể lấy thông tin chi tiết mã giảm giá');
+    } finally {
+      setLoadingRedeem(false);
+    }
+  };
+  const handleSaveVoucher = () => {
+    if (currentVoucher && currentVoucher.code) {
+      // Copy voucher code to clipboard
+      navigator.clipboard.writeText(currentVoucher.code)
+        .then(() => {
+          toast.success('Đã sao chép mã voucher vào clipboard');
+        })
+        .catch((err) => {
+          console.error('Không thể sao chép mã: ', err);
+          toast.error('Không thể sao chép mã voucher');
+        });
+    }
+    
+    // Đóng modal
+    setVoucherModalOpen(false);
+    
+    // Switch to history tab
+    setActiveTab('history');
+  };
   return (
     <div className="points-page">
       <Helmet>
@@ -636,24 +756,35 @@ const UserPointsPage = () => {
                               <div className="voucher-points">
                                 <span className="points-required">{formatPoints(option.pointsCost)} điểm</span>
                                 {option.isRedeemed && !option.canRedeem ? (
-                                  <button className="redeem-btn disabled" disabled>
-                                    Đã đổi
-                                  </button>
+                                  <button
+                                  className={`redeem-btn ${userPoints?.availablePoints < option.pointsCost ? 'disabled' : ''}`}
+                                  onClick={() => openRedemptionModal(option._id)}
+                                  disabled={userPoints?.availablePoints < option.pointsCost || loadingRedeem}
+                                >
+                                  {loadingRedeem ? (
+                                    <>
+                                      <FontAwesomeIcon icon={faSpinner} spin />
+                                      <span>Đang xử lý...</span>
+                                    </>
+                                  ) : (
+                                    'Đổi điểm'
+                                  )}
+                                </button>
                                 ) : (
                                   <button
-                                    className={`redeem-btn ${userPoints?.availablePoints < option.pointsCost ? 'disabled' : ''}`}
-                                    onClick={() => handleRedeem(option._id)}
-                                    disabled={userPoints?.availablePoints < option.pointsCost || loadingRedeem}
-                                  >
-                                    {loadingRedeem ? (
-                                      <>
-                                        <FontAwesomeIcon icon={faSpinner} spin />
-                                        <span>Đang xử lý...</span>
-                                      </>
-                                    ) : (
-                                      'Đổi điểm'
-                                    )}
-                                  </button>
+                                  className={`redeem-btn ${userPoints?.availablePoints < option.pointsCost ? 'disabled' : ''}`}
+                                  onClick={() => openRedemptionModal(option._id)}
+                                  disabled={userPoints?.availablePoints < option.pointsCost || loadingRedeem}
+                                >
+                                  {loadingRedeem ? (
+                                    <>
+                                      <FontAwesomeIcon icon={faSpinner} spin />
+                                      <span>Đang xử lý...</span>
+                                    </>
+                                  ) : (
+                                    'Đổi điểm'
+                                  )}
+                                </button>
                                 )}
                               </div>
                             </div>
@@ -709,6 +840,22 @@ const UserPointsPage = () => {
           </>
         )}
       </div>
+      <RedemptionDetailModal
+        isOpen={redemptionModalOpen}
+        onClose={() => setRedemptionModalOpen(false)}
+        selectedOption={selectedOption}
+        voucherDetails={voucherDetails}
+        userPoints={userPoints}
+        onConfirm={confirmRedemption}
+        loadingRedeem={loadingRedeem}
+      />
+      
+      <VoucherResultModal
+        isOpen={voucherModalOpen}
+        onClose={() => setVoucherModalOpen(false)}
+        voucher={currentVoucher}
+        onSave={handleSaveVoucher}
+      />
     </div>
   );
 };
