@@ -123,16 +123,14 @@ router.get('/admin/loyalty/redemption-options', checkAdminAuth, async (req, res)
 });
 
 // Create a new redemption option
+// Create a new redemption option
 router.post('/admin/loyalty/create-redemption', checkAdminAuth, async (req, res) => {
   try {
     const {
       name,
       description,
       pointsCost,
-      voucherType,
-      voucherValue,
       voucherId,
-      minOrderValue,
       availableTiers,
       limitPerUser,
       totalQuantity,
@@ -141,8 +139,8 @@ router.post('/admin/loyalty/create-redemption', checkAdminAuth, async (req, res)
       imageUrl
     } = req.body;
     
-    // Validate required fields
-    if (!name || !pointsCost || !voucherType || !voucherValue || !voucherId) {
+    // Validate required fields - Đã chỉnh sửa để đồng nhất với frontend
+    if (!name || !pointsCost || !voucherId) {
       return res.status(400).json({
         success: false,
         message: 'Thiếu thông tin bắt buộc'
@@ -158,14 +156,18 @@ router.post('/admin/loyalty/create-redemption', checkAdminAuth, async (req, res)
       });
     }
     
+    // Lấy thông tin voucher type và value từ voucher đã chọn
+    const voucherType = 'percentage'; // Mặc định là percentage dựa trên model magiamgia
+    const voucherValue = voucher.sophantram || 0;
+    
     const redemptionOption = new PointsRedemption({
       name,
       description,
       pointsCost: Number(pointsCost),
-      voucherType,
-      voucherValue: Number(voucherValue),
+      voucherType, // Lấy từ voucher đã chọn
+      voucherValue, // Lấy từ voucher đã chọn
       voucherId,
-      minOrderValue: minOrderValue ? Number(minOrderValue) : 0,
+      minOrderValue: voucher.minOrderValue || 0,
       availableTiers: availableTiers || [],
       limitPerUser: limitPerUser ? Number(limitPerUser) : 1,
       totalQuantity: totalQuantity ? Number(totalQuantity) : 100,
@@ -192,6 +194,7 @@ router.post('/admin/loyalty/create-redemption', checkAdminAuth, async (req, res)
 });
 
 // Update an existing redemption option
+// Update an existing redemption option
 router.put('/admin/loyalty/update-redemption/:id', checkAdminAuth, async (req, res) => {
   try {
     const { id } = req.params;
@@ -199,10 +202,7 @@ router.put('/admin/loyalty/update-redemption/:id', checkAdminAuth, async (req, r
       name,
       description,
       pointsCost,
-      voucherType,
-      voucherValue,
       voucherId,
-      minOrderValue,
       availableTiers,
       limitPerUser,
       totalQuantity,
@@ -211,8 +211,8 @@ router.put('/admin/loyalty/update-redemption/:id', checkAdminAuth, async (req, r
       imageUrl
     } = req.body;
     
-    // Validate required fields
-    if (!name || !pointsCost || !voucherType || !voucherValue || !voucherId) {
+    // Validate required fields - Đã chỉnh sửa để đồng nhất với frontend
+    if (!name || !pointsCost || !voucherId) {
       return res.status(400).json({
         success: false,
         message: 'Thiếu thông tin bắt buộc'
@@ -237,14 +237,18 @@ router.put('/admin/loyalty/update-redemption/:id', checkAdminAuth, async (req, r
       });
     }
     
+    // Lấy thông tin voucher type và value từ voucher đã chọn
+    const voucherType = 'percentage'; // Mặc định là percentage dựa trên model magiamgia
+    const voucherValue = voucher.sophantram || 0;
+    
     // Update fields
     redemptionOption.name = name;
     redemptionOption.description = description;
     redemptionOption.pointsCost = Number(pointsCost);
     redemptionOption.voucherType = voucherType;
-    redemptionOption.voucherValue = Number(voucherValue);
+    redemptionOption.voucherValue = voucherValue;
     redemptionOption.voucherId = voucherId;
-    redemptionOption.minOrderValue = minOrderValue ? Number(minOrderValue) : 0;
+    redemptionOption.minOrderValue = voucher.minOrderValue || 0;
     redemptionOption.availableTiers = availableTiers || [];
     redemptionOption.limitPerUser = limitPerUser ? Number(limitPerUser) : 1;
     redemptionOption.totalQuantity = totalQuantity ? Number(totalQuantity) : 100;

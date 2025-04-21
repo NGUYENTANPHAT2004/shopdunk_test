@@ -466,34 +466,55 @@ const UserPointsPage = () => {
       setLoadingRedeem(false);
     }
   };
-  const openRedemptionModal = async (redemptionId) => {
-    // Tìm thông tin quà đổi điểm
-    const option = redemptionOptions.find(opt => opt._id === redemptionId);
-    if (!option) {
-      toast.error('Không tìm thấy thông tin quà đổi điểm');
-      return;
-    }
+// Sửa phương thức openRedemptionModal trong file UserPointsPage.js
+
+const openRedemptionModal = async (redemptionId) => {
+  // Tìm thông tin quà đổi điểm
+  const option = redemptionOptions.find(opt => opt._id === redemptionId);
+  if (!option) {
+    toast.error('Không tìm thấy thông tin quà đổi điểm');
+    return;
+  }
+  
+  setSelectedOption(option);
+  setLoadingRedeem(true);
+  
+  try {
+    // Xử lý voucherId trước khi gửi request
+    let voucherId = option.voucherId;
     
-    setSelectedOption(option);
-    setLoadingRedeem(true);
-    
-    try {
-      // Lấy thông tin chi tiết của voucher gốc
-      const response = await axios.get(`http://localhost:3005/getchitietmagg/${option.voucherId}`);
-      
-      if (response.data) {
-        setVoucherDetails(response.data);
-        setRedemptionModalOpen(true);
-      } else {
-        toast.error('Không thể lấy thông tin chi tiết mã giảm giá');
+    // Nếu voucherId là object, lấy _id
+    if (typeof voucherId === 'object' && voucherId !== null) {
+      console.log('voucherId là object:', voucherId);
+      if (voucherId._id) {
+        voucherId = voucherId._id;
       }
-    } catch (error) {
-      console.error('Lỗi khi lấy thông tin chi tiết mã giảm giá:', error);
-      toast.error('Không thể lấy thông tin chi tiết mã giảm giá');
-    } finally {
-      setLoadingRedeem(false);
     }
-  };
+    
+    console.log('Gửi request với voucherId:', voucherId);
+    
+    // Lấy thông tin chi tiết của voucher gốc
+    const response = await axios.get(`http://localhost:3005/getchitietmagg/${voucherId}`);
+    
+    if (response.data) {
+      console.log('Đã nhận được chi tiết voucher:', response.data);
+      setVoucherDetails(response.data);
+      setRedemptionModalOpen(true);
+    } else {
+      console.error('Response không có data');
+      toast.error('Không thể lấy thông tin chi tiết mã giảm giá');
+    }
+  } catch (error) {
+    console.error('Lỗi khi lấy thông tin chi tiết mã giảm giá:', error);
+    if (error.response) {
+      console.error('Error response:', error.response.data);
+      console.error('Error status:', error.response.status);
+    }
+    toast.error('Không thể lấy thông tin chi tiết mã giảm giá');
+  } finally {
+    setLoadingRedeem(false);
+  }
+};
   const handleSaveVoucher = () => {
     if (currentVoucher && currentVoucher.code) {
       // Copy voucher code to clipboard

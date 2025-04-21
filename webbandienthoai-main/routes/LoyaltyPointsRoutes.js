@@ -343,7 +343,6 @@ router.get('/loyalty/redemption-options', async (req, res) => {
 });
 
 // 4. Đổi điểm lấy voucher - CHỈ DÙNG USER ID
-// Đổi điểm lấy voucher - CHỈ DÙNG USER ID
 router.post('/loyalty/redeem', ensureUserPoints, async (req, res) => {
   const session = await db.mongoose.startSession();
   session.startTransaction();
@@ -361,6 +360,10 @@ router.post('/loyalty/redeem', ensureUserPoints, async (req, res) => {
       });
     }
     
+    // Tìm thông tin phần thưởng đổi điểm - PHẢI ĐẶT TẠI ĐÂY
+    const redemptionOption = await PointsRedemption.findById(redemptionId)
+      .populate('voucherId', 'sophantram ngaybatdau ngayketthuc minOrderValue maxOrderValue')
+      .session(session);
     
     if (!redemptionOption) {
       await session.abortTransaction();
@@ -429,21 +432,17 @@ router.post('/loyalty/redeem', ensureUserPoints, async (req, res) => {
       });
     }
     
-    const redemptionOption = await PointsRedemption.findById(redemptionId)
-      .populate('voucherId', 'sophantram ngaybatdau ngayketthuc minOrderValue maxOrderValue')
-      .session(session);
-    
-    if (!redemptionOption) {
-      await session.abortTransaction();
-      session.endSession();
-      return res.status(404).json({
-        success: false,
-        message: 'Không tìm thấy quà đổi điểm'
-      });
+    // Lấy thông tin voucher mẫu - FIX CASTING ERROR
+    let voucherId;
+    if (typeof redemptionOption.voucherId === 'object' && redemptionOption.voucherId !== null) {
+      // Nếu đã populate thành object, lấy _id từ object đó
+      voucherId = redemptionOption.voucherId._id;
+    } else {
+      // Nếu chỉ là ID
+      voucherId = redemptionOption.voucherId;
     }
     
-    // Lấy thông tin voucher mẫu
-    const templateVoucher = await magiamgia.findById(redemptionOption.voucherId).session(session);
+    const templateVoucher = await magiamgia.findById(voucherId).session(session);
     
     if (!templateVoucher) {
       await session.abortTransaction();
@@ -453,8 +452,6 @@ router.post('/loyalty/redeem', ensureUserPoints, async (req, res) => {
         message: 'Không tìm thấy mã giảm giá liên kết'
       });
     }
-    
-    // [Các phần kiểm tra giữ nguyên]
     
     // Tạo mã giảm giá mới và riêng cho người dùng này
     const voucherCode = `Points-${userPoints.userId.toString().slice(-4)}-${Math.floor(Math.random() * 10000).toString().padStart(4, '0')}`;
@@ -495,7 +492,22 @@ router.post('/loyalty/redeem', ensureUserPoints, async (req, res) => {
       status: 'active'
     });
     
-    // [Phần trừ điểm và cập nhật còn lại giữ nguyên]
+    // Cập nhật điểm người dùng - trừ điểm đã dùng
+    userPoints.availablePoints -= redemptionOption.pointsCost;
+    
+    // Thêm vào lịch sử điểm
+    userPoints.pointsHistory.push({
+      amount: -redemptionOption.pointsCost,
+      type: 'redeemed',
+      voucherId: newVoucher._id,
+      reason: `Đổi điểm lấy "${redemptionOption.name}"`,
+      date: new Date()
+    });
+    
+    userPoints.lastUpdated = new Date();
+    
+    // Giảm số lượng còn lại của quà đổi điểm
+    redemptionOption.remainingQuantity -= 1;
     
     await redemptionHistory.save({ session });
     await userPoints.save({ session });

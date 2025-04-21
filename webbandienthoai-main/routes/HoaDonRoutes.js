@@ -1140,6 +1140,8 @@ router.post('/settrangthai/:idhoadon', async (req, res) => {
     
     // Ghi log để debug
     console.log(`Chuyển trạng thái đơn hàng ${idhoadon} từ '${oldTrangthai}' sang '${trangthai}'`);
+    console.log(`Thông tin sản phẩm: Regular=${regularItems.length}, FlashSale=${flashSaleItems.length}`);
+    console.log('Dữ liệu sản phẩm:', JSON.stringify(hoadon.sanpham));
     
     // Xử lý các trường hợp chuyển trạng thái - tất cả được thực hiện trong transaction
     if (trangthai === 'Hủy Đơn Hàng' && oldTrangthai !== 'Hủy Đơn Hàng') {
@@ -1147,14 +1149,22 @@ router.post('/settrangthai/:idhoadon', async (req, res) => {
       const nonReducedStatuses = ['Thanh toán thất bại', 'Thanh toán hết hạn', 'Hủy Đơn Hàng'];
       const inventoryWasReduced = oldThanhtoan || (!oldThanhtoan && !nonReducedStatuses.includes(oldTrangthai));
       
+      console.log(`Kiểm tra cần hoàn tồn kho không: inventoryWasReduced=${inventoryWasReduced}`);
+      
       if (inventoryWasReduced) {
+        console.log('Bắt đầu quá trình hoàn tồn kho...');
+        
         // Khôi phục tồn kho
         if (regularItems.length > 0) {
-          await restoreInventory(regularItems, session);
+          console.log(`Đang khôi phục ${regularItems.length} sản phẩm thường...`);
+          const restored = await restoreInventory(regularItems, session);
+          console.log(`Kết quả khôi phục: ${restored ? restored.length : 0} sản phẩm đã được khôi phục`);
         }
         
         if (flashSaleItems.length > 0) {
-          await rollbackFlashSalePurchase(flashSaleItems, session);
+          console.log(`Đang khôi phục ${flashSaleItems.length} sản phẩm Flash Sale...`);
+          const flashResult = await rollbackFlashSalePurchase(flashSaleItems, session);
+          console.log(`Kết quả khôi phục Flash Sale: ${flashResult.success ? 'Thành công' : 'Thất bại'}`);
         }
       }
     }
@@ -1165,27 +1175,37 @@ router.post('/settrangthai/:idhoadon', async (req, res) => {
       const nonReducedStatuses = ['Thanh toán thất bại', 'Thanh toán hết hạn', 'Hủy Đơn Hàng'];
       const inventoryWasReduced = oldThanhtoan || (!oldThanhtoan && !nonReducedStatuses.includes(oldTrangthai));
       
+      console.log(`Kiểm tra cần hoàn tồn kho không (thất bại/hết hạn): inventoryWasReduced=${inventoryWasReduced}`);
+      
       if (inventoryWasReduced) {
+        console.log('Bắt đầu quá trình hoàn tồn kho (do thanh toán thất bại/hết hạn)...');
+        
         // Khôi phục tồn kho
         if (regularItems.length > 0) {
-          await restoreInventory(regularItems, session);
+          const restored = await restoreInventory(regularItems, session);
+          console.log(`Kết quả khôi phục: ${restored ? restored.length : 0} sản phẩm đã được khôi phục`);
         }
         
         if (flashSaleItems.length > 0) {
-          await rollbackFlashSalePurchase(flashSaleItems, session);
+          const flashResult = await rollbackFlashSalePurchase(flashSaleItems, session);
+          console.log(`Kết quả khôi phục Flash Sale: ${flashResult.success ? 'Thành công' : 'Thất bại'}`);
         }
       }
     }
     else if ((oldTrangthai === 'Đã nhận' || oldTrangthai === 'Hoàn thành') && 
              trangthai === 'Trả hàng/Hoàn tiền') {
       
+      console.log('Bắt đầu quá trình hoàn tồn kho (do trả hàng)...');
+      
       // Khôi phục tồn kho khi trả hàng
       if (regularItems.length > 0) {
-        await restoreInventory(regularItems, session);
+        const restored = await restoreInventory(regularItems, session);
+        console.log(`Kết quả khôi phục (trả hàng): ${restored ? restored.length : 0} sản phẩm đã được khôi phục`);
       }
       
       if (flashSaleItems.length > 0) {
-        await rollbackFlashSalePurchase(flashSaleItems, session);
+        const flashResult = await rollbackFlashSalePurchase(flashSaleItems, session);
+        console.log(`Kết quả khôi phục Flash Sale (trả hàng): ${flashResult.success ? 'Thành công' : 'Thất bại'}`);
       }
     }
     else if (['Thanh toán thất bại', 'Thanh toán hết hạn', 'Hủy Đơn Hàng'].includes(oldTrangthai) && 
@@ -1195,6 +1215,7 @@ router.post('/settrangthai/:idhoadon', async (req, res) => {
       // Xử lý khi kích hoạt lại đơn hàng đã hủy/thất bại
       if (regularItems.length > 0) {
         try {
+          console.log('Bắt đầu quá trình giảm tồn kho (do kích hoạt lại đơn hàng)...');
           await reduceInventory(regularItems, session);
         } catch (error) {
           await session.abortTransaction();
@@ -1208,6 +1229,7 @@ router.post('/settrangthai/:idhoadon', async (req, res) => {
       
       if (flashSaleItems.length > 0) {
         try {
+          console.log('Bắt đầu quá trình xử lý Flash Sale (do kích hoạt lại đơn hàng)...');
           const processResult = await processFlashSaleItems(flashSaleItems, session);
           
           if (!processResult.success) {
