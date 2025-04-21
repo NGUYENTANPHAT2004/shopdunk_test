@@ -7,7 +7,6 @@ const userPointsSchema = new db.mongoose.Schema({
   },
   phone: { 
     type: String,
-    required: true,
     index: true 
   },
   email: { // Thêm email để dễ dàng liên kết với user

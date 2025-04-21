@@ -7,7 +7,7 @@ const { RedemptionHistory } = require('../models/RedemptionHistoryModel');
 const { User } = require('../models/user.model');
 const { magiamgia } = require('../models/MaGiamGiaModel');
 const moment = require('moment');
-
+const db = require('../models/db')
 // Middleware to ensure user points exist - USER ID ONLY
 const ensureUserPoints = async (req, res, next) => {
   try {
@@ -33,7 +33,7 @@ const ensureUserPoints = async (req, res, next) => {
     
     if (!userPoints) {
       // Get user information from User model
-      const userData = await User.User.findById(userId);
+      const userData = await User.findById(userId);
       
       if (!userData) {
         return res.status(404).json({
@@ -187,7 +187,7 @@ router.post('/loyalty/award-points', async (req, res) => {
     
     // Nếu không có bản ghi điểm, tạo mới
     if (!userPoints) {
-      const userData = await User.User.findById(userId);
+      const userData = await User.findById(userId);
       
       if (!userData) {
         return res.status(404).json({

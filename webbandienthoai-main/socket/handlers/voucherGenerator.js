@@ -4,7 +4,7 @@ const moment = require('moment');
 const MaGiamGia = require('../../models/MaGiamGiaModel');
 const HoaDon = require('../../models/HoaDonModel');
 const User = require('../../models/user.model');
-
+const db = require('../../models/db.js')
 /**
  * Tạo voucher ngẫu nhiên cho người dùng đã đăng nhập
  * @param {string} userId - ID người dùng đã đăng nhập
@@ -286,7 +286,7 @@ async function isFirstOrderVoucherEligible(userId) {
  */
 async function isThirdOrderVoucherEligible(userId) {
   try {
-    // Yêu cầu userId hợp lệ - chỉ phát voucher cho người dùng đã đăng ký
+    // Yêu cầu userId hợp lệ
     if (!userId || !/^[0-9a-fA-F]{24}$/.test(userId)) {
       console.log("Không thể kiểm tra tư cách nhận voucher đơn thứ 3: Không có userId hợp lệ");
       return false;
@@ -299,43 +299,29 @@ async function isThirdOrderVoucherEligible(userId) {
       return false;
     }
     
-    // Thêm điều kiện lọc chỉ đơn hàng thành công
-    const query = {
+    // Đếm số đơn hàng thành công
+    const orderCount = await HoaDon.hoadon.countDocuments({
       userId: userId,
-      thanhtoan: true, // Chỉ đếm đơn hàng đã thanh toán
-      trangthai: { $in: ['Đã thanh toán', 'Hoàn thành', 'Đã nhận'] } // Trạng thái thành công
-    };
+      thanhtoan: true,
+      trangthai: { $in: ['Đã thanh toán', 'Hoàn thành', 'Đã nhận'] }
+    });
     
-    // Đếm số đơn hàng đã hoàn thành
-    const orderCount = await HoaDon.hoadon.countDocuments(query);
-    
-    // Đủ điều kiện nếu đây là đơn hàng thứ 3, 6, 9... của họ
+    // Đủ điều kiện nếu đây là đơn hàng thứ 3, 6, 9...
     const eligible = orderCount > 0 && orderCount % 3 === 0;
-    console.log(`Người dùng ${userId} có ${orderCount} đơn hàng hoàn thành. Đủ điều kiện nhận voucher đơn thứ 3: ${eligible}`);
+    console.log(`Người dùng ${userId} có ${orderCount} đơn hàng. Đủ điều kiện nhận voucher: ${eligible}`);
     
-    // Nếu đủ điều kiện, kiểm tra xem người dùng đã có voucher LOYAL nào chưa
+    // Nếu đủ điều kiện, kiểm tra xem đã có voucher LOYAL chưa
     if (eligible) {
-      const phone = user.phone;
-      const email = user.email;
-      
-      // Nếu không có thông tin liên hệ, không phát voucher
-      if (!phone && !email) {
-        return false;
-      }
-      
-      // Tìm bất kỳ voucher LOYAL nào đã cấp cho người dùng này mà vẫn còn hiệu lực
-      let voucherQuery = {
+      // QUAN TRỌNG: CHỈ TÌM THEO userId thay vì email/phone
+      // Tìm bất kỳ voucher LOYAL nào đã cấp cho người dùng này còn hiệu lực
+      const existingVoucher = await MaGiamGia.magiamgia.findOne({
         magiamgia: { $regex: /^LOYAL/ },
-        ngayketthuc: { $gte: new Date() }
-      };
-      
-      const queryConditions = [];
-      if (phone) queryConditions.push({ intended_users: phone });
-      if (email) queryConditions.push({ intended_users: email });
-      
-      voucherQuery.$or = queryConditions;
-      
-      const existingVoucher = await MaGiamGia.magiamgia.findOne(voucherQuery);
+        ngayketthuc: { $gte: new Date() },
+        $or: [
+          { userId: userId },  // Tìm theo userId
+          { intended_users: userId }  // Tìm trong mảng intended_users với userId
+        ]
+      });
       
       if (existingVoucher) {
         console.log(`Người dùng ${userId} đã có voucher LOYAL còn hiệu lực: ${existingVoucher.magiamgia}`);

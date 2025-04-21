@@ -17,6 +17,7 @@ const { FlashSale } = require('../models/flashemodel');
 const db = require('../models/db')
 const Category = require('../models/CategoryModel');
 const LoaiSP = require('../models/LoaiSanPham').LoaiSP;
+const { RedemptionHistory } = require('../models/RedemptionHistoryModel');
 
 function sortObject (obj) {
   let sorted = {}
@@ -429,7 +430,6 @@ async function validateVoucher(magiamgia, phone, orderTotal, userId = null, sess
   let isPointsVoucher = false;
   
   try {
-    const { RedemptionHistory } = require('../models/RedemptionHistoryModel');
     // Tìm kiếm bằng cả userId và phone để hỗ trợ cả hai cách
     const query = { voucherCode: magiamgia, status: 'active' };
     
@@ -657,27 +657,37 @@ router.post('/create_payment_url', async (req, res) => {
     }
 
     if (magiamgia) {
-      // Sử dụng amount làm cơ sở tính mã giảm giá (bao gồm cả phí vận chuyển)
-      const validationResult = await validateVoucher(magiamgia, phone, amount, userId, session);
-      
-      if (!validationResult.valid) {
+      try {
+        // Sử dụng amount làm cơ sở tính mã giảm giá
+        // QUAN TRỌNG: Đảm bảo amount và userId có định dạng đúng
+        const amountNumber = parseFloat(amount) || 0;
+        
+        // Không truyền session vào validateVoucher nếu hàm không được thiết kế để nhận nó
+        const validationResult = await validateVoucher(magiamgia, phone, amountNumber, userId);
+        
+        if (!validationResult.valid) {
+          await session.abortTransaction();
+          session.endSession();
+          return res.json({ message: validationResult.message });
+        }
+        
+        const magiamgia1 = validationResult.voucher;
+        
+        hoadon.magiamgia = magiamgia;
+        const giamGia = parseFloat(magiamgia1.sophantram) / 100;
+        
+        // Đảm bảo phép tính số học chính xác
+        const discountedAmount = Math.round(amountNumber - amountNumber * giamGia);
+        hoadon.tongtien = discountedAmount;
+        vnp_Params['vnp_Amount'] = discountedAmount * 100;
+        
+        // Chỉ cập nhật appliedUsers nếu có userId
+       
+      } catch (error) {
+        console.error('Lỗi xử lý mã giảm giá:', error);
         await session.abortTransaction();
         session.endSession();
-        return res.json({ message: validationResult.message });
-      }
-      
-      const magiamgia1 = validationResult.voucher;
-      
-      hoadon.magiamgia = magiamgia;
-      const giamGia = magiamgia1.sophantram / 100;
-      // Áp dụng giảm giá vào amount
-      const discountedAmount = amount - amount * giamGia;
-      hoadon.tongtien = discountedAmount;
-      vnp_Params['vnp_Amount'] = discountedAmount * 100;
-      
-      if (magiamgia1.isOneTimePerUser && !magiamgia1.appliedUsers.includes(phone)) {
-        magiamgia1.appliedUsers.push(phone);
-        await magiamgia1.save({ session });
+        return res.json({ message: 'Lỗi khi xử lý mã giảm giá: ' + error.message });
       }
     }
 
@@ -802,6 +812,16 @@ router.get('/vnpay_return', async (req, res) => {
         // Apply discount code if used
         if (magiamgia) {
           magiamgia.soluong = magiamgia.soluong - 1;
+          if (magiamgia.isOneTimePerUser && hoadon.userId) {
+            const alreadyApplied = magiamgia.appliedUsers.some(id => 
+              id && id.toString() === hoadon.userId.toString()
+            );
+            
+            if (!alreadyApplied) {
+              magiamgia.appliedUsers.push(hoadon.userId);
+            }
+          }
+      
           await magiamgia.save({ session });
           
           // Xử lý voucher từ điểm thưởng
@@ -810,18 +830,21 @@ router.get('/vnpay_return', async (req, res) => {
         
         await hoadon.save({ session });
         
-        // Tích điểm và phát voucher
-        const pointsResult = await awardPointsForOrder(hoadon, session);
-        const vouchersResult = await generateAutomaticVouchers(hoadon.userId, session);
+        // Tích điểm và phát voucher - không truyền session vì API gọi qua HTTP
+        const pointsResult = await awardPointsForOrder(hoadon);
+        
+        // Đảm bảo session đã commit trước khi gọi hàm tạo voucher
+        await session.commitTransaction();
+        session.endSession();
+        
+        // Gọi sau khi đã commit session để tránh xung đột
+        const vouchersResult = await generateAutomaticVouchersForOrder(hoadon.userId);
         
         // Lưu log chi tiết
         console.log(`Thanh toán thành công cho đơn hàng ${orderId}:`, {
           pointsAwarded: pointsResult?.pointsEarned || 0,
           vouchersGenerated: vouchersResult?.length || 0
         });
-        
-        await session.commitTransaction();
-        session.endSession();
         
         return res.redirect('https://localhost:3000/thanhcong?success=true');
       } else {
@@ -890,6 +913,7 @@ router.get('/vnpay_return', async (req, res) => {
   }
 });
 
+
 /**
  * Cập nhật trạng thái voucher từ điểm thưởng
  * @param {string} voucherCode - Mã voucher cần cập nhật
@@ -897,135 +921,144 @@ router.get('/vnpay_return', async (req, res) => {
  * @param {object} session - MongoDB session
  */
 async function updateRedemptionVoucherStatus(voucherCode, userId, session) {
-  try {
-    if (!voucherCode) return;
-    
-    const { RedemptionHistory } = require('../models/RedemptionHistoryModel');
-    const query = { voucherCode: voucherCode, status: 'active' };
-    
-    // Ưu tiên tìm theo userId, sau đó mới đến phone
-    if (userId) {
-      query.userId = userId;
-    }
-    
-    const redemptionRecord = await RedemptionHistory.findOne(query).session(session);
-    
-    if (redemptionRecord) {
-      redemptionRecord.status = 'used';
-      redemptionRecord.usedDate = new Date();
-      await redemptionRecord.save({ session });
-      console.log(`Đã cập nhật trạng thái voucher điểm thưởng ${voucherCode}`);
-    }
-  } catch (error) {
-    console.error('Lỗi khi cập nhật trạng thái voucher điểm thưởng:', error);
-    // Không throw lỗi ở đây, để quá trình thanh toán tiếp tục
-  }
+ try {
+   if (!voucherCode) return;
+   
+   const query = { voucherCode: voucherCode, status: 'active' };
+   
+   // Ưu tiên tìm theo userId, sau đó mới đến phone
+   if (userId) {
+     query.userId = userId;
+   }
+   
+   const redemptionRecord = await RedemptionHistory.findOne(query).session(session);
+   
+   if (redemptionRecord) {
+     redemptionRecord.status = 'used';
+     redemptionRecord.usedDate = new Date();
+     await redemptionRecord.save({ session });
+     console.log(`Đã cập nhật trạng thái voucher điểm thưởng ${voucherCode}`);
+   }
+ } catch (error) {
+   console.error('Lỗi khi cập nhật trạng thái voucher điểm thưởng:', error);
+   // Không throw lỗi ở đây, để quá trình thanh toán tiếp tục
+ }
 }
 
 /**
- * Tích điểm thưởng cho đơn hàng thành công
- * @param {Object} order - Đối tượng hóa đơn
- * @param {Object} session - MongoDB session
- * @returns {Promise<Object>} Kết quả tích điểm
- */
-async function awardPointsForOrder(order, session) {
-  try {
-    // Chỉ tích điểm cho user đã đăng nhập (có userId)
-    if (!order.userId) {
-      console.log('Bỏ qua tích điểm: Đơn hàng của khách vãng lai (không có userId)');
-      return null;
-    }
-    
-    const orderTotal = order.tongtien;
-    const userId = order.userId;
-    
-    // Gọi API tích điểm
-    const axios = require('axios');
-    const pointsResponse = await axios.post('http://localhost:3005/loyalty/award-points', {
-      userId: userId,
-      orderId: order._id.toString(),
-      orderAmount: orderTotal,
-      orderDate: order.ngaymua
-    });
-    
-    if (pointsResponse.data.success) {
-      console.log(`Đã tích ${pointsResponse.data.pointsEarned} điểm thưởng cho đơn hàng ${order._id}`);
-      
-      // Thông báo qua socket cho người dùng về điểm thưởng nếu có socket.io
-      if (typeof io !== 'undefined' && userId) {
-        io.to(userId.toString()).emit('pointsEarned', {
-          userId: userId,
-          pointsEarned: pointsResponse.data.pointsEarned,
-          newPointsTotal: pointsResponse.data.newPointsTotal,
-          tier: pointsResponse.data.tier
-        });
-        
-        // Kiểm tra nếu người dùng vừa lên hạng
-        if (pointsResponse.data.previousTier && 
-            pointsResponse.data.previousTier !== pointsResponse.data.tier) {
-          io.to(userId.toString()).emit('tierUpgrade', {
-            userId: userId,
-            newTier: pointsResponse.data.tier,
-            previousTier: pointsResponse.data.previousTier
-          });
-        }
-      }
-      
-      return pointsResponse.data;
-    }
-    
-    return null;
-  } catch (error) {
-    console.error('Lỗi khi tích điểm thưởng:', error);
-    // Không throw lỗi ở đây, để quá trình thanh toán tiếp tục
-    return null;
-  }
+* Tích điểm thưởng cho đơn hàng thành công
+* @param {Object} order - Đối tượng hóa đơn
+* @returns {Promise<Object>} Kết quả tích điểm
+*/
+async function awardPointsForOrder(order) {
+ try {
+   // Chỉ tích điểm cho user đã đăng nhập (có userId)
+   if (!order.userId) {
+     console.log('Bỏ qua tích điểm: Đơn hàng của khách vãng lai (không có userId)');
+     return null;
+   }
+   
+   const orderTotal = order.tongtien;
+   const userId = order.userId;
+   
+   // Gọi API tích điểm
+   const axios = require('axios');
+   try {
+     const pointsResponse = await axios.post('http://localhost:3005/loyalty/award-points', {
+       userId: userId,
+       orderId: order._id.toString(),
+       orderAmount: orderTotal,
+       orderDate: order.ngaymua
+     });
+     
+     if (pointsResponse.data.success) {
+       console.log(`Đã tích ${pointsResponse.data.pointsEarned} điểm thưởng cho đơn hàng ${order._id}`);
+       
+       // Thông báo qua socket cho người dùng về điểm thưởng nếu có socket.io
+       if (typeof io !== 'undefined' && userId) {
+         io.to(userId.toString()).emit('pointsEarned', {
+           userId: userId,
+           pointsEarned: pointsResponse.data.pointsEarned,
+           newPointsTotal: pointsResponse.data.newPointsTotal,
+           tier: pointsResponse.data.tier
+         });
+         
+         // Kiểm tra nếu người dùng vừa lên hạng
+         if (pointsResponse.data.previousTier && 
+             pointsResponse.data.previousTier !== pointsResponse.data.tier) {
+           io.to(userId.toString()).emit('tierUpgrade', {
+             userId: userId,
+             newTier: pointsResponse.data.tier,
+             previousTier: pointsResponse.data.previousTier
+           });
+         }
+       }
+       
+       return pointsResponse.data;
+     }
+   } catch (axiosError) {
+     console.error('Lỗi khi gọi API tích điểm:', axiosError.message);
+   }
+   
+   return null;
+ } catch (error) {
+   console.error('Lỗi khi tích điểm thưởng:', error);
+   // Không throw lỗi ở đây, để quá trình thanh toán tiếp tục
+   return null;
+ }
 }
 
 /**
- * Phát voucher tự động khi đủ điều kiện
- * @param {string} userId - ID người dùng
- * @param {Object} session - MongoDB session
- * @returns {Promise<Array>} Danh sách voucher đã phát
- */
-async function generateAutomaticVouchers(userId, session) {
-  try {
-    if (!userId) {
-      console.log('Bỏ qua phát voucher: Đơn hàng của khách vãng lai (không có userId)');
-      return [];
-    }
-    
-    const vouchers = [];
-    
-    // Kiểm tra và phát voucher đơn đầu tiên
-    if (await isFirstOrderVoucherEligible(userId)) {
-      const voucher = await generateVoucherForUser(userId, 'first-order');
-      if (voucher) {
-        vouchers.push(voucher);
-        console.log(`Đã phát voucher đơn đầu tiên cho user ${userId}`);
-      }
-    }
-    
-    // Kiểm tra và phát voucher đơn thứ 3, 6, 9...
-    if (await isThirdOrderVoucherEligible(userId)) {
-      const voucher = await generateVoucherForUser(userId, 'third-order');
-      if (voucher) {
-        vouchers.push(voucher);
-        console.log(`Đã phát voucher đơn thứ 3/6/9 cho user ${userId}`);
-      }
-    }
-    
-    // Gửi thông báo qua socket nếu có voucher mới
-    if (vouchers.length > 0 && typeof io !== 'undefined') {
-      io.to(userId.toString()).emit('newVouchers', { vouchers });
-    }
-    
-    return vouchers;
-  } catch (error) {
-    console.error('Lỗi khi phát voucher tự động:', error);
-    // Không throw lỗi ở đây, để quá trình thanh toán tiếp tục
-    return [];
-  }
+* Phát voucher tự động khi đủ điều kiện
+ @param {string} userId - ID người dùng
+@returns {Promise<Array>} Danh sách voucher đã phát
+*/
+async function generateAutomaticVouchersForOrder(userId) {
+ try {
+   if (!userId) {
+     console.log('Bỏ qua phát voucher: Đơn hàng của khách vãng lai (không có userId)');
+     return [];
+   }
+   
+   const vouchers = [];
+   
+   // Kiểm tra và phát voucher đơn đầu tiên
+   if (await isFirstOrderVoucherEligible(userId)) {
+     try {
+       const voucher = await generateVoucherForUser(userId, 'first-order');
+       if (voucher) {
+         vouchers.push(voucher);
+         console.log(`Đã phát voucher đơn đầu tiên cho user ${userId}`);
+       }
+     } catch (error) {
+       console.error('Lỗi khi tạo voucher đơn đầu tiên:', error);
+     }
+   }
+   
+   // Kiểm tra và phát voucher đơn thứ 3, 6, 9...
+   if (await isThirdOrderVoucherEligible(userId)) {
+     try {
+       const voucher = await generateVoucherForUser(userId, 'third-order');
+       if (voucher) {
+         vouchers.push(voucher);
+         console.log(`Đã phát voucher đơn thứ 3/6/9 cho user ${userId}`);
+       }
+     } catch (error) {
+       console.error('Lỗi khi tạo voucher đơn thứ 3/6/9:', error);
+     }
+   }
+   
+   // Gửi thông báo qua socket nếu có voucher mới
+   if (vouchers.length > 0 && typeof io !== 'undefined') {
+     io.to(userId.toString()).emit('newVouchers', { vouchers });
+   }
+   
+   return vouchers;
+ } catch (error) {
+   console.error('Lỗi khi phát voucher tự động:', error);
+   // Không throw lỗi ở đây, để quá trình thanh toán tiếp tục
+   return [];
+ }
 }
 
 router.get('/checknewvouchers/:phone', async (req, res) => {
