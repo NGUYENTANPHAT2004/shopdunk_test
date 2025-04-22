@@ -23,11 +23,12 @@ import LichSuDonHangLayout from '../Layout/lichsudonhang/lichsudonhang'
 import UserPointsPage from '../Layout/UserPoint/UserPointsPage'
 import FlashSalePage from '../components/flashe/flashepage'
 import UpcomingFlashSalePage from '../components/flashe/UpcomingFlashSalePage'
+import Unauthorized from './Unautho'
 
+
+// Route công khai - không cần đăng nhập
 const publicRoutes = [
   { path: '/', component: TrangChuLayout },
-  { path: '/cart', component: GioHangLayout },
-  { path: '/thanhcong', component: PaySuccess },
   { path: '/san-pham/:slug', component: TheLoaiLayout },
   { path: '/danh-muc/:slug', component: DanhMucLayout },
   { path: '/chitietsanpham/:loaisp/:tieude', component: ChiTietLayout },
@@ -40,19 +41,31 @@ const publicRoutes = [
   { path: '/cam-ket', component: CamKet },
   { path: '/bao-mat', component: BaoMat },
   { path: '/gioi-thieu', component: GioiThieu },
-  { path: '/admin', component: AdminLayout, layout: null },
   { path: '/login-admin', component: DangNhapLayout, layout: null },
   { path: '/login', component: DangNhap, layout: null },
   { path: '/register', component: DangKiLayout, layout: null },
-  { path: '/search/:keyword', component: TiemKiemTheoSDT },
   { path: '/search-sanpham/:keyword', component: TimKiemSanPhamLayout },
   { path: '/locsanpham', component: TimKiemSanPhamLayout },
-  { path: '/orders', component: LichSuDonHangLayout },
-  { path: '/diem-thuong', component: UserPointsPage },
-  {path: "/flash-sale/:id" , component: FlashSalePage  },
-  {path: "/flash-sale/upcoming" , component: UpcomingFlashSalePage}
-  
-
+  { path: '/flash-sale/:id', component: FlashSalePage },
+  { path: '/flash-sale/upcoming', component: UpcomingFlashSalePage },
+  { path: '/unauthorized', component: Unauthorized },
+  { path: '/cart', component: GioHangLayout },
+  { path: '/search/:keyword', component: TiemKiemTheoSDT}
 ]
-const privateRoutes = []
+
+// Route yêu cầu đăng nhập
+const userRoutes = [
+  { path: '/thanhcong', component: PaySuccess, adminOnly: false },
+  { path: '/orders', component: LichSuDonHangLayout, adminOnly: false },
+  { path: '/diem-thuong', component: UserPointsPage, adminOnly: false },
+]
+
+// Route dành riêng cho admin
+const adminRoutes = [
+  { path: '/admin', component: AdminLayout, layout: null, adminOnly: true }
+]
+
+// Kết hợp tất cả các route
+const privateRoutes = [...userRoutes, ...adminRoutes]
+
 export { publicRoutes, privateRoutes }

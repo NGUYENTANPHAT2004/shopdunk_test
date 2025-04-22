@@ -334,7 +334,7 @@ function AddSanPham ({ isOpen, onClose, idtheloai, fetchData }) {
                   <option value="">-- Chọn màu sắc --</option>
                   {mausacs.map(ms => (
                     <option key={ms._id} value={ms._id}>
-                      {ms.name} - Giá: {parseInt(price) + parseInt(ms.price || 0)}đ
+                      {ms.name} - Giá: {parseInt(ms.price || 0)}đ
                     </option>
                   ))}
                 </select>

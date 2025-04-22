@@ -219,18 +219,89 @@ const VoucherModal = ({ isOpen, onClose }) => {
     return 'Mã giảm giá';
   };
 
+  // Hàm định dạng ngày tháng an toàn
+  const formatDate = (dateString) => {
+    try {
+      // Kiểm tra nếu dateString là null hoặc undefined
+      if (!dateString) {
+        return 'Không xác định';
+      }
+      
+      // Kiểm tra nếu dateString đã ở định dạng DD/MM/YYYY
+      if (typeof dateString === 'string' && dateString.includes('/')) {
+        return dateString;  // Trả về nguyên bản nếu đã được định dạng
+      }
+
+      // Thử parse với Date()
+      const date = new Date(dateString);
+      
+      // Kiểm tra nếu date hợp lệ
+      if (isNaN(date.getTime())) {
+        // Thử phân tách chuỗi nếu ở định dạng ISO hoặc các định dạng khác
+        if (typeof dateString === 'string') {
+          // Thử với định dạng ISO
+          if (dateString.includes('T')) {
+            const isoDate = new Date(dateString);
+            if (!isNaN(isoDate.getTime())) {
+              return isoDate.toLocaleDateString('vi-VN');
+            }
+          }
+          
+          // Thử với định dạng MM/DD/YYYY hoặc DD-MM-YYYY
+          const parts = dateString.split(/[-/]/);
+          if (parts.length === 3) {
+            // Giả sử định dạng DD/MM/YYYY hoặc DD-MM-YYYY
+            const day = parseInt(parts[0], 10);
+            const month = parseInt(parts[1], 10) - 1; // Tháng trong JS bắt đầu từ 0
+            const year = parseInt(parts[2], 10);
+            
+            const parsedDate = new Date(year, month, day);
+            if (!isNaN(parsedDate.getTime())) {
+              return parsedDate.toLocaleDateString('vi-VN');
+            }
+          }
+        }
+        
+        // Nếu tất cả cách trên đều thất bại
+        return 'Không xác định';
+      }
+      
+      // Trả về ngày đã định dạng
+      return date.toLocaleDateString('vi-VN');
+    } catch (error) {
+      console.error('Error formatting date:', error);
+      return 'Không xác định';
+    }
+  };
+
   // Filter vouchers based on active tab
   const filteredVouchers = vouchers.filter((voucher) => {
     if (!voucher) return false;
     
+    let expiryDate;
+    try {
+      // Xử lý ngày hết hạn với nhiều định dạng
+      if (typeof voucher.ngayketthuc === 'string' && voucher.ngayketthuc.includes('/')) {
+        // Nếu đã ở định dạng DD/MM/YYYY
+        const parts = voucher.ngayketthuc.split('/');
+        expiryDate = new Date(parts[2], parts[1]-1, parts[0]);
+      } else {
+        expiryDate = new Date(voucher.ngayketthuc);
+      }
+    } catch (error) {
+      console.error('Error parsing date:', error);
+      return false;
+    }
+    
     const now = new Date();
-    const isExpired = new Date(voucher.ngayketthuc) < now;
-    const isAvailable = !isExpired && voucher.soluong > 0;
+    const isExpired = expiryDate < now;
+    const isOutOfStock = voucher.soluong <= 0;
+    const isAvailable = !isExpired && !isOutOfStock;
     
     if (activeTab === 'available') {
       return isAvailable;
     } else if (activeTab === 'expired') {
-      return isExpired || voucher.soluong <= 0;
+      return isExpired || isOutOfStock;
     }
     return true;
   });
@@ -247,6 +318,27 @@ const VoucherModal = ({ isOpen, onClose }) => {
       return currentTime >= voucher.goldenHourStart && currentTime <= voucher.goldenHourEnd;
     } else {
       return currentTime >= voucher.goldenHourStart || currentTime <= voucher.goldenHourEnd;
+    }
+  };
+
+  // Kiểm tra ngày hết hạn
+  const checkExpiry = (dateString) => {
+    try {
+      // Xử lý nhiều định dạng ngày khác nhau
+      let expiryDate;
+      
+      if (typeof dateString === 'string' && dateString.includes('/')) {
+        // Nếu đã ở định dạng DD/MM/YYYY
+        const parts = dateString.split('/');
+        expiryDate = new Date(parts[2], parts[1]-1, parts[0]);
+      } else {
+        expiryDate = new Date(dateString);
+      }
+      
+      return expiryDate < new Date();
+    } catch (error) {
+      console.error('Error checking expiry:', error);
+      return false;
     }
   };
 
@@ -339,13 +431,13 @@ const VoucherModal = ({ isOpen, onClose }) => {
             className={`tab-button ${activeTab === 'available' ? 'active' : ''}`}
             onClick={() => setActiveTab('available')}
           >
-            Khả dụng ({vouchers.filter(v => v && new Date(v.ngayketthuc) >= new Date() && v.soluong > 0).length})
+            Khả dụng ({vouchers.filter(v => v && !checkExpiry(v.ngayketthuc) && v.soluong > 0).length})
           </button>
           <button
             className={`tab-button ${activeTab === 'expired' ? 'active' : ''}`}
             onClick={() => setActiveTab('expired')}
           >
-            Đã hết hạn ({vouchers.filter(v => v && (new Date(v.ngayketthuc) < new Date() || v.soluong <= 0)).length})
+            Đã hết hạn ({vouchers.filter(v => v && (checkExpiry(v.ngayketthuc) || v.soluong <= 0)).length})
           </button>
         </div>
 
@@ -364,7 +456,7 @@ const VoucherModal = ({ isOpen, onClose }) => {
               {filteredVouchers.map((voucher, index) => {
                 if (!voucher) return null;
                 
-                const isExpired = new Date(voucher.ngayketthuc) < new Date();
+                const isExpired = checkExpiry(voucher.ngayketthuc);
                 const isOutOfStock = voucher.soluong <= 0;
                 const isGoldenHour = voucher.goldenHourStart && voucher.goldenHourEnd;
                 const isCurrentlyGoldenHour = isGoldenHour && isInGoldenHour(voucher);
@@ -447,7 +539,7 @@ const VoucherModal = ({ isOpen, onClose }) => {
                     
                     <div className="voucher-footer">
                       <p className="validity">
-                        Có hiệu lực đến: {new Date(voucher.ngayketthuc).toLocaleDateString('vi-VN')}
+                        Có hiệu lực đến: {formatDate(voucher.ngayketthuc)}
                       </p>
                       <p className="uses-left">
                         Còn lại: {voucher.soluong} lượt

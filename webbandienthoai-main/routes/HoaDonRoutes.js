@@ -52,11 +52,11 @@ async function processFlashSaleItems(flashSaleItems, session = null) {
       flashSaleGroups[item.flashSaleId].push(item);
     }
     
-    // Xử lý từng Flash Sale
+    
     for (const [flashSaleId, items] of Object.entries(flashSaleGroups)) {
-      // Tìm Flash Sale - sử dụng findOneAndUpdate để tránh race condition
+   
       for (const item of items) {
-        // Cập nhật sử dụng atomic operation với điều kiện kiểm tra số lượng
+       
         const result = await FlashSale.findOneAndUpdate(
           { 
             _id: flashSaleId,
@@ -109,7 +109,6 @@ async function processFlashSaleItems(flashSaleItems, session = null) {
   }
 }
 
-// Hàm hoàn lại số lượng Flash Sale khi hủy đơn hoặc thanh toán thất bại - sửa lại
 async function rollbackFlashSalePurchase(flashSaleItems, session = null) {
   if (!flashSaleItems || !Array.isArray(flashSaleItems) || flashSaleItems.length === 0) {
     console.log('Không có sản phẩm Flash Sale để hoàn lại');
@@ -117,7 +116,7 @@ async function rollbackFlashSalePurchase(flashSaleItems, session = null) {
   }
   
   try {
-    // Nhóm các sản phẩm theo Flash Sale ID để tối ưu số lượng queries
+    
     const flashSaleGroups = {};
     for (const item of flashSaleItems) {
       if (!item.flashSaleId) continue;
@@ -576,7 +575,7 @@ router.post('/create_payment_url', async (req, res) => {
     const { name, nguoinhan, phone, sex, giaotannoi, address, ghichu, magiamgia, sanphams, userId } =
       req.body
 
-    // Phân loại sản phẩm thường và Flash Sale
+    // Phân loại sản phẩm thông thường và Flash Sale
     const regularItems = sanphams.filter(item => !item.isFlashSale);
     const flashSaleItems = sanphams.filter(item => item.isFlashSale);
     
@@ -680,9 +679,6 @@ router.post('/create_payment_url', async (req, res) => {
         const discountedAmount = Math.round(amountNumber - amountNumber * giamGia);
         hoadon.tongtien = discountedAmount;
         vnp_Params['vnp_Amount'] = discountedAmount * 100;
-        
-        // Chỉ cập nhật appliedUsers nếu có userId
-       
       } catch (error) {
         console.error('Lỗi xử lý mã giảm giá:', error);
         await session.abortTransaction();
@@ -700,7 +696,7 @@ router.post('/create_payment_url', async (req, res) => {
 
     try {
       // Chỉ xử lý tồn kho cho sản phẩm không phải Flash Sale
-      // Sản phẩm Flash Sale đã được xử lý trong hàm processFlashSaleItems
+      // Theo chiến lược 1, sản phẩm Flash Sale chỉ giảm tồn kho thông thường khi Flash Sale kết thúc
       if (regularItems.length > 0) {
         await reduceInventory(regularItems, session);
       }
@@ -715,7 +711,7 @@ router.post('/create_payment_url', async (req, res) => {
           if (order && !order.thanhtoan && order.trangthai !== 'Hủy Đơn Hàng') {
             // Payment wasn't completed within the timeframe
             
-            // Khôi phục tồn kho cho sản phẩm thường
+            // Khôi phục tồn kho cho sản phẩm thông thường
             if (regularItems.length > 0) {
               await restoreInventory(regularItems);
             }

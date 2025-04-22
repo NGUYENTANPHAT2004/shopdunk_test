@@ -85,42 +85,41 @@ const endFlashSale = async (flashSaleId) => {
     // Đánh dấu Flash Sale đã kết thúc
     flashSale.isActive = false;
 
-    // Hoàn trả tồn kho cho các sản phẩm còn lại
+    // Cập nhật tồn kho thông thường dựa trên số lượng đã bán trong Flash Sale
     for (const product of flashSale.products) {
-      // Bỏ qua các sản phẩm đã bán hết
+      // Đánh dấu trạng thái sản phẩm
       if (product.soldQuantity >= product.quantity) {
         product.status = 'soldout';
-        continue;
+      } else {
+        product.status = 'ended';
       }
 
-      // Đánh dấu sản phẩm đã kết thúc
-      product.status = 'ended';
-
-      // Tính toán số lượng cần hoàn trả
-      const remainingQuantity = product.quantity - product.soldQuantity;
-
-      // Nếu có ghi nhận tồn kho ban đầu (không phải unlimited)
-      if (product.originalStock !== null && product.originalStock !== undefined) {
-        // Hoàn trả số lượng vào kho chính
-        await ProductSizeStock.findOneAndUpdate(
-          {
-            productId: product.productId,
-            dungluongId: product.dungluongId || null,
-            mausacId: product.mausacId || null,
-            unlimitedStock: { $ne: true }
-          },
-          {
-            $inc: { quantity: remainingQuantity }
-          },
-          { session }
-        );
+      
+      if (product.soldQuantity > 0) { 
+        
+        if (product.originalStock !== null && product.originalStock !== undefined) {
+          console.log(`Giảm tồn kho thông thường theo số lượng đã bán. Product: ${product.productId}, SoldQuantity: ${product.soldQuantity}`);
+          
+         
+          await ProductSizeStock.findOneAndUpdate(
+            {
+              productId: product.productId,
+              dungluongId: product.dungluongId || null,
+              mausacId: product.mausacId || null,
+              unlimitedStock: { $ne: true }
+            },
+            {
+              $inc: { quantity: -product.soldQuantity } 
+            },
+            { session }
+          );
+        }
       }
     }
 
     await flashSale.save({ session });
     await session.commitTransaction();
     
-    // Thông báo qua Socket.IO - Sử dụng try-catch để tránh lỗi nếu chưa khởi tạo
     try {
       const io = getIo();
       io.emit('flashSale:ended', {

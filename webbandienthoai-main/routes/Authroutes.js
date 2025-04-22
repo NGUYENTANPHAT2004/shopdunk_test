@@ -90,7 +90,9 @@ router.post('/login_auth', async (req, res) => {
     if (!user) {
       return res.status(400).json({ message: 'Không tìm thấy tên tài khoản' });
     }
-
+    if (user.status === 'inactive') {
+      return res.status(403).json({ message: 'Tài khoản của bạn đã bị ẩn' });
+    }
     const isPasswordValid = await bcrypt.compare(password, user.password);
     if (!isPasswordValid) {
       return res.status(400).json({ message: 'Nhập sai mật khẩu' });
@@ -118,6 +120,9 @@ router.post('/auth/google', async (req, res) => {
 
     if (!email || !googleId) return res.status(400).json({ message: 'Google không trả về thông tin hợp lệ' });  // Look for user with this Google ID or email
     let user = await User.User.findOne({email,'socialLogins.google': googleId });
+    if (user && user.status === 'inactive') {
+      return res.status(403).json({ message: 'Tài khoản của bạn đã bị ẩn' });
+    }
     if (!user) {
       const username = name || email.split('@')[0];
       user = new User.User({ 
@@ -148,6 +153,9 @@ router.post('/auth/facebook', async (req, res) => {
     const response = await axios.get(`https://graph.facebook.com/me?fields=id,name,email&access_token=${token}`);
     const { id: facebookId, name, email } = response.data;
     let user = await User.User.findOne({'socialLogins.facebook': facebookId });
+    if (user && user.status === 'inactive') {
+      return res.status(403).json({ message: 'Tài khoản của bạn đã bị ẩn' });
+    }
     if (!user) {
       const userEmail = email || `fb-${facebookId}@placeholder.com`;
       user = new User.User({ 

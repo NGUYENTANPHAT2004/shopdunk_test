@@ -101,7 +101,7 @@ const ChatAI = () => {
 
   return (
     <>
-      <div className="circle-chat-ai" onClick={handleChatAIClick}>
+      <div className="circle-chat-ai" onClick={handleChatAIClick} aria-label="Mở chat AI">
         <img
           src="https://cdn-icons-png.flaticon.com/512/4712/4712027.png"
           alt="Chat AI"

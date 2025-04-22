@@ -168,7 +168,7 @@ const VoucherNotification = ({ onVoucherClick }) => {
       <div className="notification-header">
         <FaTicketAlt className="notification-icon" />
         <h3>Thông báo</h3>
-        <button className="close-button" onClick={handleClose}>
+        <button className="close-button-noti" onClick={handleClose}>
           <FaTimes />
         </button>
       </div>

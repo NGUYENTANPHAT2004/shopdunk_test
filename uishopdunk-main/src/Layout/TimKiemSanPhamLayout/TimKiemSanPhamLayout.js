@@ -322,9 +322,6 @@ const TimKiemSanPhamLayout = () => {
                   </div>
                 )}
               </div>
-              <button type="submit" className="search-button">
-                <FontAwesomeIcon icon={faSearch} />
-              </button>
             </div>
           </form>
         </div>

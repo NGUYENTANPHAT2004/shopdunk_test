@@ -11,38 +11,77 @@ export const UserContextProvider = ({ children }) => {
   const [userPoints, setUserPoints] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [pointsLoading, setPointsLoading] = useState(false);
-  
+  const [isInitialized, setIsInitialized] = useState(false);
   // Load user from localStorage on initial render
   useEffect(() => {
-    const storedUser = localStorage.getItem("user");
-    if (storedUser) {
-      try {
-        const userData = JSON.parse(storedUser);
-        setUser(userData);
-        loadUserPoints(userData);
-      } catch (error) {
-        console.error("Error parsing stored user data:", error);
-        localStorage.removeItem("user");
-      } finally {
+    const initializeUser = () => {
+      const storedUser = localStorage.getItem("user");
+      if (storedUser) {
+        try {
+          const userData = JSON.parse(storedUser);
+          console.log("Loaded user data:", userData); // DEBUG
+          setUser(userData);
+          loadUserPoints(userData);
+        } catch (error) {
+          console.error("Error parsing stored user data:", error);
+          localStorage.removeItem("user");
+        } finally {
+          setIsLoading(false);
+          setIsInitialized(true);
+        }
+      } else {
         setIsLoading(false);
+        setIsInitialized(true);
       }
-    } else {
-      setIsLoading(false);
-    }
-    
-    // Check for stored welcome voucher
-    const storedVoucher = localStorage.getItem("welcomeVoucher");
-    if (storedVoucher) {
-      try {
-        setWelcomeVoucher(JSON.parse(storedVoucher));
-      } catch (error) {
-        console.error("Error parsing welcome voucher:", error);
-        localStorage.removeItem("welcomeVoucher");
+      
+      // Check for stored welcome voucher
+      const storedVoucher = localStorage.getItem("welcomeVoucher");
+      if (storedVoucher) {
+        try {
+          setWelcomeVoucher(JSON.parse(storedVoucher));
+        } catch (error) {
+          console.error("Error parsing welcome voucher:", error);
+          localStorage.removeItem("welcomeVoucher");
+        }
       }
-    }
+    };
+
+    initializeUser();
   }, []);
-  
-  // Enhanced user points loading function using ONLY user ID
+
+  const isAdmin = () => {
+    try {
+      
+      const userData = user || JSON.parse(localStorage.getItem('user') || 'null');
+      
+      if (!userData) return false;
+      console.log("Checking admin status for:", userData); // DEBUG
+      
+      // Check all possible places where role might be stored
+      const role = 
+        userData.role || 
+        (userData.user && userData.user.role) || 
+        userData.isAdmin || 
+        (userData.user && userData.user.isAdmin);
+      
+      console.log("Detected role:", role); // DEBUG
+      
+      // Check for any variant of admin string/boolean
+      if (role === true) return true;
+      
+      if (typeof role === 'string') {
+        const roleStr = role.toLowerCase();
+        return roleStr === 'admin' || roleStr === 'administrator' || roleStr === 'true';
+      }
+      
+      return false;
+    } catch (error) {
+      console.error('Error checking admin status:', error);
+      return false;
+    }
+  };
+
+
   const loadUserPoints = async (userData, forceRefresh = false) => {
     try {
       if (!userData) return null;
@@ -409,7 +448,9 @@ export const UserContextProvider = ({ children }) => {
       welcomeVoucher,
       dismissWelcomeVoucher,
       isLoading,
-      updateUserPoints
+      updateUserPoints,
+      isInitialized,
+      isAdmin
     }}>
       {children}
     </UserContext.Provider>
