@@ -1,295 +1,369 @@
-/* LoyaltyStats.scss */
+/* Enhanced LoyaltyStats.scss */
 .loyalty-stats {
-    .date-range-filter {
-      background-color: #f5f5f5;
-      border-radius: 8px;
-      padding: 15px;
-      margin-bottom: 20px;
+  .date-range-filter {
+    background-color: #f7f9fc;
+    border-radius: 10px;
+    padding: 18px;
+    margin-bottom: 24px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+    
+    h4 {
+      margin-top: 0;
+      margin-bottom: 12px;
+      display: flex;
+      align-items: center;
+      font-size: 1.1rem;
+      color: #2c3e50;
       
-      h4 {
-        margin-top: 0;
-        margin-bottom: 10px;
+      svg {
+        margin-right: 10px;
+        color: #3498db;
+      }
+    }
+    
+    form {
+      display: flex;
+      align-items: flex-end;
+      flex-wrap: wrap;
+      gap: 15px;
+      
+      .date-inputs {
         display: flex;
-        align-items: center;
+        gap: 15px;
+        flex: 1;
+        flex-wrap: wrap;
         
-        svg {
-          margin-right: 10px;
-          color: #3498db;
+        .input-group {
+          display: flex;
+          flex-direction: column;
+          min-width: 200px;
+          flex: 1;
+          
+          label {
+            margin-bottom: 6px;
+            font-size: 0.9rem;
+            color: #566573;
+            font-weight: 500;
+          }
+          
+          input {
+            padding: 10px 12px;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            font-size: 14px;
+            
+            &:focus {
+              outline: none;
+              border-color: #3498db;
+              box-shadow: 0 0 0 2px rgba(52, 152, 219, 0.2);
+            }
+          }
         }
       }
       
-      form {
+      button {
+        padding: 10px 20px;
+        background-color: #3498db;
+        color: white;
+        border: none;
+        border-radius: 6px;
+        cursor: pointer;
         display: flex;
-        align-items: flex-end;
-        flex-wrap: wrap;
-        gap: 15px;
+        align-items: center;
+        font-weight: 500;
+        transition: all 0.2s ease;
         
-        .date-inputs {
-          display: flex;
-          gap: 15px;
-          flex: 1;
-          flex-wrap: wrap;
-          
-          .input-group {
-            display: flex;
-            flex-direction: column;
-            min-width: 200px;
-            
-            label {
-              margin-bottom: 5px;
-              font-size: 0.9rem;
-              color: #666;
-            }
-            
-            input {
-              padding: 8px 12px;
-              border: 1px solid #ddd;
-              border-radius: 4px;
-              
-              &:focus {
-                outline: none;
-                border-color: #3498db;
-              }
-            }
-          }
+        svg {
+          margin-right: 8px;
         }
         
-        button {
-          padding: 9px 20px;
-          background-color: #3498db;
-          color: white;
-          border: none;
-          border-radius: 4px;
-          cursor: pointer;
+        &:hover {
+          background-color: #2980b9;
+          transform: translateY(-1px);
+        }
+        
+        &:active {
+          transform: translateY(1px);
+        }
+        
+        &:disabled {
+          background-color: #95a5a6;
+          cursor: not-allowed;
+          transform: none;
+        }
+      }
+    }
+  }
+  
+  .stats-section {
+    background-color: white;
+    border-radius: 10px;
+    padding: 22px;
+    margin-bottom: 24px;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.08);
+    
+    h4 {
+      margin-top: 0;
+      margin-bottom: 20px;
+      display: flex;
+      align-items: center;
+      font-size: 1.1rem;
+      color: #2c3e50;
+      
+      svg {
+        margin-right: 10px;
+        color: #3498db;
+      }
+    }
+    
+    .stats-cards {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 16px;
+      margin-bottom: 20px;
+      
+      .stats-card {
+        flex: 1;
+        min-width: 220px;
+        background-color: #f9f9f9;
+        border-radius: 10px;
+        padding: 18px;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+        transition: transform 0.2s ease, box-shadow 0.2s ease;
+        
+        &:hover {
+          transform: translateY(-2px);
+          box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+        }
+        
+        .card-title {
+          font-size: 0.95rem;
+          color: #566573;
+          margin-bottom: 10px;
+          font-weight: 500;
+        }
+        
+        .card-value {
+          font-size: 1.9rem;
+          font-weight: 600;
+          color: #2c3e50;
+        }
+      }
+    }
+    
+    .tier-distribution {
+      margin-top: 20px;
+      
+      .distribution-chart {
+        height: 45px;
+        display: flex;
+        border-radius: 6px;
+        overflow: hidden;
+        margin-bottom: 16px;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+        
+        .chart-bar {
+          height: 100%;
+          transition: width 0.3s ease;
+          min-width: 5px;
+          
+          &:hover {
+            opacity: 0.8;
+          }
+        }
+      }
+      
+      .distribution-legend {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 16px;
+        
+        .legend-item {
           display: flex;
           align-items: center;
+          margin-right: 20px;
           
-          svg {
+          .color-box {
+            width: 16px;
+            height: 16px;
+            border-radius: 4px;
             margin-right: 8px;
           }
           
-          &:hover {
-            background-color: #2980b9;
+          .tier-name {
+            font-weight: 500;
+            margin-right: 6px;
+            color: #2c3e50;
           }
           
-          &:disabled {
-            background-color: #95a5a6;
-            cursor: not-allowed;
+          .tier-count {
+            margin-right: 6px;
+            color: #555;
+            font-weight: 500;
+          }
+          
+          .tier-percentage {
+            color: #777;
+            font-size: 0.9rem;
           }
         }
       }
     }
     
-    .stats-section {
-      background-color: white;
-      border-radius: 8px;
-      padding: 20px;
-      margin-bottom: 20px;
-      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+    .top-redemptions {
+      margin-top: 16px;
+      overflow-x: auto;
       
-      h4 {
-        margin-top: 0;
-        margin-bottom: 20px;
-        display: flex;
-        align-items: center;
+      table {
+        width: 100%;
+        border-collapse: separate;
+        border-spacing: 0;
         
-        svg {
-          margin-right: 10px;
-          color: #3498b9;
+        th, td {
+          padding: 14px 16px;
+          text-align: left;
+          border-bottom: 1px solid #eee;
         }
-      }
-      
-      .stats-cards {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 15px;
-        margin-bottom: 15px;
         
-        .stats-card {
-          flex: 1;
-          min-width: 200px;
+        th {
+          background-color: #f5f7fa;
+          font-weight: 600;
+          color: #2c3e50;
+          position: sticky;
+          top: 0;
+          
+          &:first-child {
+            border-top-left-radius: 8px;
+          }
+          
+          &:last-child {
+            border-top-right-radius: 8px;
+          }
+        }
+        
+        tr:last-child td {
+          border-bottom: none;
+          
+          &:first-child {
+            border-bottom-left-radius: 8px;
+          }
+          
+          &:last-child {
+            border-bottom-right-radius: 8px;
+          }
+        }
+        
+        tr:nth-child(even) {
           background-color: #f9f9f9;
-          border-radius: 8px;
-          padding: 15px;
-          box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+        }
+        
+        tr:hover {
+          background-color: #f1f7fe;
+        }
+      }
+    }
+    
+    .chart-container {
+      margin-top: 24px;
+      
+      .chart-legend {
+        display: flex;
+        margin-bottom: 16px;
+        
+        .legend-item {
+          display: flex;
+          align-items: center;
+          margin-right: 24px;
           
-          .card-title {
-            font-size: 0.9rem;
+          .color-box {
+            width: 16px;
+            height: 16px;
+            border-radius: 4px;
+            margin-right: 8px;
+            
+            &.issued {
+              background-color: #3498db;
+            }
+            
+            &.redeemed {
+              background-color: #2ecc71;
+            }
+          }
+        }
+      }
+      
+      .chart {
+        display: flex;
+        height: 250px;
+        position: relative;
+        border-bottom: 1px solid #ddd;
+        border-left: 1px solid #ddd;
+        padding-bottom: 30px;
+        margin-left: 50px;
+        
+        .chart-axis {
+          position: absolute;
+          left: -50px;
+          height: 200px;
+          display: flex;
+          flex-direction: column;
+          justify-content: space-between;
+          
+          .axis-label {
+            font-size: 0.8rem;
             color: #666;
-            margin-bottom: 8px;
-          }
-          
-          .card-value {
-            font-size: 1.8rem;
-            font-weight: 600;
-            color: #2c3e50;
           }
         }
-      }
-      
-      .tier-distribution {
-        margin-top: 20px;
         
-        .distribution-chart {
-          height: 40px;
+        .chart-bars {
           display: flex;
-          border-radius: 4px;
-          overflow: hidden;
-          margin-bottom: 15px;
-          
-          .chart-bar {
-            height: 100%;
-            transition: width 0.3s ease;
-            min-width: 5px;
-            
-            &:hover {
-              opacity: 0.8;
-            }
-          }
-        }
-        
-        .distribution-legend {
-          display: flex;
-          flex-wrap: wrap;
-          gap: 15px;
-          
-          .legend-item {
-            display: flex;
-            align-items: center;
-            margin-right: 20px;
-            
-            .color-box {
-              width: 16px;
-              height: 16px;
-              border-radius: 3px;
-              margin-right: 8px;
-            }
-            
-            .tier-name {
-              font-weight: 500;
-              margin-right: 5px;
-            }
-            
-            .tier-count {
-              margin-right: 5px;
-              color: #555;
-            }
-            
-            .tier-percentage {
-              color: #777;
-              font-size: 0.9rem;
-            }
-          }
-        }
-      }
-      
-      .top-redemptions {
-        margin-top: 15px;
-        overflow-x: auto;
-        
-        table {
-          width: 100%;
-          border-collapse: collapse;
-          
-          th, td {
-            padding: 12px 15px;
-            text-align: left;
-            border-bottom: 1px solid #eee;
-          }
-          
-          th {
-            background-color: #f5f5f5;
-            font-weight: 600;
-          }
-          
-          tr:nth-child(even) {
-            background-color: #f9f9f9;
-          }
-          
-          tr:hover {
-            background-color: #f1f1f1;
-          }
-        }
-      }
-      
-      .chart-container {
-        margin-top: 20px;
-        
-        .chart-legend {
-          display: flex;
-          margin-bottom: 15px;
-          
-          .legend-item {
-            display: flex;
-            align-items: center;
-            margin-right: 20px;
-            
-            .color-box {
-              width: 16px;
-              height: 16px;
-              border-radius: 3px;
-              margin-right: 8px;
-              
-              &.issued {
-                background-color: #3498db;
-              }
-              
-              &.redeemed {
-                background-color: #2ecc71;
-              }
-            }
-          }
-        }
-        
-        .chart {
-          display: flex;
-          height: 250px;
+          justify-content: space-around;
+          align-items: flex-end;
+          flex: 1;
+          height: 100%;
           position: relative;
-          border-bottom: 1px solid #ddd;
-          border-left: 1px solid #ddd;
-          padding-bottom: 30px;
-          margin-left: 50px;
+          z-index: 1;
           
-          .chart-bars {
+          .chart-column {
             display: flex;
-            justify-content: space-around;
-            align-items: flex-end;
-            flex: 1;
-            height: 100%;
-            position: relative;
-            z-index: 1;
+            flex-direction: column;
+            align-items: center;
+            width: 60px;
+            margin: 0 6px;
             
-            .chart-column {
+            .column-label {
+              font-size: 0.85rem;
+              color: #566573;
+              margin-top: 8px;
+              text-align: center;
+              font-weight: 500;
+            }
+            
+            .column-bars {
               display: flex;
-              flex-direction: column;
-              align-items: center;
-              width: 50px;
-              margin: 0 5px;
+              align-items: flex-end;
+              height: 200px;
+              width: 100%;
               
-              .column-label {
-                font-size: 0.8rem;
-                color: #666;
-                margin-top: 5px;
-                text-align: center;
-              }
-              
-              .column-bars {
-                display: flex;
-                align-items: flex-end;
-                height: 200px;
-                width: 100%;
+              .bar {
+                width: 22px;
+                margin: 0 3px;
+                transition: height 0.3s ease;
+                border-radius: 3px 3px 0 0;
                 
-                .bar {
-                  width: 20px;
-                  margin: 0 2px;
-                  transition: height 0.3s ease;
+                &.issued {
+                  background-color: #3498db;
                   
-                  &.issued {
-                    background-color: #3498db;
+                  &:hover {
+                    background-color: #2980b9;
                   }
+                }
+                
+                &.redeemed {
+                  background-color: #2ecc71;
                   
-                  &.redeemed {
-                    background-color: #2ecc71;
+                  &:hover {
+                    background-color: #27ae60;
                   }
                 }
               }
@@ -298,4 +372,41 @@
         }
       }
     }
+  }
+  
+  // Add responsive adjustments for mobile
+  @media (max-width: 768px) {
+    .date-range-filter form {
+      flex-direction: column;
+      align-items: stretch;
+      
+      .date-inputs {
+        flex-direction: column;
+      }
+      
+      button {
+        align-self: flex-end;
+      }
+    }
+    
+    .stats-cards {
+      .stats-card {
+        min-width: 100%;
+      }
+    }
+    
+    .chart-container .chart {
+      margin-left: 40px;
+      
+      .chart-bars .chart-column {
+        width: 40px;
+        margin: 0 2px;
+        
+        .column-bars .bar {
+          width: 16px;
+          margin: 0 2px;
+        }
+      }
+    }
+  }
 }

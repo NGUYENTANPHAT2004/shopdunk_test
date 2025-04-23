@@ -172,7 +172,7 @@ const Header = () => {
             ref={searchInputRef}
             type="text"
             className="search-input-header"
-            placeholder="Tìm kiếm sản phẩm..."
+            placeholder="Tra cứu hóa đơn theo sdt..." 
             value={searchKeyword}
             onChange={e => setSearchKeyword(e.target.value)}
             onKeyPress={handleKeyPress}
@@ -229,9 +229,6 @@ const Header = () => {
                   </button>
                   <Link to="/orders" className="dropdown-item">
                     <span>Đơn hàng của tôi</span>
-                  </Link>
-                  <Link to="/profile" className="dropdown-item">
-                    <span>Tài khoản</span>
                   </Link>
                   <button onClick={logout} className="dropdown-item logout-item">
                     <span>Đăng xuất</span>

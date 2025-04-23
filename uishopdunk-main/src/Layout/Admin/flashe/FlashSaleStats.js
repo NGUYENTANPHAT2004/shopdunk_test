@@ -130,7 +130,7 @@ const FlashSaleStats = ({ flashSale, onClose }) => {
         </div>
         
         <div className="stats-overview">
-          <div className="stat-card">
+          <div className="stat-card-fs">
             <div className="stat-icon">
               <FontAwesomeIcon icon={faBox} />
             </div>
@@ -140,7 +140,7 @@ const FlashSaleStats = ({ flashSale, onClose }) => {
             </div>
           </div>
           
-          <div className="stat-card">
+          <div className="stat-card-fs">
             <div className="stat-icon">
               <FontAwesomeIcon icon={faBoxOpen} />
             </div>
@@ -150,7 +150,7 @@ const FlashSaleStats = ({ flashSale, onClose }) => {
             </div>
           </div>
           
-          <div className="stat-card">
+          <div className="stat-card-fs">
             <div className="stat-icon">
               <FontAwesomeIcon icon={faShoppingCart} />
             </div>
@@ -160,7 +160,7 @@ const FlashSaleStats = ({ flashSale, onClose }) => {
             </div>
           </div>
           
-          <div className="stat-card">
+          <div className="stat-card-fs">
             <div className="stat-icon">
               <FontAwesomeIcon icon={faChartBar} />
             </div>
@@ -170,7 +170,7 @@ const FlashSaleStats = ({ flashSale, onClose }) => {
             </div>
           </div>
           
-          <div className="stat-card">
+          <div className="stat-card-fs">
             <div className="stat-icon">
               <FontAwesomeIcon icon={faMemory} />
             </div>

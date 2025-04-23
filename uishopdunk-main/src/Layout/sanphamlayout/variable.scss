@@ -1,0 +1,72 @@
+// Colors
+$primary-color: #4a90e2;
+$primary-light: #f5f8ff;
+$primary-dark: #3a80d2;
+$secondary-color: #ff5252;
+$secondary-light: #ffebee;
+$text-color: #333333;
+$text-light: #666666;
+$text-lighter: #999999;
+$light-gray: #f5f5f5;
+$border-color: #dddddd;
+$white: #ffffff;
+$error-color: #d32f2f;
+$success-color: #388e3c;
+$warning-color: #f9a825;
+$info-color: #0288d1;
+
+// Spacing
+$spacing-xs: 0.25rem; // 4px
+$spacing-sm: 0.5rem;  // 8px
+$spacing-md: 1rem;    // 16px
+$spacing-lg: 1.5rem;  // 24px
+$spacing-xl: 2rem;    // 32px
+$spacing-xxl: 3rem;   // 48px
+
+// Breakpoints
+$breakpoint-xs: 380px;
+$breakpoint-sm: 576px;
+$breakpoint-md: 768px;
+$breakpoint-lg: 992px;
+$breakpoint-xl: 1200px;
+
+// Border radius
+$border-radius-sm: 0.25rem; // 4px
+$border-radius-md: 0.5rem;  // 8px
+$border-radius-lg: 1rem;    // 16px
+
+// Shadows
+$shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.12), 0 1px 2px rgba(0, 0, 0, 0.24);
+$shadow-md: 0 3px 6px rgba(0, 0, 0, 0.15), 0 2px 4px rgba(0, 0, 0, 0.12);
+$shadow-lg: 0 10px 20px rgba(0, 0, 0, 0.15), 0 3px 6px rgba(0, 0, 0, 0.1);
+
+// Font weights
+$font-light: 300;
+$font-regular: 400;
+$font-medium: 500;
+$font-bold: 700;
+
+// Font sizes
+$font-size-xs: 0.75rem;  // 12px
+$font-size-sm: 0.875rem; // 14px
+$font-size-md: 1rem;     // 16px
+$font-size-lg: 1.125rem; // 18px
+$font-size-xl: 1.25rem;  // 20px
+$font-size-xxl: 1.5rem;  // 24px
+
+// Z-index
+$z-index-dropdown: 1000;
+$z-index-sticky: 1020;
+$z-index-fixed: 1030;
+$z-index-modal-backdrop: 1040;
+$z-index-modal: 1050;
+$z-index-popover: 1060;
+$z-index-tooltip: 1070;
+
+// Transitions
+$transition-fast: 0.2s;
+$transition-normal: 0.3s;
+$transition-slow: 0.5s;
+
+// Container widths
+$container-max-width: 1280px;

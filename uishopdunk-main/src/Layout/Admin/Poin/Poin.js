@@ -30,23 +30,24 @@ function LoyaltyPointsAdminLayout() {
   }, []);
 
   // Fetch overview stats from API
-  const fetchOverviewStats = async () => {
-    try {
-      setIsLoading(true);
-      const response = await axios.get('http://localhost:3005/admin/loyalty/stats');
-      
-      if (response.data.success) {
-        setStats(response.data);
-      } else {
-        toast.error('Không thể tải thống kê điểm thưởng');
-      }
-    } catch (error) {
-      console.error('Lỗi khi tải thống kê:', error);
-      toast.error('Lỗi khi tải thống kê điểm thưởng');
-    } finally {
-      setIsLoading(false);
+// In Poin.js
+const fetchOverviewStats = async () => {
+  try {
+    setIsLoading(true);
+    const response = await axios.get('http://localhost:3005/admin/loyalty/stats');
+    
+    if (response.data.success) {
+      setStats(response.data.data); // Changed from response.data to response.data.data
+    } else {
+      toast.error('Không thể tải thống kê điểm thưởng');
     }
-  };
+  } catch (error) {
+    console.error('Lỗi khi tải thống kê:', error);
+    toast.error('Lỗi khi tải thống kê điểm thưởng');
+  } finally {
+    setIsLoading(false);
+  }
+};
 
   // Handle resetting YTD points yearly
   const handleResetYTDPoints = async () => {
@@ -109,7 +110,7 @@ function LoyaltyPointsAdminLayout() {
               <FontAwesomeIcon icon={faUser} />
             </div>
             <div className="card-content">
-              <h3>{stats?.totalUsers || 0}</h3>
+            <h3>{stats?.totalUsers || 0}</h3>
               <p>Thành viên</p>
             </div>
           </div>
@@ -119,7 +120,8 @@ function LoyaltyPointsAdminLayout() {
               <FontAwesomeIcon icon={faStar} />
             </div>
             <div className="card-content">
-              <h3>{stats?.pointsStats?.totalPointsIssued?.toLocaleString('vi-VN') || 0}</h3>
+            <h3>{stats?.pointsStats?.totalPointsIssued?.toLocaleString('vi-VN') || 0}</h3>
+
               <p>Tổng điểm</p>
             </div>
           </div>

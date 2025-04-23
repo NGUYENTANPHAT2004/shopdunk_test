@@ -24,6 +24,7 @@ import UserPointsPage from '../Layout/UserPoint/UserPointsPage'
 import FlashSalePage from '../components/flashe/flashepage'
 import UpcomingFlashSalePage from '../components/flashe/UpcomingFlashSalePage'
 import Unauthorized from './Unautho'
+import ProductPage from '../Layout/sanphamlayout/sanphamlayout'
 
 
 // Route công khai - không cần đăng nhập
@@ -50,7 +51,8 @@ const publicRoutes = [
   { path: '/flash-sale/upcoming', component: UpcomingFlashSalePage },
   { path: '/unauthorized', component: Unauthorized },
   { path: '/cart', component: GioHangLayout },
-  { path: '/search/:keyword', component: TiemKiemTheoSDT}
+  { path: '/search/:keyword', component: TiemKiemTheoSDT},
+  { path: 'san-pham', component: ProductPage}
 ]
 
 // Route yêu cầu đăng nhập

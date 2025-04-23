@@ -442,7 +442,7 @@ const RedemptionOptions = () => {
       {/* Modal tạo/chỉnh sửa - đã đơn giản hóa */}
       {modalOpen && (
         <div className="modal-backdrop">
-          <div className="modal-content">
+          <div className="modal-content-poin">
             <div className="modal-header">
               <h3>{editMode ? 'Chỉnh sửa tùy chọn đổi điểm' : 'Tạo tùy chọn đổi điểm mới'}</h3>
               <button 

@@ -397,13 +397,6 @@ function HoaDonLayout() {
             <FaMobile className='icons' />
             Chi tiết
           </button>
-          <button
-            className='btnthemtheloai'
-            onClick={handleShowDeleteModal}
-          >
-            <FaTrashCan className='icons' />
-            Xóa hóa đơn
-          </button>
         </div>
       </div>
       
