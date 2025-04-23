@@ -436,7 +436,7 @@ function LichSuDonHangLayout() {
             <thead>
               <tr>
                 <th>Mã Đơn</th>
-                <th>Ngày Mua</th>
+                <th>Ngày Đặt</th>
                 <th>Trạng Thái</th>
                 <th>Tổng Tiền</th>
                 <th>Hành Động</th>
@@ -446,7 +446,7 @@ function LichSuDonHangLayout() {
               {donHangs.map((hd) => (
                 <tr key={hd._id}>
                   <td>{hd.maHDL || (hd._id ? hd._id.slice(-6) : 'N/A')}</td>
-                  <td>{moment(hd.ngaymua).format('DD/MM/YYYY')}</td>
+                  <td>{hd.ngaymua}</td>
                   <td>
                     <span className={`status-indicator ${getStatusClass(hd.trangthai)}`}>
                       {hd.trangthai}
@@ -458,7 +458,7 @@ function LichSuDonHangLayout() {
                       <FontAwesomeIcon icon={faReceipt} /> Chi tiết
                     </button>
                     
-                    {hd.trangthai === 'Đã thanh toán' && (
+                    {hd.trangthai === 'Đã nhận' && (
                       <button className="btn-confirm" onClick={() => handleXacNhan(hd._id)}>
                         Xác nhận
                       </button>

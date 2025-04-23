@@ -68,7 +68,7 @@ async function processFlashSaleItems(flashSaleItems, session = null) {
                 productId: item.idsp,
                 dungluongId: item.dungluong || null,
                 mausacId: item.idmausac || null,
-                quantity: { $gte: item.soluong + '$products.soldQuantity' } // Đảm bảo đủ số lượng
+                quantity: { $gte: { $add: ['$soldQuantity', item.soluong] } }
               }
             }
           },

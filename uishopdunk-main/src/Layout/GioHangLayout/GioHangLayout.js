@@ -49,6 +49,20 @@ function GioHangLayout() {
   const [isCalculatingShipping, setIsCalculatingShipping] = useState(false);
 
   const { checkProductInFlashSale } = useFlashSale();
+  useEffect(() => {
+    if (selectedProvince) validateProvince();
+  }, [selectedProvince]);
+
+
+  useEffect(() => {
+    if (selectedDistrict) validateDistrict();
+  }, [selectedDistrict]);
+
+
+  useEffect(() => {
+    if (selectedWard) validateWard();
+  }, [selectedWard]);
+
   const validateName = (value) => {
     setname(value)
     if (!value.trim()) {
@@ -376,16 +390,16 @@ function GioHangLayout() {
   const increaseQuantity = async (index) => {
     const newCart = [...cart];
     const product = newCart[index];
-  
+
     if (product.isFlashSale) {
       // Kiểm tra tồn kho Flash Sale
       try {
         const flashSaleResponse = await fetch(`http://localhost:3005/flash-sale-products/${product.idsanpham}?dungluongId=${product.iddungluong}&mausacId=${product.idmausac}`);
         const flashSaleData = await flashSaleResponse.json();
-        
+
         if (flashSaleData.success && flashSaleData.data) {
           const remainingQuantity = flashSaleData.data.remainingQuantity;
-          
+
           if (remainingQuantity > product.soluong) {
             newCart[index].soluong += 1;
             setCart(newCart);
@@ -405,7 +419,7 @@ function GioHangLayout() {
       try {
         const response = await fetch(`http://localhost:3005/stock/${product.idsanpham}/${product.iddungluong}/${product.idmausac}`);
         const data = await response.json();
-        
+
         if (data.stock === 'Không giới hạn' || data.unlimitedStock || data.stock > product.soluong) {
           newCart[index].soluong += 1;
           setCart(newCart);
@@ -438,7 +452,8 @@ function GioHangLayout() {
     0
   )
 
-  const finalTotalPrice = totalPrice + shippingFee;
+  const discountAmount = voucherValidation?.valid ? (voucherValidation.discountAmount || 0) : 0;
+  const finalTotalPrice = totalPrice +     - discountAmount;
 
   const changeColor = async (index, selectedColor, newPrice, colorId, dungluongId, dungluongName) => {
     const newCart = [...cart];
@@ -972,7 +987,18 @@ function GioHangLayout() {
                 )}
               </div>
             </div>
-
+            {voucherValidation?.valid && (
+              <div className='giohang_thongtin_tongtien'>
+                <div className='div_thongtin_tongtien'>
+                  <span>Giảm giá:</span>
+                </div>
+                <div className='div_thongtin_tongtien'>
+                  <span className='thongtin_tongtien' style={{ color: '#e74c3c' }}>
+                    -{voucherValidation.discountAmount.toLocaleString()}đ
+                  </span>
+                </div>
+              </div>
+            )}
             <div className='giohang_thongtin_tongtien'>
               <div className='div_thongtin_tongtien'>
                 <span>Tổng tiền:</span>

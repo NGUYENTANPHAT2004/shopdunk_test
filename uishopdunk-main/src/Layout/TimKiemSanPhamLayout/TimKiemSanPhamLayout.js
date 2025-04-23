@@ -1,11 +1,9 @@
-// In TimKiemSanPhamLayout.js
-// Here's how to integrate the new MobileFilters component
+
 
 import React, { useEffect, useState, useCallback } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import ProductCard from '../../components/ProductItem/ProductCard';
 import ThanhDinhHuong from '../../components/ThanhDinhHuong/ThanhDinhHuong';
-import MobileFilters from './MobileFilters'; // Import the new component
 import { Helmet } from 'react-helmet';
 import Loading from '../../components/Loading/Loading';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
@@ -326,17 +324,7 @@ const TimKiemSanPhamLayout = () => {
           </form>
         </div>
 
-        {/* New Mobile Filters Component */}
-        <MobileFilters
-          categories={categories}
-          initialFilters={{
-            category,
-            minPrice,
-            maxPrice
-          }}
-          onApplyFilters={handleApplyFilters}
-          onResetFilters={resetFilters}
-        />
+        
 
         <div className="filter-controls">
           <button className="filter-button" onClick={() => setIsFilterOpen(!isFilterOpen)}>
