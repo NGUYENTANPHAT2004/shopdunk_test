@@ -52,7 +52,8 @@ const publicRoutes = [
   { path: '/unauthorized', component: Unauthorized },
   { path: '/cart', component: GioHangLayout },
   { path: '/search/:keyword', component: TiemKiemTheoSDT},
-  { path: '/san-pham', component: ProductPage}
+  { path: '/san-pham', component: ProductPage},
+  { path: '/chitietflashe/:tieude', component: ChiTietLayout },
 ]
 
 // Route yêu cầu đăng nhập

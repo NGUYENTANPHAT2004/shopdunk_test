@@ -266,7 +266,10 @@ const FlashSalePage = () => {
           <div className="products-grid">
             {flashSale.products.map(product => (
               <div className="product-card" key={product._id}>
-                <Link to={`/san-pham/${product.namekhongdau}`} className="product-link">
+               <Link 
+  to={`/chitietflashe/${product.namekhongdau}?dungluong=${product.dungluongId}&mausac=${product.mausacId}&flash=${flashSale._id}`}
+  className="product-link"
+>
                   <div className="product-image">
                     <img src={product.image} alt={product.name} />
                     <div className="discount-badge">-{product.discountPercent}%</div>
