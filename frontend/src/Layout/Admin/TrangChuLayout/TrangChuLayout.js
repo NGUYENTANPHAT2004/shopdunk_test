@@ -14,6 +14,7 @@ import { UserLayout } from '../UserLayout'
 import AdminChatTraining from '../Chat/Chatlayout'
 import LoyaltyPointsAdminLayout from '../Poin/Poin'
 import FlashSaleAdmin from '../flashe/FlashSaleAdmin'
+import TrangChuDashboard from './dasboard'
 function TrangChuLayout() {
   const [searchParams] = useSearchParams()
   const tabFromUrl = searchParams.get('tab') || 'Trang chủ'
@@ -21,6 +22,7 @@ function TrangChuLayout() {
     <div className='trangchu_container'>
       <SideBar activeTab={tabFromUrl} />
       <div className='admin_body'>
+        {tabFromUrl === 'Trang chủ' && <TrangChuDashboard />}
         {tabFromUrl === 'Sản Phẩm' && <TheLoaiLayoutAdmin />}
         {tabFromUrl === 'Blog' && <BlogLayout />}
         {tabFromUrl === 'Danh Mục' && <DanhmucLayout />}
