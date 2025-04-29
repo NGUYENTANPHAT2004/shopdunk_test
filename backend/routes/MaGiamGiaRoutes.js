@@ -35,6 +35,7 @@ function getVoucherPrefix(code) {
   if (code.startsWith('WELCOME')) return 'WELCOME';
   if (code.startsWith('SW')) return 'SW';
   if (code.startsWith('REWARD')) return 'REWARD';
+  if (code.startsWith('Points-')) return 'POINTS';
   return 'OTHER';
 }
 
@@ -561,8 +562,8 @@ router.get('/timkiemvoucher/:identifier', async (req, res) => {
     userVouchers.forEach(voucher => {
       const prefix = getVoucherPrefix(voucher.magiamgia);
       
-      // Voucher khung giờ vàng (SW) giữ tất cả
-      if (prefix === 'SW') {
+      // Voucher khung giờ vàng (SW) và voucher điểm thưởng (POINTS) giữ tất cả
+      if (prefix === 'SW' || prefix === 'POINTS') {
         if (!voucherTypes[prefix]) {
           voucherTypes[prefix] = [];
         }

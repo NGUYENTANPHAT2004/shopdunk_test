@@ -12,6 +12,15 @@ const db = require('../../models/db.js')
  * @param {number} expiryDays - Số ngày đến khi voucher hết hạn
  * @returns {Promise<object>} - Đối tượng voucher đã tạo
  */
+// utils/voucherGenerator.js - Cập nhật có maxOrderValue
+
+/**
+ * Tạo voucher ngẫu nhiên cho người dùng đã đăng nhập
+ * @param {string} userId - ID người dùng đã đăng nhập
+ * @param {string} reason - Lý do tạo voucher (first-order, third-order, new-account)
+ * @param {number} expiryDays - Số ngày đến khi voucher hết hạn
+ * @returns {Promise<object>} - Đối tượng voucher đã tạo
+ */
 async function generateVoucherForUser(userId, reason = 'reward', expiryDays = 30) {
   const session = await db.mongoose.startSession();
   session.startTransaction();
@@ -56,6 +65,7 @@ async function generateVoucherForUser(userId, reason = 'reward', expiryDays = 30
         code: userSpecificVouchers[0].magiamgia,
         discount: userSpecificVouchers[0].sophantram,
         minOrderValue: userSpecificVouchers[0].minOrderValue,
+        maxOrderValue: userSpecificVouchers[0].maxOrderValue, 
         expiresAt: moment(userSpecificVouchers[0].ngayketthuc).format('DD/MM/YYYY'),
         message: 'Bạn đã có sẵn mã giảm giá!',
         isNew: false
@@ -82,6 +92,7 @@ async function generateVoucherForUser(userId, reason = 'reward', expiryDays = 30
         code: existingVoucher.magiamgia,
         discount: existingVoucher.sophantram,
         minOrderValue: existingVoucher.minOrderValue,
+        maxOrderValue: existingVoucher.maxOrderValue, // Thêm maxOrderValue
         expiresAt: moment(existingVoucher.ngayketthuc).format('DD/MM/YYYY'),
         message: getVoucherMessage(reason),
         description: getVoucherDescription(reason),
@@ -108,7 +119,7 @@ async function generateVoucherForUser(userId, reason = 'reward', expiryDays = 30
       ngaybatdau: ngaybatdau.toDate(),
       ngayketthuc: ngayketthuc.toDate(),
       minOrderValue: voucherConfig.minOrderValue,
-      maxOrderValue: null,
+      maxOrderValue: voucherConfig.maxOrderValue, // Thêm maxOrderValue
       isServerWide: false,
       isOneTimePerUser: true,
       intended_users: [userId], // Use user ID directly
@@ -128,6 +139,7 @@ async function generateVoucherForUser(userId, reason = 'reward', expiryDays = 30
       code: magg.magiamgia,
       discount: magg.sophantram,
       minOrderValue: magg.minOrderValue,
+      maxOrderValue: magg.maxOrderValue, // Thêm maxOrderValue
       expiresAt: ngayketthuc.format('DD/MM/YYYY'),
       message: voucherConfig.message,
       description: voucherConfig.description,
@@ -151,6 +163,7 @@ function getVoucherConfig(reason) {
       prefix: 'FIRST',
       discount: getRandomDiscount(15, 20), // 15-20% discount
       minOrderValue: 100000,
+      maxOrderValue : 6000000,
       message: 'Cảm ơn bạn đã mua hàng lần đầu!',
       description: 'Ưu đãi đặc biệt cho đơn hàng đầu tiên của bạn'
     },
@@ -158,6 +171,7 @@ function getVoucherConfig(reason) {
       prefix: 'LOYAL',
       discount: getRandomDiscount(20, 25), // 20-25% discount
       minOrderValue: 200000,
+      maxOrderValue : 7000000,
       message: 'Cảm ơn bạn đã là khách hàng thân thiết!',
       description: 'Ưu đãi dành cho khách hàng trung thành'
     },
@@ -165,6 +179,7 @@ function getVoucherConfig(reason) {
       prefix: 'WELCOME',
       discount: getRandomDiscount(10, 15), // 10-15% discount
       minOrderValue: 50000,
+      maxOrderValue : 3000000,
       message: 'Chào mừng bạn đến với cửa hàng của chúng tôi!',
       description: 'Ưu đãi chào mừng thành viên mới'
     },
@@ -172,6 +187,7 @@ function getVoucherConfig(reason) {
       prefix: 'REWARD',
       discount: getRandomDiscount(10, 20), // 10-20% discount
       minOrderValue: 100000,
+      maxOrderValue: 5000000, 
       message: 'Mã giảm giá dành riêng cho bạn!',
       description: 'Ưu đãi đặc biệt từ cửa hàng'
     }

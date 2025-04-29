@@ -453,7 +453,7 @@ function GioHangLayout() {
   )
 
   const discountAmount = voucherValidation?.valid ? (voucherValidation.discountAmount || 0) : 0;
-  const finalTotalPrice = totalPrice +     - discountAmount;
+  const finalTotalPrice = totalPrice + shippingFee - discountAmount;
 
   const changeColor = async (index, selectedColor, newPrice, colorId, dungluongId, dungluongName) => {
     const newCart = [...cart];

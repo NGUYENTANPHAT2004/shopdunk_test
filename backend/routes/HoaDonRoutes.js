@@ -568,7 +568,9 @@ router.post('/create_payment_url', async (req, res) => {
     let vnpUrl = config.get('vnp_Url')
     let returnUrl = config.get('vnp_ReturnUrl')
     let orderId = moment(date).format('DDHHmmss')
-    let amount = req.body.amount  // Lấy amount từ frontend (đã bao gồm phí vận chuyển)
+    
+    // Sử dụng amount từ frontend mà không tính lại
+    let amount = req.body.amount
     let bankCode = req.body.bankCode
 
     let locale = req.body.language || 'vn'
@@ -603,7 +605,10 @@ router.post('/create_payment_url', async (req, res) => {
     vnp_Params['vnp_TxnRef'] = orderId
     vnp_Params['vnp_OrderInfo'] = 'Thanh toan cho ma GD:' + orderId
     vnp_Params['vnp_OrderType'] = 'other'
-    vnp_Params['vnp_Amount'] = amount * 100  // Sử dụng amount từ frontend
+    
+    // Sử dụng amount từ frontend và nhân với 100 cho VNPay
+    vnp_Params['vnp_Amount'] = amount * 100
+    
     vnp_Params['vnp_ReturnUrl'] = returnUrl
     vnp_Params['vnp_IpAddr'] = ipAddr
     vnp_Params['vnp_CreateDate'] = createDate
@@ -619,7 +624,7 @@ router.post('/create_payment_url', async (req, res) => {
       giaotannoi,
       ngaymua,
       trangthai: 'Đang xử lý',
-      tongtien: amount,  // Lưu amount vào tongtien thay vì tính lại
+      tongtien: amount,  // Sử dụng amount từ frontend
       orderId,
       thanhtoan: false,
       userId: userId || null
@@ -627,7 +632,7 @@ router.post('/create_payment_url', async (req, res) => {
 
     hoadon.maHDL = 'HD' + hoadon._id.toString().slice(-4)
     
-    // Vẫn cần tính tongtien_sanpham để lưu thông tin sản phẩm vào hóa đơn
+    // Vẫn cần lưu thông tin sản phẩm vào hóa đơn
     let tongtien_sanpham = 0
 
     for (const sanpham of sanphams) {
@@ -655,14 +660,10 @@ router.post('/create_payment_url', async (req, res) => {
       tongtien_sanpham += price * soluong
     }
 
+    // Xử lý mã giảm giá (chỉ để ghi nhận vào hóa đơn, không tính lại amount)
     if (magiamgia) {
       try {
-        // Sử dụng amount làm cơ sở tính mã giảm giá
-        // QUAN TRỌNG: Đảm bảo amount và userId có định dạng đúng
-        const amountNumber = parseFloat(amount) || 0;
-        
-        // Không truyền session vào validateVoucher nếu hàm không được thiết kế để nhận nó
-        const validationResult = await validateVoucher(magiamgia, phone, amountNumber, userId);
+        const validationResult = await validateVoucher(magiamgia, phone, tongtien_sanpham, userId);
         
         if (!validationResult.valid) {
           await session.abortTransaction();
@@ -670,15 +671,8 @@ router.post('/create_payment_url', async (req, res) => {
           return res.json({ message: validationResult.message });
         }
         
-        const magiamgia1 = validationResult.voucher;
-        
+        // Chỉ lưu thông tin mã giảm giá, không tính lại amount
         hoadon.magiamgia = magiamgia;
-        const giamGia = parseFloat(magiamgia1.sophantram) / 100;
-        
-        // Đảm bảo phép tính số học chính xác
-        const discountedAmount = Math.round(amountNumber - amountNumber * giamGia);
-        hoadon.tongtien = discountedAmount;
-        vnp_Params['vnp_Amount'] = discountedAmount * 100;
       } catch (error) {
         console.error('Lỗi xử lý mã giảm giá:', error);
         await session.abortTransaction();
@@ -696,7 +690,6 @@ router.post('/create_payment_url', async (req, res) => {
 
     try {
       // Chỉ xử lý tồn kho cho sản phẩm không phải Flash Sale
-      // Theo chiến lược 1, sản phẩm Flash Sale chỉ giảm tồn kho thông thường khi Flash Sale kết thúc
       if (regularItems.length > 0) {
         await reduceInventory(regularItems, session);
       }
