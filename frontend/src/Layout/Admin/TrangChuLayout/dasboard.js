@@ -16,7 +16,8 @@ import {
   faExclamationTriangle
 } from '@fortawesome/free-solid-svg-icons';
 import './dasboarch.scss';
-
+import InventoryMonitor from '../../../components/inventorynotifi/inventory';
+import OrderNotifications from '../../../components/ordernotifi/ordernotitfi';
 function TrangChuDashboard() {
   const [summaryData, setSummaryData] = useState({
     totalOrders: 0,
@@ -112,9 +113,13 @@ function TrangChuDashboard() {
         <h1>Chào mừng đến với Trang quản trị</h1>
         <p>Tổng quan về cửa hàng của bạn</p>
       </div>
-
+      <div className="notification-area">
+          <OrderNotifications/>
+          <InventoryMonitor />
+        </div>
       {/* Thông tin tổng quan */}
       <div className="dashboard-summary">
+      
         <div className="summary-card">
           <div className="summary-icon" style={{ backgroundColor: '#3498db' }}>
             <FontAwesomeIcon icon={faShoppingCart} />

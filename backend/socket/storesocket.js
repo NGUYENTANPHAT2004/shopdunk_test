@@ -1,6 +1,6 @@
 // socket/storeSocket.js
 const { generateVoucherForUser, isFirstOrderVoucherEligible, isThirdOrderVoucherEligible } = require('./handlers/voucherGenerator');
-
+const { handleNewOrder, handleOrderStatusUpdate } = require('./handlers/orderHandlers');
 /**
  * Configure store socket functionality for customer notifications
  * @param {Object} io - Socket.io instance
@@ -10,7 +10,8 @@ const setupStoreSocket = (io) => {
   
   storeNamespace.on('connection', (socket) => {
     console.log(`✅ Store client connected: ${socket.id}`);
-    
+    socket.on('new_order', (data) => handleNewOrder(socket, io, data));
+    socket.on('update_order_status', (data) => handleOrderStatusUpdate(socket, io, data));
     // Associate user with their phone number for targeted notifications
     socket.on('register_user', (data) => {
       if (data && data.phone) {

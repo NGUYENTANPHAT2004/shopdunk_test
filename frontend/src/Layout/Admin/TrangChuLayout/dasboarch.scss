@@ -21,7 +21,12 @@
       margin: 0;
     }
   }
-  
+  .notification-area {
+    display: flex;
+    justify-content: flex-end;
+    margin-bottom: 20px;
+    padding-right: 10px;
+  }
   // Thông tin tổng quan
   .dashboard-summary {
     display: grid;

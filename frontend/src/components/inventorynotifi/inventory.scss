@@ -1,0 +1,177 @@
+.inventory-monitor {
+    position: relative;
+    display: inline-block;
+    margin-right: 15px;
+    
+    .inventory-icon {
+      width: 36px;
+      height: 36px;
+      border-radius: 50%;
+      background-color: #f2f2f2;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      color: #555;
+      cursor: pointer;
+      position: relative;
+      transition: background-color 0.2s;
+      
+      &:hover {
+        background-color: #e0e0e0;
+      }
+      
+      .unread-badge {
+        position: absolute;
+        top: -5px;
+        right: -5px;
+        background-color: #e74c3c;
+        color: white;
+        font-size: 10px;
+        font-weight: bold;
+        width: 18px;
+        height: 18px;
+        border-radius: 50%;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+      }
+    }
+    
+    .inventory-dropdown {
+      position: absolute;
+      top: 45px;
+      right: 0;
+      width: 320px;
+      background: white;
+      border-radius: 8px;
+      box-shadow: 0 3px 12px rgba(0, 0, 0, 0.15);
+      z-index: 100;
+      overflow: hidden;
+      
+      .inventory-header {
+        padding: 12px 15px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        border-bottom: 1px solid #eee;
+        
+        h3 {
+          margin: 0;
+          font-size: 16px;
+          font-weight: 500;
+          color: #333;
+        }
+        
+        .mark-all-read {
+          background: none;
+          border: none;
+          font-size: 12px;
+          color: #3498db;
+          cursor: pointer;
+          
+          &:hover {
+            text-decoration: underline;
+          }
+        }
+      }
+      
+      .inventory-list {
+        max-height: 300px;
+        overflow-y: auto;
+        
+        .no-alerts {
+          padding: 25px 15px;
+          text-align: center;
+          color: #777;
+          font-size: 14px;
+        }
+        
+        .inventory-item {
+          padding: 12px 15px;
+          display: flex;
+          align-items: flex-start;
+          border-bottom: 1px solid #eee;
+          cursor: pointer;
+          transition: background-color 0.2s;
+          
+          &:hover {
+            background-color: #f9f9f9;
+          }
+          
+          &.unread {
+            background-color: #f2f9ff;
+            
+            &:hover {
+              background-color: #e6f3ff;
+            }
+          }
+          
+          .item-icon {
+            margin-right: 10px;
+            color: #f39c12;
+            font-size: 14px;
+            margin-top: 3px;
+          }
+          
+          .item-content {
+            flex: 1;
+            
+            .item-title {
+              font-weight: 500;
+              font-size: 14px;
+              margin-bottom: 5px;
+              color: #333;
+            }
+            
+            .item-details {
+              display: flex;
+              flex-direction: column;
+              font-size: 12px;
+              color: #777;
+              
+              span {
+                margin-bottom: 2px;
+              }
+              
+              .quantity {
+                color: #e74c3c;
+                
+                strong {
+                  font-weight: 600;
+                }
+              }
+            }
+          }
+        }
+      }
+      
+      .inventory-footer {
+        padding: 12px 15px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        border-top: 1px solid #eee;
+        background-color: #f9f9f9;
+        
+        .check-inventory {
+          padding: 6px 12px;
+          background-color: #3498db;
+          color: white;
+          border: none;
+          border-radius: 4px;
+          font-size: 12px;
+          cursor: pointer;
+          transition: background-color 0.2s;
+          
+          &:hover {
+            background-color: #2980b9;
+          }
+        }
+        
+        .last-updated {
+          font-size: 11px;
+          color: #777;
+        }
+      }
+    }
+  }
