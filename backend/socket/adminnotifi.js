@@ -1,41 +1,83 @@
-// socket/adminSocket.js
-const { handleCheckStock } = require('./handlers/stockHandlers');
-const { handleNewOrder, handleOrderStatusUpdate } = require('./handlers/orderHandlers');
+// socket/adminnotifi.js
+const { ProductSizeStock } = require('../models/ProductSizeStockmodel');
 
 /**
- * Configure admin socket functionality
+ * Thiết lập socket admin cho việc theo dõi tồn kho
  * @param {Object} io - Socket.io instance
  */
 const setupAdminSocket = (io) => {
   const adminNamespace = io.of('/admin');
   
   adminNamespace.on('connection', (socket) => {
-    console.log(`✅ Admin connected: ${socket.id} - Role: ${socket.user?.role || 'Unknown'}`);
+    console.log(`✅ Admin kết nối: ${socket.id}`);
     
-    // Stock management events
-    socket.on('check_stock', () => handleCheckStock(socket));
-    
-    // Order management events
-    // socket.on('new_order', (data) => handleNewOrder(socket, adminNamespace, data));
-    // socket.on('update_order_status', (data) => handleOrderStatusUpdate(socket, adminNamespace, data));
-    
-    // Dashboard events
-    socket.on('get_dashboard_stats', () => {
-      // Implementation for real-time dashboard statistics
-      // This could fetch current day's sales, orders, etc.
-      socket.emit('dashboard_stats', {
-        status: 'success',
-        data: {
-          activeUsers: Math.floor(Math.random() * 100),
-          todayOrders: Math.floor(Math.random() * 50),
-          lastUpdated: new Date().toISOString()
+    // Xử lý kiểm tra tồn kho
+    socket.on('check_stock', async () => {
+      try {
+        console.log("📦 Admin đang kiểm tra tồn kho...");
+
+        // Tìm sản phẩm có tồn kho thấp (dưới 5 sản phẩm)
+        const lowStockProducts = await ProductSizeStock.find({
+          unlimitedStock: false,
+          quantity: { $lte: 5 }
+        }).populate([
+          { path: 'productId', select: 'name image price' },
+          { path: 'dungluongId', select: 'name' },
+          { path: 'mausacId', select: 'name' }
+        ]);
+
+        // Định dạng sản phẩm để hiển thị tốt hơn ở frontend
+        const formatProduct = (product) => ({
+          id: product._id,
+          name: product.productId ? product.productId.name : 'Sản phẩm không xác định',
+          image: product.productId ? product.productId.image : null,
+          sku: product.sku || `${product.productId?._id}-${product.dungluongId?._id || 'n/a'}-${product.mausacId?._id || 'n/a'}`,
+          quantity: product.quantity,
+          capacity: product.dungluongId ? product.dungluongId.name : 'Mặc định',
+          color: product.mausacId ? product.mausacId.name : 'Mặc định',
+          threshold: product.lowStockThreshold || 5,
+          price: product.productId ? product.productId.price : 0
+        });
+
+        const formattedLowStock = lowStockProducts.map(formatProduct);
+
+        // Gửi thông báo tồn kho thấp nếu có sản phẩm
+        if (formattedLowStock.length > 0) {
+          socket.emit("lowStockAlert", {
+            message: "Thông báo: Sản phẩm sắp hết hàng",
+            products: formattedLowStock,
+            count: formattedLowStock.length,
+            timestamp: new Date().toISOString()
+          });
+          console.log(`Đã gửi thông báo tồn kho thấp: ${formattedLowStock.length} sản phẩm cần bổ sung`);
+
+          // Cập nhật trạng thái đã thông báo
+          await ProductSizeStock.updateMany(
+            { _id: { $in: lowStockProducts.map(product => product._id) } },
+            { $set: { notificationSent: true, lastNotificationDate: new Date() } }
+          );
+        } else {
+          // Nếu không có vấn đề, gửi trạng thái OK
+          socket.emit("stockStatus", {
+            message: "Tất cả sản phẩm đều có đủ hàng tồn kho",
+            status: "ok",
+            timestamp: new Date().toISOString()
+          });
+          console.log("Tất cả sản phẩm đều có tồn kho đủ");
         }
-      });
+      } catch (error) {
+        console.error("Lỗi khi kiểm tra tồn kho:", error);
+        socket.emit("stockError", {
+          message: "Lỗi khi kiểm tra tồn kho",
+          error: error.message,
+          timestamp: new Date().toISOString()
+        });
+      }
     });
     
-    // Handle disconnection
+    // Xử lý ngắt kết nối
     socket.on('disconnect', (reason) => {
-      console.log(`❌ Admin disconnected: ${socket.id}, reason: ${reason}`);
+      console.log(`❌ Admin ngắt kết nối: ${socket.id}, lý do: ${reason}`);
     });
   });
   
@@ -43,23 +85,26 @@ const setupAdminSocket = (io) => {
 };
 
 /**
- * Send notification to all admin users
+ * Gửi thông báo tồn kho toàn cục đến tất cả admin
  * @param {Object} io - Socket.io instance
- * @param {string} event - Event name
- * @param {Object} data - Notification data
+ * @param {Object} productData - Thông tin sản phẩm
  */
-const notifyAdmins = (io, event, data) => {
+const broadcastInventoryAlert = (io, productData) => {
+  if (!io || !productData) return;
+  
   const adminNamespace = io.of('/admin');
   
-  adminNamespace.emit(event, {
-    ...data,
+  adminNamespace.emit('lowStockAlert', {
+    message: "Thông báo: Sản phẩm sắp hết hàng",
+    products: [productData],
+    count: 1,
     timestamp: new Date().toISOString()
   });
   
-  console.log(`📢 Admin notification sent: ${event}`);
+  console.log(`📢 Đã gửi thông báo tồn kho: ${productData.name || productData.id}`);
 };
 
 module.exports = {
   setupAdminSocket,
-  notifyAdmins
+  broadcastInventoryAlert
 };

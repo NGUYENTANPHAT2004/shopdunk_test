@@ -1,0 +1,183 @@
+\.order-notifications {
+    position: relative;
+    display: inline-block;
+    margin-right: 15px;
+    
+    .notification-icon {
+      width: 36px;
+      height: 36px;
+      border-radius: 50%;
+      background-color: #f2f2f2;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      color: #555;
+      cursor: pointer;
+      position: relative;
+      transition: background-color 0.2s;
+      
+      &:hover {
+        background-color: #e0e0e0;
+      }
+      
+      .unread-badge {
+        position: absolute;
+        top: -5px;
+        right: -5px;
+        background-color: #e74c3c;
+        color: white;
+        font-size: 10px;
+        font-weight: bold;
+        width: 18px;
+        height: 18px;
+        border-radius: 50%;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+      }
+    }
+    
+    .notification-dropdown {
+      position: absolute;
+      top: 45px;
+      right: 0;
+      width: 320px;
+      background: white;
+      border-radius: 8px;
+      box-shadow: 0 3px 12px rgba(0, 0, 0, 0.15);
+      z-index: 100;
+      overflow: hidden;
+      
+      .notification-header {
+        padding: 12px 15px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        border-bottom: 1px solid #eee;
+        
+        h3 {
+          margin: 0;
+          font-size: 16px;
+          font-weight: 500;
+          color: #333;
+        }
+        
+        .mark-all-read {
+          background: none;
+          border: none;
+          font-size: 12px;
+          color: #3498db;
+          cursor: pointer;
+          
+          &:hover {
+            text-decoration: underline;
+          }
+        }
+      }
+      
+      .notification-list {
+        max-height: 300px;
+        overflow-y: auto;
+        
+        .no-notifications {
+          padding: 25px 15px;
+          text-align: center;
+          color: #777;
+          font-size: 14px;
+        }
+        
+        .notification-item {
+          padding: 12px 15px;
+          display: flex;
+          align-items: flex-start;
+          border-bottom: 1px solid #eee;
+          cursor: pointer;
+          transition: background-color 0.2s;
+          
+          &:hover {
+            background-color: #f9f9f9;
+          }
+          
+          &.unread {
+            background-color: #f2f9ff;
+            
+            &:hover {
+              background-color: #e6f3ff;
+            }
+          }
+          
+          .notification-icon {
+            margin-right: 10px;
+            font-size: 14px;
+            width: auto;
+            height: auto;
+            background: none;
+            margin-top: 2px;
+            
+            .new-order {
+              color: #27ae60;
+            }
+            
+            .status-update {
+              color: #3498db;
+            }
+          }
+          
+          .notification-content {
+            flex: 1;
+            
+            .notification-title {
+              font-weight: 500;
+              font-size: 14px;
+              margin-bottom: 5px;
+              color: #333;
+            }
+            
+            .notification-customer,
+            .notification-amount,
+            .notification-status,
+            .notification-message {
+              font-size: 12px;
+              color: #777;
+              margin-bottom: 2px;
+            }
+            
+            .notification-amount {
+              font-weight: 500;
+              color: #27ae60;
+            }
+            
+            .notification-status {
+              span {
+                font-weight: 500;
+                color: #3498db;
+              }
+            }
+            
+            .notification-time {
+              font-size: 11px;
+              color: #999;
+              margin-top: 5px;
+            }
+          }
+        }
+      }
+      
+      .notification-footer {
+        padding: 12px 15px;
+        text-align: center;
+        border-top: 1px solid #eee;
+        background-color: #f9f9f9;
+        
+        .view-all {
+          font-size: 12px;
+          color: #3498db;
+          text-decoration: none;
+          
+          &:hover {
+            text-decoration: underline;
+          }
+        }
+      }
+    }
+  }

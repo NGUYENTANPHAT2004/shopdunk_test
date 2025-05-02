@@ -79,7 +79,9 @@ const VoucherModal = ({ isOpen, onClose }) => {
         if (!data || !Array.isArray(data.vouchers)) {
           throw new Error('Invalid data format received from API');
         }
-        
+        console.log("Voucher từ đổi điểm:", data.vouchers?.filter(v => 
+          v && (v.magiamgia?.startsWith('Points-') || v.magiamgia?.startsWith('REWARD'))
+        ));
         // Filter duplicate vouchers
         const uniqueVouchers = filterDuplicateVouchers(data.vouchers || []);
         setVouchers(uniqueVouchers);
@@ -198,11 +200,6 @@ const VoucherModal = ({ isOpen, onClose }) => {
 
   // Filter duplicate vouchers - prioritize higher discount percentage
   const filterDuplicateVouchers = (vouchersList) => {
-    if (!Array.isArray(vouchersList)) {
-      console.error('Invalid vouchers list:', vouchersList);
-      return [];
-    }
-    
     // Group vouchers by type (prefix)
     const vouchersByType = {};
     
@@ -220,8 +217,8 @@ const VoucherModal = ({ isOpen, onClose }) => {
     const filteredVouchers = [];
     
     Object.keys(vouchersByType).forEach(prefix => {
-      // Golden hour vouchers (SW) can have multiple different vouchers
-      if (prefix === 'SW') {
+      // Vouchers that can have multiple instances
+      if (prefix === 'SW' || prefix === 'POINTS' || prefix === 'REWARD') {
         filteredVouchers.push(...vouchersByType[prefix]);
       } else {
         // For other types, keep only the voucher with the highest discount
@@ -245,6 +242,7 @@ const VoucherModal = ({ isOpen, onClose }) => {
     if (code.startsWith('WELCOME')) return 'WELCOME';
     if (code.startsWith('SW')) return 'SW';
     if (code.startsWith('REWARD')) return 'REWARD';
+    if (code.startsWith('Points-')) return 'POINTS'; 
     return 'OTHER';
   };
 

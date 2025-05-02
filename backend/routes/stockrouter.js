@@ -6,80 +6,111 @@ const MauSac = require('../models/MauSacModel');
 const LoaiSP = require('../models/LoaiSanPham');
 // Thêm vào đầu file stockrouter.js
 const db = require('../models/db');
+// Cải thiện API /tonkho/sanpham với phân trang và aggregate
 router.get('/tonkho/sanpham', async (req, res) => {
   try {
-    // Lấy sản phẩm chưa bị xóa mềm
-    const sanphams = await ChitietSp.ChitietSp.find({ isDeleted: false }).lean();
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 50; // Lấy 50 sản phẩm mỗi lần
+    const skip = (page - 1) * limit;
 
-    const productList = await Promise.all(
-      sanphams.map(async (product) => {
-        try {
-          // CHỈ lấy dung lượng đã được chọn cho sản phẩm cụ thể
-          const dungluongs = await DungLuong.dungluong.find({
-            _id: { $in: product.selectedDungluongs || [] },
-            isDeleted: false
-          }).lean();
-
-          if (!dungluongs.length) return null;
-
-          // Với mỗi dung lượng, chỉ lấy màu sắc được chọn
-          const dungLuongData = await Promise.all(
-            dungluongs.map(async (dungluong) => {
-              const mausacs = await MauSac.mausac.find({
-                _id: { $in: product.selectedMausacs || [] },
-                dungluong: dungluong._id,
-                isDeleted: false
-              }).lean();
-
-              if (!mausacs.length) return null;
-
-              const mausacData = await Promise.all(
-                mausacs.map(async (mausac) => {
-                  const stock = await ProductSizeStock.findOne({
-                    productId: product._id,
-                    dungluongId: dungluong._id,
-                    mausacId: mausac._id
-                  }).lean();
-
-                  return {
-                    _id: mausac._id,
-                    name: mausac.name,
-                    price: mausac.price || 0,
-                    images: mausac.image || [],
-                    quantity: stock?.quantity || 0
-                  };
-                })
-              );
-
-              const validMauSacData = mausacData.filter(ms => ms);
-              if (!validMauSacData.length) return null;
-
-              return {
-                _id: dungluong._id,
-                name: dungluong.name,
-                mausac: validMauSacData
-              };
-            })
-          );
-
-          const filteredDungLuongData = dungLuongData.filter(dl => dl);
-          if (!filteredDungLuongData.length) return null;
-
-          return {
-            _id: product._id,
-            name: product.name,
-            image: product.image,
-            price: product.price,
-            dungluong: filteredDungLuongData
-          };
-        } catch (error) {
-          console.error(`Lỗi xử lý sản phẩm ${product._id}:`, error);
-          return null;
+    // Sử dụng aggregation để giảm số lượng truy vấn
+    const results = await ProductSizeStock.aggregate([
+      // Lookup để join với thông tin sản phẩm
+      {
+        $lookup: {
+          from: 'chitietsps',
+          localField: 'productId',
+          foreignField: '_id',
+          as: 'product'
         }
-      })
-    );
+      },
+      // Unwind để lấy ra từng sản phẩm
+      { $unwind: '$product' },
+      // Chỉ lấy sản phẩm không bị xóa
+      { $match: { 'product.isDeleted': false } },
+      // Lookup để join với thông tin dung lượng
+      {
+        $lookup: {
+          from: 'dungluongs',
+          localField: 'dungluongId',
+          foreignField: '_id',
+          as: 'dungluong'
+        }
+      },
+      // Unwind để lấy ra từng dung lượng (nếu có)
+      {
+        $unwind: {
+          path: '$dungluong',
+          preserveNullAndEmptyArrays: true
+        }
+      },
+      // Lookup để join với thông tin màu sắc
+      {
+        $lookup: {
+          from: 'mausacs',
+          localField: 'mausacId',
+          foreignField: '_id',
+          as: 'mausac'
+        }
+      },
+      // Unwind để lấy ra từng màu sắc (nếu có)
+      {
+        $unwind: {
+          path: '$mausac',
+          preserveNullAndEmptyArrays: true
+        }
+      },
+      // Nhóm dữ liệu theo sản phẩm
+      {
+        $group: {
+          _id: '$productId',
+          name: { $first: '$product.name' },
+          image: { $first: '$product.image' },
+          price: { $first: '$product.price' },
+          variants: {
+            $push: {
+              dungluongId: '$dungluongId',
+              dungluongName: { $ifNull: ['$dungluong.name', 'Mặc định'] },
+              mausacId: '$mausacId',
+              mausacName: { $ifNull: ['$mausac.name', 'Mặc định'] },
+              quantity: { $ifNull: ['$quantity', 0] },
+              price: { $ifNull: ['$mausac.price', 0] },
+              unlimitedStock: { $ifNull: ['$unlimitedStock', false] }
+            }
+          }
+        }
+      },
+      // Sắp xếp theo tên sản phẩm
+      { $sort: { name: 1 } },
+      // Phân trang
+      { $skip: skip },
+      { $limit: limit }
+    ]);
 
-    res.json(productList.filter(Boolean));
+    // Lấy tổng số sản phẩm để phân trang
+    const totalItems = await ProductSizeStock.aggregate([
+      {
+        $lookup: {
+          from: 'chitietsps',
+          localField: 'productId',
+          foreignField: '_id',
+          as: 'product'
+        }
+      },
+      { $unwind: '$product' },
+      { $match: { 'product.isDeleted': false } },
+      { $group: { _id: '$productId' } },
+      { $count: 'total' }
+    ]);
+
+    res.json({
+      products: results,
+      pagination: {
+        total: totalItems.length > 0 ? totalItems[0].total : 0,
+        page,
+        limit
+      }
+    });
   } catch (error) {
     console.error('Lỗi khi lấy tồn kho sản phẩm:', error);
     res.status(500).json({ message: 'Lỗi server', error: error.message });
