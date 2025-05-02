@@ -657,12 +657,13 @@ router.post('/create_payment_url', async (req, res) => {
 
     if (magiamgia) {
       try {
-        // Sử dụng amount làm cơ sở tính mã giảm giá
-        // QUAN TRỌNG: Đảm bảo amount và userId có định dạng đúng
-        const amountNumber = parseFloat(amount) || 0;
+        // Tính lại tổng tiền đúng (đảm bảo bao gồm phí vận chuyển)
+        const shippingFee = req.body.shippingFee || 0;
+        const productTotal = tongtien_sanpham;  // Tổng tiền sản phẩm từ backend
+        const totalBeforeDiscount = productTotal + shippingFee;
         
-        // Không truyền session vào validateVoucher nếu hàm không được thiết kế để nhận nó
-        const validationResult = await validateVoucher(magiamgia, phone, amountNumber, userId);
+        // Sử dụng tổng tiền đúng để kiểm tra mã giảm giá
+        const validationResult = await validateVoucher(magiamgia, phone, totalBeforeDiscount, userId);
         
         if (!validationResult.valid) {
           await session.abortTransaction();
@@ -675,10 +676,13 @@ router.post('/create_payment_url', async (req, res) => {
         hoadon.magiamgia = magiamgia;
         const giamGia = parseFloat(magiamgia1.sophantram) / 100;
         
-        // Đảm bảo phép tính số học chính xác
-        const discountedAmount = Math.round(amountNumber - amountNumber * giamGia);
-        hoadon.tongtien = discountedAmount;
-        vnp_Params['vnp_Amount'] = discountedAmount * 100;
+        // Tính số tiền được giảm
+        const discountAmount = Math.round(totalBeforeDiscount * giamGia);
+        // Tính tổng tiền sau khi giảm
+        const finalAmount = totalBeforeDiscount - discountAmount;
+        
+        hoadon.tongtien = finalAmount;
+        vnp_Params['vnp_Amount'] = finalAmount * 100;
       } catch (error) {
         console.error('Lỗi xử lý mã giảm giá:', error);
         await session.abortTransaction();
