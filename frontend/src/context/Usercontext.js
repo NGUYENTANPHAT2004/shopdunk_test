@@ -12,7 +12,88 @@ export const UserContextProvider = ({ children }) => {
   const [isLoading, setIsLoading] = useState(true);
   const [pointsLoading, setPointsLoading] = useState(false);
   const [isInitialized, setIsInitialized] = useState(false);
-  // Load user from localStorage on initial render
+  const [statusInterval, setStatusInterval] = useState(null);
+  const checkAccountStatus = async () => {
+    try {
+      // Nếu không có người dùng đăng nhập, không cần kiểm tra
+      if (!user) return;
+      
+      const storedUser = localStorage.getItem('user');
+      if (!storedUser) return;
+      
+      const userData = JSON.parse(storedUser);
+      const token = userData.token || (userData.user && userData.user.token);
+      
+      if (!token) return;
+      
+      const response = await axios.get('http://localhost:3005/auth/checkStatus', {
+        headers: {
+          Authorization: `Bearer ${token}`
+        }
+      });
+      
+      // Nếu tài khoản vẫn hợp lệ, không làm gì
+      if (response.data.valid) return;
+      
+    } catch (error) {
+      // Nếu lỗi và cần đăng xuất
+      if (error.response?.data?.forceLogout) {
+        // Hiển thị thông báo
+        Swal.fire({
+          title: "Tài khoản bị vô hiệu hóa",
+          text: error.response.data.message || "Tài khoản của bạn đã bị vô hiệu hóa hoặc không tồn tại",
+          icon: "warning",
+          confirmButtonText: "Đồng ý",
+          allowOutsideClick: false
+        }).then(() => {
+          // Đăng xuất người dùng
+          localStorage.removeItem("user");
+          localStorage.removeItem("welcomeVoucher");
+          setUser(null);
+          setUserPoints(null);
+          setWelcomeVoucher(null);
+          
+          // Thông báo đăng xuất
+          toast.warning("Bạn đã bị đăng xuất do tài khoản không còn hoạt động", {
+            position: "top-right",
+            autoClose: 3000
+          });
+          
+          // Chuyển hướng về trang chủ
+          window.location.href = "/";
+        });
+      }
+    }
+  };
+  
+  // Thêm useEffect để thiết lập kiểm tra định kỳ
+  useEffect(() => {
+    // Hủy interval cũ nếu có
+    if (statusInterval) {
+      clearInterval(statusInterval);
+    }
+    
+    // Nếu có user, thiết lập kiểm tra định kỳ
+    if (user) {
+      // Kiểm tra ngay lần đầu
+      checkAccountStatus();
+      
+      // Thiết lập kiểm tra định kỳ (mỗi 5 phút)
+      const interval = setInterval(() => {
+        checkAccountStatus();
+      }, 5 * 60 * 1000);
+      
+      setStatusInterval(interval);
+    }
+    
+    // Cleanup khi component unmount
+    return () => {
+      if (statusInterval) {
+        clearInterval(statusInterval);
+      }
+    };
+  }, [user]);
+
   useEffect(() => {
     const initializeUser = () => {
       const storedUser = localStorage.getItem("user");
@@ -450,7 +531,8 @@ export const UserContextProvider = ({ children }) => {
       isLoading,
       updateUserPoints,
       isInitialized,
-      isAdmin
+      isAdmin,
+      checkAccountStatus
     }}>
       {children}
     </UserContext.Provider>

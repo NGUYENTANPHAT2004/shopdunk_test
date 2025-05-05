@@ -15,7 +15,7 @@ const Footer = () => {
             alt="Logo"
             className="logo"
           />
-          <p>BeeShop</p>
+          <p>BeePhone</p>
           <div className="address-container">
             <a href="https://maps.app.goo.gl/z3xmqsCTZzZCacS4A"
               target="_blank"
@@ -70,7 +70,7 @@ const Footer = () => {
         <div className='column'>
           <h3>GIỚI THIỆU</h3>
           <p>
-            BeeShop là website giới thiệu các sản phẩm về điện thoại , có tất cả các dòng điện thoại mới nhất mang thương hiệu BeeShop.
+          BeePhone là website giới thiệu các sản phẩm về điện thoại , có tất cả các dòng điện thoại mới nhất mang thương hiệu BeeShop.
           </p>
           <h3>KẾT NỐI VỚI CHÚNG TÔI</h3>
           <div className='socialIcons'>

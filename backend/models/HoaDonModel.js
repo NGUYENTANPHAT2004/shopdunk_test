@@ -29,6 +29,8 @@ const hoadonSchema = new db.mongoose.Schema({
     }
   ],
   tongtien: { type: Number },
+  phivanchuyen: { type: Number, default: 0 },  
+  giamgia: { type: Number, default: 0 },
   ngaymua: { type: Date, default: Date.now },
   trangthai: { type: String, default: 'Đang xử lý' },
   thanhtoan: { type: Boolean, default: false },

@@ -18,6 +18,7 @@ const db = require('../models/db')
 const Category = require('../models/CategoryModel');
 const LoaiSP = require('../models/LoaiSanPham').LoaiSP;
 const { RedemptionHistory } = require('../models/RedemptionHistoryModel');
+const { getIo } = require('../config/socket');
 
 function sortObject (obj) {
   let sorted = {}
@@ -574,8 +575,10 @@ router.post('/create_payment_url', async (req, res) => {
     let bankCode = req.body.bankCode
 
     let locale = req.body.language || 'vn'
-    const { name, nguoinhan, phone, sex, giaotannoi, address, ghichu, magiamgia, sanphams, userId } =
-      req.body
+    const { 
+      name, nguoinhan, phone, sex, giaotannoi, address, ghichu, 
+      magiamgia, sanphams, userId, shippingFee, discountAmount 
+    } = req.body
 
     // Phân loại sản phẩm thông thường và Flash Sale
     const regularItems = sanphams.filter(item => !item.isFlashSale);
@@ -624,10 +627,12 @@ router.post('/create_payment_url', async (req, res) => {
       giaotannoi,
       ngaymua,
       trangthai: 'Đang xử lý',
-      tongtien: amount,  // Sử dụng amount từ frontend
+      tongtien: amount,  
       orderId,
       thanhtoan: false,
-      userId: userId || null
+      userId: userId || null,
+      phivanchuyen: shippingFee || 0,    
+      giamgia: discountAmount || 0 
     })
 
     hoadon.maHDL = 'HD' + hoadon._id.toString().slice(-4)
@@ -663,17 +668,7 @@ router.post('/create_payment_url', async (req, res) => {
     // Xử lý mã giảm giá (chỉ để ghi nhận vào hóa đơn, không tính lại amount)
     if (magiamgia) {
       try {
-
-        // Tính lại tổng tiền đúng (đảm bảo bao gồm phí vận chuyển)
-        const shippingFee = req.body.shippingFee || 0;
-        const productTotal = tongtien_sanpham;  // Tổng tiền sản phẩm từ backend
-        const totalBeforeDiscount = productTotal + shippingFee;
-        
-        // Sử dụng tổng tiền đúng để kiểm tra mã giảm giá
-        const validationResult = await validateVoucher(magiamgia, phone, totalBeforeDiscount, userId);
-
         const validationResult = await validateVoucher(magiamgia, phone, tongtien_sanpham, userId);
-
         
         if (!validationResult.valid) {
           await session.abortTransaction();
@@ -683,17 +678,6 @@ router.post('/create_payment_url', async (req, res) => {
         
         // Chỉ lưu thông tin mã giảm giá, không tính lại amount
         hoadon.magiamgia = magiamgia;
-
-        const giamGia = parseFloat(magiamgia1.sophantram) / 100;
-        
-        // Tính số tiền được giảm
-        const discountAmount = Math.round(totalBeforeDiscount * giamGia);
-        // Tính tổng tiền sau khi giảm
-        const finalAmount = totalBeforeDiscount - discountAmount;
-        
-        hoadon.tongtien = finalAmount;
-        vnp_Params['vnp_Amount'] = finalAmount * 100;
-
       } catch (error) {
         console.error('Lỗi xử lý mã giảm giá:', error);
         await session.abortTransaction();
@@ -1132,7 +1116,6 @@ router.post('/settrangthai/:idhoadon', async (req, res) => {
     const idhoadon = req.params.idhoadon;
     const { trangthai, thanhtoan, note } = req.body;
     
-    // Tìm đơn hàng hiện tại
     const hoadon = await HoaDon.hoadon.findById(idhoadon).session(session);
     
     if (!hoadon) {
@@ -1144,18 +1127,14 @@ router.post('/settrangthai/:idhoadon', async (req, res) => {
     const oldTrangthai = hoadon.trangthai;
     const oldThanhtoan = hoadon.thanhtoan;
     
-    // Phân loại sản phẩm thường và Flash Sale
     const regularItems = hoadon.sanpham.filter(item => !item.isFlashSale);
     const flashSaleItems = hoadon.sanpham.filter(item => item.isFlashSale);
     
-    // Ghi log để debug
     console.log(`Chuyển trạng thái đơn hàng ${idhoadon} từ '${oldTrangthai}' sang '${trangthai}'`);
     console.log(`Thông tin sản phẩm: Regular=${regularItems.length}, FlashSale=${flashSaleItems.length}`);
     console.log('Dữ liệu sản phẩm:', JSON.stringify(hoadon.sanpham));
     
-    // Xử lý các trường hợp chuyển trạng thái - tất cả được thực hiện trong transaction
     if (trangthai === 'Hủy Đơn Hàng' && oldTrangthai !== 'Hủy Đơn Hàng') {
-      // Chỉ hoàn tồn kho nếu đơn hàng đã giảm tồn kho
       const nonReducedStatuses = ['Thanh toán thất bại', 'Thanh toán hết hạn', 'Hủy Đơn Hàng'];
       const inventoryWasReduced = oldThanhtoan || (!oldThanhtoan && !nonReducedStatuses.includes(oldTrangthai));
       
@@ -1164,7 +1143,6 @@ router.post('/settrangthai/:idhoadon', async (req, res) => {
       if (inventoryWasReduced) {
         console.log('Bắt đầu quá trình hoàn tồn kho...');
         
-        // Khôi phục tồn kho
         if (regularItems.length > 0) {
           console.log(`Đang khôi phục ${regularItems.length} sản phẩm thường...`);
           const restored = await restoreInventory(regularItems, session);
@@ -1181,7 +1159,6 @@ router.post('/settrangthai/:idhoadon', async (req, res) => {
     else if ((trangthai === 'Thanh toán thất bại' || trangthai === 'Thanh toán hết hạn') && 
              !['Thanh toán thất bại', 'Thanh toán hết hạn', 'Hủy Đơn Hàng'].includes(oldTrangthai)) {
       
-      // Kiểm tra xem đã giảm tồn kho chưa
       const nonReducedStatuses = ['Thanh toán thất bại', 'Thanh toán hết hạn', 'Hủy Đơn Hàng'];
       const inventoryWasReduced = oldThanhtoan || (!oldThanhtoan && !nonReducedStatuses.includes(oldTrangthai));
       
@@ -1190,7 +1167,6 @@ router.post('/settrangthai/:idhoadon', async (req, res) => {
       if (inventoryWasReduced) {
         console.log('Bắt đầu quá trình hoàn tồn kho (do thanh toán thất bại/hết hạn)...');
         
-        // Khôi phục tồn kho
         if (regularItems.length > 0) {
           const restored = await restoreInventory(regularItems, session);
           console.log(`Kết quả khôi phục: ${restored ? restored.length : 0} sản phẩm đã được khôi phục`);
@@ -1207,7 +1183,6 @@ router.post('/settrangthai/:idhoadon', async (req, res) => {
       
       console.log('Bắt đầu quá trình hoàn tồn kho (do trả hàng)...');
       
-      // Khôi phục tồn kho khi trả hàng
       if (regularItems.length > 0) {
         const restored = await restoreInventory(regularItems, session);
         console.log(`Kết quả khôi phục (trả hàng): ${restored ? restored.length : 0} sản phẩm đã được khôi phục`);
@@ -1222,7 +1197,6 @@ router.post('/settrangthai/:idhoadon', async (req, res) => {
              ['Đã thanh toán', 'Đang xử lý'].includes(trangthai) && 
              (thanhtoan === true || trangthai === 'Đã thanh toán')) {
       
-      // Xử lý khi kích hoạt lại đơn hàng đã hủy/thất bại
       if (regularItems.length > 0) {
         try {
           console.log('Bắt đầu quá trình giảm tồn kho (do kích hoạt lại đơn hàng)...');
@@ -1261,13 +1235,11 @@ router.post('/settrangthai/:idhoadon', async (req, res) => {
       }
     }
     
-    // Cập nhật trạng thái đơn hàng
     hoadon.trangthai = trangthai;
     if (typeof thanhtoan === 'boolean') {
       hoadon.thanhtoan = thanhtoan;
     }
     
-    // Ghi lại lịch sử thay đổi trạng thái
     if (!hoadon.statusHistory) {
       hoadon.statusHistory = [];
     }
@@ -1281,7 +1253,6 @@ router.post('/settrangthai/:idhoadon', async (req, res) => {
       inventoryUpdated: true
     });
     
-    // Hủy timeout nếu đơn hàng được thanh toán hoặc hủy
     if (['Đã thanh toán', 'Hủy Đơn Hàng', 'Thanh toán thất bại'].includes(trangthai) && 
         global.paymentTimeouts && global.paymentTimeouts[hoadon._id.toString()]) {
       clearTimeout(global.paymentTimeouts[hoadon._id.toString()]);
@@ -1291,6 +1262,40 @@ router.post('/settrangthai/:idhoadon', async (req, res) => {
     await hoadon.save({ session });
     await session.commitTransaction();
     session.endSession();
+    
+    const io = getIo();
+    if (io) {
+      const eventData = {
+        orderId: hoadon._id,
+        maHDL: hoadon.maHDL,
+        oldStatus: oldTrangthai,
+        newStatus: trangthai,
+        paymentStatus: hoadon.thanhtoan,
+        timestamp: new Date().toISOString()
+      };
+      
+      // Emit cho user cụ thể
+      if (hoadon.userId) {
+        console.log(`📤 Emitting to user_${hoadon.userId}:`, eventData);
+        io.of('/store').to(`user_${hoadon.userId}`).emit('order_status_changed', eventData);
+      }
+      
+      // Emit broadcast cho tất cả
+      console.log('📢 Broadcasting order update:', eventData);
+      io.of('/store').emit('order_status_updated', {
+        orderId: hoadon._id,
+        status: trangthai,
+        paymentStatus: hoadon.thanhtoan,
+        timestamp: new Date().toISOString()
+      });
+      
+      // Emit signal để refresh list (optional)
+      io.of('/store').emit('order_list_updated', {
+        timestamp: new Date().toISOString()
+      });
+    } else {
+      console.error('❌ Socket.io instance not available');
+    }
     
     res.json(hoadon);
   } catch (error) {
@@ -1305,9 +1310,7 @@ router.post('/settrangthai/:idhoadon', async (req, res) => {
   }
 });
 
-// In webbandienthoai-main/routes/HoaDonRoutes.js
-// Modify the getchitiethd route:
-
+// Trong route getchitiethd/:idhoadon của file HoaDonRoutes.js
 router.get('/getchitiethd/:idhoadon', async (req, res) => {
   try {
     const idhoadon = req.params.idhoadon;
@@ -1317,10 +1320,13 @@ router.get('/getchitiethd/:idhoadon', async (req, res) => {
       return res.status(404).json({ message: 'Không tìm thấy hóa đơn' });
     }
     
-    // Use product snapshots if available, otherwise fall back to database lookup
+    // Tính tổng từ sản phẩm
+    const subtotal = hoadon.sanpham.reduce((sum, item) => sum + (item.price * item.soluong), 0);
+    
+    // Sử dụng product snapshots nếu có, hoặc truy vấn database nếu không
     const hoadonsanpham = await Promise.all(
       hoadon.sanpham.map(async sanpham => {
-        // If we have a product snapshot, use it
+        // Nếu có product snapshot, sử dụng nó
         if (sanpham.productSnapshot && sanpham.productSnapshot.name) {
           return {
             idsp: sanpham.idsp,
@@ -1332,7 +1338,7 @@ router.get('/getchitiethd/:idhoadon', async (req, res) => {
             image: sanpham.productSnapshot.image
           };
         } 
-        // Otherwise, fall back to database lookup (for backward compatibility)
+        // Ngược lại, truy vấn database
         else {
           const sanpham1 = await SanPham.ChitietSp.findById(sanpham.idsp);
           const dungluong = await DungLuong.dungluong.findById(sanpham.dungluong);
@@ -1363,6 +1369,9 @@ router.get('/getchitiethd/:idhoadon', async (req, res) => {
       thanhtoan: hoadon.thanhtoan,
       trangthai: hoadon.trangthai,
       tongtien: hoadon.tongtien,
+      phivanchuyen: hoadon.phivanchuyen || 0,  // Trả về phí vận chuyển
+      giamgia: hoadon.giamgia || 0,            // Trả về số tiền giảm giá
+      subtotal: subtotal,                       // Trả về tổng tiền sản phẩm
       hoadonsanpham: hoadonsanpham
     };
     
@@ -1387,7 +1396,8 @@ router.get('/getdoanhthu', async (req, res) => {
     const end = moment(endDate, 'YYYY-MM-DD').endOf('day')
 
     const hoadons = await HoaDon.hoadon.find({
-      ngaymua: { $gte: start.toDate(), $lte: end.toDate() }
+      ngaymua: { $gte: start.toDate(), $lte: end.toDate()},
+      trangthai: { $in: ['Hoàn thành', 'Đã nhận'] }
     })
 
     let doanhthuTheoNgay = {}

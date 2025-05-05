@@ -3,15 +3,15 @@ import { ModalBig } from '../../../../components/ModalBig'
 import { useState, useEffect } from 'react'
 import './HoaDonChiTiet.scss'
 import axios from 'axios';
-import { 
-  FaUser, FaPhoneAlt, FaMapMarkerAlt, FaCalendarAlt, 
+import {
+  FaUser, FaPhoneAlt, FaMapMarkerAlt, FaCalendarAlt,
   FaIdCard, FaCreditCard, FaPrint, FaTimes, FaTag,
   FaBoxOpen, FaTruck, FaCheckCircle, FaTh, FaBan,
   FaExclamationTriangle, FaSpinner, FaClipboardList,
   FaShoppingCart, FaArrowLeft
 } from 'react-icons/fa';
 
-function HoaDonChiTiet ({ isOpen, onClose, idhoadon }) {
+function HoaDonChiTiet({ isOpen, onClose, idhoadon }) {
   const [hoadon, setHoadon] = useState(null);
   const [loading, setLoading] = useState(true);
 
@@ -87,7 +87,7 @@ function HoaDonChiTiet ({ isOpen, onClose, idhoadon }) {
         description: 'Đơn hàng đã bị hủy'
       }
     };
-    
+
     return statusMap[status] || {
       icon: <FaTh className="status-icon" />,
       class: '',
@@ -326,17 +326,19 @@ function HoaDonChiTiet ({ isOpen, onClose, idhoadon }) {
                     <td className="product-spec-hd">
                       {sanpham.mausac && (
                         <div className="color-indicator-hd">
-                          <div 
-                            className="color-dot-hd" 
-                            style={{backgroundColor: (
-                              // Chỉ một số màu cơ bản, có thể mở rộng thêm hoặc sử dụng hex codes trực tiếp
-                              sanpham.mausac.toLowerCase() === 'đen' ? '#000' :
-                              sanpham.mausac.toLowerCase() === 'trắng' ? '#fff' :
-                              sanpham.mausac.toLowerCase() === 'đỏ' ? '#e74c3c' :
-                              sanpham.mausac.toLowerCase() === 'xanh' ? '#3498db' :
-                              sanpham.mausac.toLowerCase() === 'vàng' ? '#f1c40f' :
-                              '#ddd'
-                            )}}
+                          <div
+                            className="color-dot-hd"
+                            style={{
+                              backgroundColor: (
+                                // Chỉ một số màu cơ bản, có thể mở rộng thêm hoặc sử dụng hex codes trực tiếp
+                                sanpham.mausac.toLowerCase() === 'đen' ? '#000' :
+                                  sanpham.mausac.toLowerCase() === 'trắng' ? '#fff' :
+                                    sanpham.mausac.toLowerCase() === 'đỏ' ? '#e74c3c' :
+                                      sanpham.mausac.toLowerCase() === 'xanh' ? '#3498db' :
+                                        sanpham.mausac.toLowerCase() === 'vàng' ? '#f1c40f' :
+                                          '#ddd'
+                              )
+                            }}
                           ></div>
                           {sanpham.mausac}
                         </div>
@@ -365,42 +367,36 @@ function HoaDonChiTiet ({ isOpen, onClose, idhoadon }) {
             <h3>Tổng kết đơn hàng</h3>
           </div>
           <div className="order-summary">
+            {/* Tạm tính */}
             <div className="summary-item">
               <span>Tạm tính:</span>
-              <span>{subtotal.toLocaleString()}₫</span>
+              <span>{(hoadon.subtotal || calculateSubtotal()).toLocaleString()}₫</span>
             </div>
-            
-            {discount > 0 && (
-              <div className="summary-item discount">
-                <span>Giảm giá:</span>
-                <span>-{discount.toLocaleString()}₫</span>
-              </div>
-            )}
 
-            {hoadon.magiamgia && (
-              <div className="summary-item coupon">
-                <span>Mã giảm giá:</span>
-                <span className="coupon-code">{hoadon.magiamgia}</span>
-              </div>
-            )}
-            
-            {/* Phí vận chuyển - giả sử đã bao gồm trong tổng tiền */}
+            {/* Phí vận chuyển */}
             <div className="summary-item">
               <span>Phí vận chuyển:</span>
               <span>{hoadon.phivanchuyen ? hoadon.phivanchuyen.toLocaleString() : 0}₫</span>
             </div>
-            
+
+            {/* Giảm giá */}
+            {hoadon.giamgia > 0 && (
+              <div className="summary-item discount">
+                <span>Giảm giá:</span>
+                <span>-{hoadon.giamgia.toLocaleString()}₫</span>
+              </div>
+            )}
             <div className="summary-divider"></div>
-            
+
             <div className="summary-item total">
               <span>Tổng cộng:</span>
               <span>{hoadon.tongtien.toLocaleString()}₫</span>
             </div>
-            
+
             <div className="payment-method">
               <span>Phương thức thanh toán:</span>
               <span className={hoadon.thanhtoan ? 'paid-status' : 'unpaid-status'}>
-                {hoadon.thanhtoan ? 'Đã thanh toán' : 'Chưa thanh toán'}
+                {hoadon.thanhtoan ? '✓ Đã thanh toán' : '✗ Chưa thanh toán'}
               </span>
             </div>
           </div>

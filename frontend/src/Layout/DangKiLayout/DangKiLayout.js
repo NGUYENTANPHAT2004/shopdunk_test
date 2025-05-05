@@ -71,8 +71,7 @@ function DangKiLayout() {
         
         <div className='login_right'>
           <div className='login_logo'>
-            <img src='/logo2.png' alt='logo' />
-            <h2>ĐĂNG KÝ TÀI KHOẢN</h2>
+         <h2>ĐĂNG KÝ TÀI KHOẢN</h2>
           </div>
 
           <div className='login_input'>

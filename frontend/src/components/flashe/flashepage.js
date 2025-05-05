@@ -298,32 +298,6 @@ const FlashSalePage = () => {
                     </div>
                   </div>
                 </Link>
-                <button 
-                  className={`add-to-cart-btn ${product.status !== 'available' || purchaseLoading[product._id] ? 'disabled' : ''}`}
-                  onClick={() => handleAddToCart(product)}
-                  disabled={product.status !== 'available' || purchaseLoading[product._id]}
-                >
-                  {purchaseLoading[product._id] ? (
-                    <>
-                      <FontAwesomeIcon icon={faSpinner} spin />
-                      <span>Đang xử lý...</span>
-                    </>
-                  ) : (
-                    <>
-                      <FontAwesomeIcon icon={faShoppingCart} />
-                      <span>
-                        {product.status === 'available' 
-                          ? 'Thêm vào giỏ hàng'
-                          : product.status === 'soldout'
-                            ? 'Hết hàng'
-                            : product.status === 'upcoming'
-                              ? 'Sắp có hàng'
-                              : 'Đã kết thúc'
-                        }
-                      </span>
-                    </>
-                  )}
-                </button>
               </div>
             ))}
           </div>

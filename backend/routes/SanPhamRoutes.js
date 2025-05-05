@@ -241,6 +241,40 @@ router.get('/search', async (req, res) => {
     });
   }
 });
+router.post('/check-products-valid', async (req, res) => {
+  try {
+    const { productIds } = req.body;
+    
+    if (!productIds || !Array.isArray(productIds)) {
+      return res.status(400).json({ message: 'Danh sách ID sản phẩm không hợp lệ' });
+    }
+    
+    const invalidProducts = [];
+    const validationResults = {};
+    
+    for (const productId of productIds) {
+      const product = await Sp.ChitietSp.findById(productId);
+      
+      if (!product || product.isDeleted) {
+        invalidProducts.push(productId);
+        validationResults[productId] = {
+          valid: false,
+          reason: !product ? 'Không tồn tại' : 'Đã bị xóa'
+        };
+      } else {
+        validationResults[productId] = { valid: true };
+      }
+    }
+    
+    res.json({
+      invalidProducts,
+      validationResults
+    });
+  } catch (error) {
+    console.error('Lỗi kiểm tra sản phẩm hợp lệ:', error);
+    res.status(500).json({ message: 'Lỗi server' });
+  }
+});
 // Thêm vào SanPhamRoutes.js
 router.get('/search-suggestions', async (req, res) => {
   try {

@@ -41,7 +41,6 @@ function Sidebar ({ activeTab }) {
     <div className={`sidebar_container ${istoggle ? 'open' : 'closed'}`}>
       <div className='sidebar_header'>
         <div className={`sidebar_logo ${istoggle ? 'show' : 'hide'}`}>
-          <h3>Logo</h3>
         </div>
         <div className='sidebar_toggle' onClick={() => setIstoggle(!istoggle)}>
           <FontAwesomeIcon icon={faBars} />

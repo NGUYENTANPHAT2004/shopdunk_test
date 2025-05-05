@@ -6,12 +6,14 @@ import PrivateRoute from './router/Privateroutes';
 import { useUserContext } from './context/Usercontext';
 
 function AppContent() {
-  const { isInitialized } = useUserContext();
+  const { isInitialized, checkAccountStatus } = useUserContext();
   
-  // Log trạng thái của Context khi component mount
   useEffect(() => {
     console.log('App mounted, UserContext initialized:', isInitialized);
-  }, [isInitialized]);
+    if (isInitialized) {
+      checkAccountStatus();
+    }
+  }, [isInitialized, checkAccountStatus]);
 
   return (
     <div className="App">

@@ -54,11 +54,11 @@ const publicRoutes = [
   { path: '/search/:keyword', component: TiemKiemTheoSDT},
   { path: '/san-pham', component: ProductPage},
   { path: '/chitietflashe/:tieude', component: ChiTietLayout },
+  { path: '/thanhcong', component: PaySuccess }
 ]
 
 // Route yêu cầu đăng nhập
 const userRoutes = [
-  { path: '/thanhcong', component: PaySuccess, adminOnly: false },
   { path: '/orders', component: LichSuDonHangLayout, adminOnly: false },
   { path: '/diem-thuong', component: UserPointsPage, adminOnly: false },
 ]

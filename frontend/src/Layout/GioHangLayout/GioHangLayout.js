@@ -291,6 +291,53 @@ function GioHangLayout() {
     }
   }, [])
 
+  const validateCartProducts = async () => {
+    const cartData = JSON.parse(localStorage.getItem('cart')) || [];
+
+    if (cartData.length === 0) return;
+
+    try {
+      const productIds = cartData.map(item => item.idsanpham);
+      const response = await fetch('http://localhost:3005/check-products-valid', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ productIds })
+      });
+
+      const data = await response.json();
+
+      if (data.invalidProducts.length > 0) {
+        const validCart = cartData.filter(item =>
+          !data.invalidProducts.includes(item.idsanpham)
+        );
+
+        localStorage.setItem('cart', JSON.stringify(validCart));
+        setCart(validCart);
+
+        alert(`${data.invalidProducts.length} sản phẩm trong giỏ hàng đã bị xóa hoặc ngừng kinh doanh. Giỏ hàng đã được cập nhật.`);
+        window.dispatchEvent(new Event('cartUpdated'));
+      }
+    } catch (error) {
+      console.error('Lỗi kiểm tra sản phẩm:', error);
+    }
+  };
+
+  // Sửa lại useEffect để gọi validate
+  useEffect(() => {
+    const initCart = async () => {
+      const cartData = JSON.parse(localStorage.getItem('cart')) || []
+      if (cartData.length > 0) {
+        await validateCartProducts();
+        callAPIsForEachObject(cartData)
+      } else {
+        setCart([])
+      }
+    }
+
+    initCart();
+  }, [])
+
+  // Sửa lại hàm callAPIsForEachObject
   const callAPIsForEachObject = async cartData => {
     try {
       const updatedData = await Promise.all(
@@ -301,16 +348,17 @@ function GioHangLayout() {
             );
 
             if (!response.ok) {
+              if (response.status === 404) {
+                return null;
+              }
               throw new Error(`Lỗi khi gọi API với ${item.idsanpham}`);
             }
 
             const productDetails = await response.json();
             console.log("Dữ liệu sản phẩm:", productDetails.name);
 
-            // Mảng chứa tất cả màu sắc
             let allMausac = [];
 
-            // Thu thập tất cả màu sắc từ tất cả dung lượng
             if (productDetails.dungluongs) {
               productDetails.dungluongs.forEach(dl => {
                 if (dl.mausac && dl.mausac.length > 0) {
@@ -325,12 +373,10 @@ function GioHangLayout() {
               });
             }
 
-            // Tìm dung lượng và màu sắc hiện tại
             let selectedDungluong = null;
             let selectedMausac = null;
             let selectedDungluongId = item.iddungluong;
 
-            // Nếu không có iddungluong, thử tìm từ idmausac
             if (!selectedDungluongId && item.idmausac) {
               const matchingColor = allMausac.find(ms => ms._id === item.idmausac);
               if (matchingColor) {
@@ -339,29 +385,24 @@ function GioHangLayout() {
               }
             }
 
-            // Nếu vẫn không có, sử dụng dung lượng đầu tiên
             if (!selectedDungluongId && productDetails.dungluongs && productDetails.dungluongs.length > 0) {
               selectedDungluongId = productDetails.dungluongs[0]._id;
               console.log(`Sử dụng dungluongId mặc định: ${selectedDungluongId}`);
             }
 
-            // Tìm dung lượng đã chọn
             if (selectedDungluongId && productDetails.dungluongs) {
               selectedDungluong = productDetails.dungluongs.find(dl => dl._id === selectedDungluongId);
             }
 
-            // Tìm màu sắc đã chọn
             if (selectedDungluong && item.idmausac) {
               selectedMausac = selectedDungluong.mausac?.find(ms => ms._id === item.idmausac);
             }
 
-            // Nếu không tìm thấy màu sắc, sử dụng màu đầu tiên của dung lượng
             if (selectedDungluong && (!selectedMausac) && selectedDungluong.mausac?.length > 0) {
               selectedMausac = selectedDungluong.mausac[0];
               console.log(`Sử dụng màu mặc định: ${selectedMausac.name}`);
             }
 
-            // Trả về item đã cập nhật
             return {
               ...item,
               soluong: item.soluong || 1,
@@ -374,19 +415,25 @@ function GioHangLayout() {
             };
           } catch (error) {
             console.error('Lỗi khi gọi API:', error);
-            return item; // Giữ nguyên item nếu có lỗi
+            return null;
           }
         })
       );
 
-      setCart(updatedData);
-      localStorage.setItem('cart', JSON.stringify(updatedData));
+      const validProducts = updatedData.filter(item => item !== null);
+
+      if (validProducts.length < cartData.length) {
+        alert('Một số sản phẩm đã không còn khả dụng và được xóa khỏi giỏ hàng.');
+        window.dispatchEvent(new Event('cartUpdated'));
+      }
+
+      setCart(validProducts);
+      localStorage.setItem('cart', JSON.stringify(validProducts));
     } catch (error) {
       console.error('Lỗi khi xử lý giỏ hàng:', error);
     }
   };
 
-  // Khi user nhấn nút tăng số lượng:
   const increaseQuantity = async (index) => {
     const newCart = [...cart];
     const product = newCart[index];
@@ -528,14 +575,21 @@ function GioHangLayout() {
       isProvinceValid && isDistrictValid && isWardValid;
   };
 
-  const handelOpenModalTT = () => {
+  const handelOpenModalTT = async () => {
+
+    await validateCartProducts();
+
+    const currentCart = JSON.parse(localStorage.getItem('cart')) || [];
+    if (currentCart.length === 0) {
+      alert('Giỏ hàng của bạn trống. Vui lòng thêm sản phẩm.');
+      return;
+    }
+
     if (validateAllFields()) {
-      setisOpenModaltt(true)
+      setisOpenModaltt(true);
     }
   }
 
-  // Calculate shipping fee when ward is selected
-  // Fixed shipping fee calculation with proper numeric types
   useEffect(() => {
     const calculateShippingFee = async () => {
       // Skip calculation if address is incomplete
@@ -1032,6 +1086,8 @@ function GioHangLayout() {
             magiamgia={magiamgia}
             sanphams={sanphams}
             userId={user?._id || null}
+            discountAmount={discountAmount}  
+            shippingFee={shippingFee}      
           />
         </>
       ) : (

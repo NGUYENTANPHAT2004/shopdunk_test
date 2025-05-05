@@ -177,16 +177,41 @@ const OrderDetails = ({
         ))}
       </ul>
 
+
       <div className="order-total">
         <div className="order-summary">
-          {selectedDonHang.magiamgia && (
+          {/* Tạm tính (tổng sản phẩm) */}
+          <div className="summary-item">
+            <span>Tạm tính:</span>
+            <span className="summary-value">
+              {selectedDonHang.subtotal.toLocaleString()}₫
+            </span>
+          </div>
+
+          {/* Phí vận chuyển - nếu có */}
+          {selectedDonHang.phivanchuyen > 0 && (
+            <div className="summary-item">
+              <span>Phí vận chuyển:</span>
+              <span className="summary-value">
+                {selectedDonHang.phivanchuyen.toLocaleString()}₫
+              </span>
+            </div>
+          )}
+
+          {/* Giảm giá - nếu có */}
+          {selectedDonHang.giamgia > 0 && (
             <div className="summary-item discount">
               <span>Giảm giá:</span>
-              <span>-{((selectedDonHang.giagoc || 0) - selectedDonHang.tongtien).toLocaleString()}₫</span>
+              <span className="summary-value discount-value">
+                -{selectedDonHang.giamgia.toLocaleString()}₫
+              </span>
             </div>
           )}
         </div>
-        <p><strong>Tổng cộng:</strong> <span className="total-price">{selectedDonHang.tongtien.toLocaleString()}₫</span></p>
+
+        <div className="final-total">
+          <p><strong>Tổng cộng:</strong> <span className="total-price">{selectedDonHang.tongtien.toLocaleString()}₫</span></p>
+        </div>
       </div>
 
       <div className="action-row">

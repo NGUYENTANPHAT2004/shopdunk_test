@@ -2,7 +2,7 @@ import React, { useEffect, useState, useCallback } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import './ChiTietLayout.scss'
 import axios from 'axios'
-
+import io from 'socket.io-client';
 import ListBlog from '../../components/ListBlog/ListBlog'
 import ThanhDinhHuong from '../../components/ThanhDinhHuong/ThanhDinhHuong'
 import ProductRating from '../../components/ProductRating/ProductRating'
@@ -156,6 +156,48 @@ const ChiTietLayout = () => {
       console.log('Đã hoàn thành việc lấy tồn kho');
     }
   }, [idsanpham, iddungluong, idmausac]);
+  
+  useEffect(() => {
+    // Khởi tạo socket mà không cần kiểm tra user
+    const socketInstance = io('http://localhost:3005/store', {
+      transports: ['websocket'],
+      reconnection: true
+    });
+    
+    console.log('Đang kết nối socket để lắng nghe cập nhật tồn kho...');
+    
+    // Khi kết nối thành công
+    socketInstance.on('connect', () => {
+      console.log('Socket đã kết nối thành công, ID:', socketInstance.id);
+    });
+    
+    // Lắng nghe sự kiện cập nhật tồn kho
+    socketInstance.on('stock_updated', (data) => {
+      console.log('Nhận được cập nhật tồn kho:', data);
+      
+      // Kiểm tra xem cập nhật có phải cho sản phẩm hiện tại không
+      if (data.productId === idsanpham && 
+          data.dungluongId === iddungluong && 
+          data.mausacId === idmausac) {
+        
+        console.log('Cập nhật số lượng trên màn hình...');
+        
+        // Cập nhật số lượng trong state
+        if (data.quantity === 0) {
+          setQuantity('Hết hàng');
+        } else {
+          setQuantity(data.quantity);
+        }
+      }
+    });
+    
+    // Dọn dẹp khi unmount
+    return () => {
+      console.log('Ngắt kết nối socket');
+      socketInstance.off('stock_updated');
+      socketInstance.disconnect();
+    };
+  }, [idsanpham, iddungluong, idmausac, dungluong1, mausac1]); 
 
   // Fetch technical specifications
   const fetchTechSpecs = useCallback(async () => {
@@ -844,12 +886,6 @@ const ChiTietLayout = () => {
                         <tr className="odd-row">
                           <td className="spec-name">Hãng sản xuất</td>
                           <td className="spec-value">{techSpecs.hang}</td>
-                        </tr>
-                      )}
-                      {techSpecs.thongtin && (
-                        <tr className="even-row">
-                          <td className="spec-name">Thông tin khác</td>
-                          <td className="spec-value">{techSpecs.thongtin}</td>
                         </tr>
                       )}
                     </tbody>

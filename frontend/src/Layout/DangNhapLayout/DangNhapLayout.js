@@ -79,7 +79,6 @@ function DangNhap() {
 
         <div className='login_right'>
           <div className='login_logo'>
-            <img src='/logo2.png' alt='logo' />
             <h2>ĐĂNG NHẬP TÀI KHOẢN</h2>
           </div>
 
@@ -115,7 +114,7 @@ function DangNhap() {
             </div>
           </div>
           <div className='login_button'>
-            <button onClick={handleRegister}>Đăng Ký</button>
+            <button onClick={handleRegister}>Đăng Nhập</button>
           </div>
           <div className="social-login">
             <FacebookLogin

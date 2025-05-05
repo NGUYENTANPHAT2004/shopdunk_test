@@ -8,12 +8,13 @@ import { faStar as solidStar, faTrash, faReceipt, faExclamationTriangle, faTimes
 import { faStar as regularStar } from '@fortawesome/free-regular-svg-icons';
 import ProductRating from '../../components/ProductRating/ProductRating';
 import OrderDetails from './OrderDeatails';
+import io from 'socket.io-client';
 
 function LichSuDonHangLayout() {
   const { user } = useUserContext();
   const [donHangs, setDonHangs] = useState([]);
   const [selectedDonHang, setSelectedDonHang] = useState(null);
-  const [rating, setRating] = useState(null); // Changed from 0 to null
+  const [rating, setRating] = useState(null);
   const [comment, setComment] = useState('');
   const [showRatingModal, setShowRatingModal] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState(null);
@@ -26,6 +27,154 @@ function LichSuDonHangLayout() {
   const [ratingModalOpen, setRatingModalOpen] = useState(false);
   const [ratingError, setRatingError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [socket, setSocket] = useState(null);
+
+  useEffect(() => {
+    // Định nghĩa hàm fetchOrders ở đây để có thể gọi lại
+    const fetchOrders = async () => {
+      if (!user?._id) {
+        setLoading(false);
+        return;
+      }
+  
+      try {
+        setLoading(true);
+        const response = await axios.post('http://localhost:3005/gethoadonuser', {
+          userId: user._id,
+        });
+        const filteredOrders = response.data.hoadons?.filter(order => !order.isDeleted) || [];
+        setDonHangs(filteredOrders);
+        setError(null);
+      } catch (error) {
+        console.error('Lỗi khi lấy lịch sử đơn hàng:', error);
+        setError('Không thể tải lịch sử đơn hàng. Vui lòng thử lại sau.');
+      } finally {
+        setLoading(false);
+      }
+    };
+  
+    // Socket connection logic
+    if (user?._id) {
+      console.log('🔌 Khởi tạo socket với userId:', user._id);
+      
+      const socketInstance = io('http://localhost:3005/store', {
+        query: { userId: user._id },
+        transports: ['websocket'],
+        reconnection: true,
+        reconnectionAttempts: 5,
+        reconnectionDelay: 1000,
+      });
+      
+      setSocket(socketInstance);
+      
+      // Xử lý khi kết nối thành công
+      socketInstance.on('connect', () => {
+        console.log('✅ Socket connected successfully, ID:', socketInstance.id);
+        
+        // Đăng ký user
+        socketInstance.emit('register_user', { 
+          userId: user._id,
+          phone: user.phone 
+        });
+        
+        // Join room cụ thể của user
+        socketInstance.emit('join', `user_${user._id}`);
+        console.log(`📢 Joined room: user_${user._id}`);
+      });
+      
+      // Xử lý lỗi kết nối
+      socketInstance.on('connect_error', (error) => {
+        console.error('❌ Socket connection error:', error);
+      });
+      
+      // Xử lý khi bị disconnect
+      socketInstance.on('disconnect', (reason) => {
+        console.log('❌ Socket disconnected:', reason);
+        if (reason === 'io server disconnect') {
+          // Server disconnect socket, cần kết nối lại thủ công
+          socketInstance.connect();
+        }
+      });
+      
+      // Lắng nghe sự kiện thay đổi trạng thái đơn hàng
+      socketInstance.on('order_status_changed', (data) => {
+        console.log('🔔 Đơn hàng thay đổi trạng thái:', data);
+        
+        // Cập nhật state donHangs
+        setDonHangs(prevOrders => 
+          prevOrders.map(order => {
+            if (order._id === data.orderId) {
+              console.log(`📝 Updating order ${data.orderId}: ${data.oldStatus} -> ${data.newStatus}`);
+              return { 
+                ...order, 
+                trangthai: data.newStatus, 
+                thanhtoan: data.paymentStatus 
+              };
+            }
+            return order;
+          })
+        );
+        
+        // Cập nhật selectedDonHang nếu đang xem chi tiết đơn hàng này
+        if (selectedDonHang && selectedDonHang._id === data.orderId) {
+          setSelectedDonHang(prev => ({
+            ...prev,
+            trangthai: data.newStatus,
+            thanhtoan: data.paymentStatus
+          }));
+        }
+        
+        // Hiển thị thông báo nếu trạng thái thay đổi
+        if (data.oldStatus !== data.newStatus) {
+          // Có thể dùng toast notification thay vì alert
+          alert(`Đơn hàng ${data.maHDL} đã chuyển từ "${data.oldStatus}" sang "${data.newStatus}"`);
+        }
+      });
+      
+      // Lắng nghe sự kiện broadcast (cho tất cả orders)
+      socketInstance.on('order_status_updated', (data) => {
+        console.log('📢 Broadcast order update received:', data);
+        
+        // Kiểm tra xem đơn hàng có thuộc về user hiện tại không
+        const myOrder = donHangs.find(order => order._id === data.orderId);
+        if (myOrder) {
+          setDonHangs(prevOrders => 
+            prevOrders.map(order => {
+              if (order._id === data.orderId) {
+                return { 
+                  ...order, 
+                  trangthai: data.status, 
+                  thanhtoan: data.paymentStatus 
+                };
+              }
+              return order;
+            })
+          );
+        }
+      });
+      
+      // Lắng nghe sự kiện cập nhật danh sách đơn hàng
+      socketInstance.on('order_list_updated', (data) => {
+        console.log('📋 Order list update signal received');
+        fetchOrders(); // Gọi hàm fetchOrders được định nghĩa ở trên
+      });
+      
+      // Cleanup khi component unmount
+      return () => {
+        console.log('🔌 Cleaning up socket connection');
+        if (socketInstance) {
+          socketInstance.off('order_status_changed');
+          socketInstance.off('order_status_updated');
+          socketInstance.off('order_list_updated');
+          socketInstance.disconnect();
+        }
+      };
+    } else {
+      console.log('⚠️ No user ID available for socket connection');
+    }
+    fetchOrders();
+    
+  }, [user]); 
 
   useEffect(() => {
     const fetchData = async () => {
@@ -39,7 +188,6 @@ function LichSuDonHangLayout() {
         const response = await axios.post('http://localhost:3005/gethoadonuser', {
           userId: user._id,
         });
-        // Filter out any orders that might be marked as isDeleted
         const filteredOrders = response.data.hoadons?.filter(order => !order.isDeleted) || [];
         setDonHangs(filteredOrders);
         setError(null);
@@ -59,14 +207,12 @@ function LichSuDonHangLayout() {
       setLoading(true);
       const response = await axios.get(`http://localhost:3005/getchitiethd/${idhoadon}`);
       
-      // Kiểm tra response trước khi xử lý
       if (!response.data || !response.data.hoadonsanpham || !Array.isArray(response.data.hoadonsanpham)) {
         console.error('Dữ liệu không hợp lệ từ API:', response.data);
         throw new Error('Dữ liệu đơn hàng không hợp lệ');
       }
       
       try {
-        // Nếu đơn hàng có sản phẩm, kiểm tra trạng thái đánh giá cho từng sản phẩm trong đơn hàng này
         if (response.data.hoadonsanpham.length > 0) {
           const ratingStatusPromises = response.data.hoadonsanpham.map(product => 
             axios.get(`http://localhost:3005/order-rating/check`, {
@@ -77,13 +223,12 @@ function LichSuDonHangLayout() {
               }
             }).catch(err => {
               console.warn(`Không thể kiểm tra trạng thái đánh giá cho sản phẩm ${product.idsp}:`, err);
-              return { data: { hasRated: false } }; // Giá trị mặc định nếu API lỗi
+              return { data: { hasRated: false } };
             })
           );
           
           const ratingResults = await Promise.all(ratingStatusPromises);
           
-          // Cập nhật trạng thái đánh giá cho từng sản phẩm trong đơn hàng hiện tại
           response.data.hoadonsanpham = response.data.hoadonsanpham.map((product, index) => {
             return {
               ...product,
@@ -94,7 +239,6 @@ function LichSuDonHangLayout() {
         }
       } catch (ratingErr) {
         console.error('Lỗi khi kiểm tra trạng thái đánh giá:', ratingErr);
-        // Vẫn tiếp tục hiển thị đơn hàng ngay cả khi không thể kiểm tra trạng thái đánh giá
       }
       
       setSelectedDonHang(response.data);
@@ -113,7 +257,6 @@ function LichSuDonHangLayout() {
       });
       alert('Đơn hàng đã được xác nhận hoàn thành');
       setSelectedDonHang(null);
-      // Reload lại danh sách
       refreshOrderList();
     } catch (error) {
       console.error('Lỗi xác nhận đơn:', error);
@@ -126,7 +269,6 @@ function LichSuDonHangLayout() {
       const refreshed = await axios.post('http://localhost:3005/gethoadonuser', {
         userId: user._id,
       });
-      // Filter out any deleted orders
       const filteredOrders = refreshed.data.hoadons?.filter(order => !order.isDeleted) || [];
       setDonHangs(filteredOrders);
     } catch (error) {
@@ -134,46 +276,42 @@ function LichSuDonHangLayout() {
     }
   };
 
-  // Xác nhận trước khi hủy đơn hàng
   const confirmCancelOrder = (idhoadon) => {
     setCancelOrderId(idhoadon);
     setShowCancelConfirm(true);
   };
 
-  // Xử lý hủy đơn hàng
   const handleCancelOrder = async () => {
     if (!cancelOrderId) return;
     
     try {
       setLoading(true);
+      
+      const checkResponse = await axios.get(`http://localhost:3005/getchitiethd/${cancelOrderId}`);
+      const currentStatus = checkResponse.data.trangthai;
+      
+      const cancellableStatuses = ['Đang xử lý', 'Đã thanh toán'];
+      
+      if (!cancellableStatuses.includes(currentStatus)) {
+        alert(`Không thể hủy đơn hàng ở trạng thái "${currentStatus}"`);
+        await refreshOrderList();
+        setShowCancelConfirm(false);
+        setCancelOrderId(null);
+        return;
+      }
+      
       await axios.post(`http://localhost:3005/settrangthai/${cancelOrderId}`, {
         trangthai: 'Hủy Đơn Hàng',
       });
       
-      // Cập nhật đơn hàng trên giao diện
-      setDonHangs(prevDonHangs => 
-        prevDonHangs.map(order => 
-          order._id === cancelOrderId 
-            ? {...order, trangthai: 'Hủy Đơn Hàng'} 
-            : order
-        )
-      );
-      
-      // Nếu đang xem chi tiết đơn hàng bị hủy, đóng chi tiết
-      if (selectedDonHang && selectedDonHang._id === cancelOrderId) {
-        setSelectedDonHang(null);
-      }
-      
-      // Đóng cửa sổ xác nhận
       setShowCancelConfirm(false);
       setCancelOrderId(null);
-      
       alert('Đơn hàng đã được hủy thành công');
-      refreshOrderList();
       
     } catch (error) {
       console.error('Lỗi hủy đơn hàng:', error);
       alert('Có lỗi xảy ra khi hủy đơn hàng.');
+      await refreshOrderList();
     } finally {
       setLoading(false);
     }
@@ -193,15 +331,12 @@ function LichSuDonHangLayout() {
         ids: [deleteOrderId]
       });
       
-      // Immediately remove the deleted order from the state
       setDonHangs(prevDonHangs => prevDonHangs.filter(order => order._id !== deleteOrderId));
       
-      // If we're deleting the currently viewed order, close the detail view
       if (selectedDonHang && selectedDonHang._id === deleteOrderId) {
         setSelectedDonHang(null);
       }
       
-      // Close the dialog and reset state
       setShowDeleteConfirm(false);
       setDeleteOrderId(null);
       
@@ -215,7 +350,6 @@ function LichSuDonHangLayout() {
     }
   };
 
-  // Hàm kiểm tra xem sản phẩm đã được đánh giá chưa (trong đơn hàng cụ thể)
   const checkRatingStatus = async (product, orderId) => {
     try {
       const response = await axios.get(`http://localhost:3005/order-rating/check`, {
@@ -233,16 +367,13 @@ function LichSuDonHangLayout() {
     }
   };
 
-  // UPDATED: improved opening of rating modal
   const openRatingModal = async (product) => {
     try {
-      // Check if product data is valid
       if (!product || !product.idsp) {
         alert('Thông tin sản phẩm không hợp lệ');
         return;
       }
       
-      // Check if the product has already been rated for this order
       const response = await axios.get(`http://localhost:3005/order-rating/check`, {
         params: {
           userId: user._id,
@@ -256,16 +387,12 @@ function LichSuDonHangLayout() {
         return;
       }
       
-      // Set the selected product
       setSelectedProduct(product);
-      
-      // Reset rating state properly - ensure it's null, not 0
       setRating(null);
       setComment('');
       setRatingError('');
       setRatingModalOpen(true);
       
-      // Log for debugging
       console.log('Opening rating modal for product:', product);
     } catch (error) {
       console.error('Lỗi kiểm tra trạng thái đánh giá:', error);
@@ -275,21 +402,18 @@ function LichSuDonHangLayout() {
   
   const closeRatingModal = () => {
     setSelectedProduct(null);
-    setRating(null); // Changed from 0 to null
+    setRating(null);
     setComment('');
     setRatingError('');
     setRatingModalOpen(false);
   };
 
-  // UPDATED: enhanced submit rating function
   const submitRating = async () => {
-    // Enhanced validation
     if (!selectedProduct) {
       setRatingError('Không tìm thấy thông tin sản phẩm');
       return;
     }
     
-    // Explicitly check that rating is a number between 1-5
     if (!rating || typeof rating !== 'number' || rating < 1 || rating > 5) {
       setRatingError('Vui lòng chọn số sao đánh giá (1-5 sao)');
       return;
@@ -299,7 +423,6 @@ function LichSuDonHangLayout() {
       setIsSubmitting(true);
       setRatingError('');
       
-      // Log what's being sent for debugging
       console.log('Submitting rating data:', {
         productId: selectedProduct.idsp,
         rating: rating,
@@ -314,7 +437,7 @@ function LichSuDonHangLayout() {
         productImage: selectedProduct.image || '',
         tenkhach: user.tenkhach || user.username || 'Khách hàng',
         content: comment,
-        rating: rating, // This is now a valid number 1-5
+        rating: rating,
         dungluong: selectedProduct.dungluong || '',
         mausac: selectedProduct.mausac || '',
         verified: true
@@ -324,7 +447,6 @@ function LichSuDonHangLayout() {
         alert('Cảm ơn bạn đã đánh giá sản phẩm!');
         closeRatingModal();
         
-        // Refresh the order details to show updated rating status
         if (selectedDonHang) {
           handleXemChiTiet(selectedDonHang._id);
         }
@@ -343,9 +465,7 @@ function LichSuDonHangLayout() {
     }
   };
 
-  // Kiểm tra xem sản phẩm có đủ điều kiện đánh giá không (đơn hàng hoàn thành và chưa đánh giá)
   const canRateProduct = (product, order) => {
-    // Chỉ cho phép đánh giá nếu đơn hàng đã hoàn thành hoặc đã giao
     const eligibleStatuses = ['Hoàn thành', 'Đã nhận'];
     return eligibleStatuses.includes(order.trangthai) && !product.hasRated;
   };
@@ -368,14 +488,12 @@ function LichSuDonHangLayout() {
     }
   };
 
-  // Kiểm tra đơn hàng có thể hủy không (đang xử lý, chưa thanh toán hoặc mới thanh toán)
   const canCancelOrder = (order) => {
     const cancellableStatuses = [
       'Đang xử lý',
       'Đã thanh toán'
     ];
     
-    // Không cho phép hủy đơn hàng đã hoàn thành hoặc đã hủy
     const nonCancellableStatuses = [
       'Hoàn thành',
       'Đã nhận', 
@@ -388,7 +506,6 @@ function LichSuDonHangLayout() {
            !nonCancellableStatuses.includes(order.trangthai);
   };
 
-  // Check if the order is eligible for deletion (not completed or paid)
   const canDeleteOrder = (order) => {
     const deletableStatuses = [
       'Hủy Đơn Hàng',
@@ -396,7 +513,6 @@ function LichSuDonHangLayout() {
       'Thanh toán hết hạn'
     ];
     
-    // Đơn hàng đã hủy, thanh toán thất bại hoặc hết hạn có thể xóa
     return deletableStatuses.includes(order.trangthai) || !order.thanhtoan;
   };
 
@@ -491,11 +607,10 @@ function LichSuDonHangLayout() {
           handleRating={openRatingModal}
           canRateProduct={canRateProduct}
           getStatusClass={getStatusClass}
-          user={user} // Thêm prop user vào đây
+          user={user}
         />
       )}
 
-      {/* Modal xác nhận hủy đơn hàng */}
       {showCancelConfirm && (
         <div className="confirm-modal">
           <div className="confirm-content">
@@ -510,7 +625,6 @@ function LichSuDonHangLayout() {
         </div>
       )}
 
-      {/* Modal xác nhận xóa đơn hàng */}
       {showDeleteConfirm && (
         <div className="confirm-modal">
           <div className="confirm-content">

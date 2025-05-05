@@ -137,8 +137,33 @@ function HoaDonLayout() {
     
     setSelectAll(!selectAll);
   }, [selectAll, filteredOrders, currentPage, itemsPerPage]);
-  
-  // Xử lý chọn một item
+
+  const getValidNextStatuses = (currentStatus, isPaid) => {
+    const statusFlow = {
+      // Đơn hàng mới tạo, chưa thanh toán
+      'Đang xử lý': !isPaid ? 
+        ['Đã thanh toán', 'Thanh toán thất bại', 'Thanh toán hết hạn', 'Hủy Đơn Hàng'] : 
+        ['Đang vận chuyển', 'Hủy Đơn Hàng'], // Khi đã thanh toán, có thể chuyển sang vận chuyển hoặc hủy
+      
+      // Vừa thanh toán xong
+      'Đã thanh toán': ['Đang xử lý', 'Hủy Đơn Hàng'], // Sau khi thanh toán thì chuyển sang Đang xử lý
+      
+      // Các trạng thái tiếp theo
+      'Đang vận chuyển': ['Đã nhận'],
+      'Đã nhận': ['trạng thái đã nhận không thể chuyển sang trạng thái khác'], 
+      'Hoàn thành': ['trạng thái này chỉ người dùng mới có thể xác thực'],
+      
+      // Các trạng thái kết thúc
+      'Thanh toán thất bại': [],
+      'Thanh toán hết hạn': [],
+      'Hủy Đơn Hàng': [],
+      'Trả hàng/Hoàn tiền': []
+    };
+    
+    return statusFlow[currentStatus] || [];
+  };
+
+
   const handleSelectItem = useCallback((id) => {
     setSelectedIds(prev => {
       if (prev.includes(id)) {
@@ -167,7 +192,6 @@ function HoaDonLayout() {
     return items.slice(startIndex, endIndex);
   }
   
-  // Hàm xử lý thay đổi trạng thái đơn hàng
   const handleStatusChange = useCallback(async (id, value) => {
     try {
       setIsLoading(true);
@@ -177,80 +201,44 @@ function HoaDonLayout() {
         throw new Error('Không tìm thấy đơn hàng');
       }
       
-      // Kiểm tra logic nghiệp vụ
-      if (currentOrder.trangthai === 'Thanh toán thất bại') {
-        throw new Error('Không thể thay đổi trạng thái của đơn hàng thanh toán thất bại');
-      }
-      if (currentOrder.trangthai === 'Thanh toán hết hạn') {
-        throw new Error('Không thể thay đổi trạng thái của đơn hàng thanh toán hết hạn');
-      }
-      if (currentOrder.trangthai === 'Hủy Đơn Hàng' && value !== 'Hủy Đơn Hàng') {
-        throw new Error('Không thể thay đổi trạng thái của đơn hàng đã hủy');
-      }
-      if (value === 'Hủy Đơn Hàng' && 
-          (currentOrder.trangthai === 'Đã nhận' || currentOrder.trangthai === 'Hoàn thành')) {
-        throw new Error('Không thể hủy đơn hàng đã hoàn thành');
-      }
-      if (currentOrder.trangthai === 'Hoàn thành' && 
-          (value === 'Thanh toán thất bại' || value === 'Thanh toán hết hạn' || 
-           value === 'Đang xử lý' || value === 'Đã thanh toán' || 
-           value === 'Đang vận chuyển' || value === 'Đã nhận')) {
-        throw new Error('Không thể thay đổi trạng thái của đơn hàng đã hoàn thành');
-      }
-      if (currentOrder.trangthai === 'Đã nhận' && 
-          (value === 'Thanh toán thất bại' || value === 'Thanh toán hết hạn' || 
-           value === 'Đang xử lý' || value === 'Đã thanh toán' || 
-           value === 'Đang vận chuyển')) {
-        throw new Error('Không thể thay đổi trạng thái của đơn hàng đã nhận');
-      }
-      if (currentOrder.trangthai === 'Đã thanh toán' && 
-          (value === 'Thanh toán thất bại' || value === 'Thanh toán hết hạn' || value === 'Hủy Đơn Hàng')) {
-        throw new Error('Không thể chuyển đơn hàng đã thanh toán sang trạng thái thanh toán thất bại, hết hạn hoặc hủy đơn hàng');
-      }
-
-      // Xác định giá trị mặc định dựa trên trạng thái hiện tại
-      let defaultValues = {};
+      // Kiểm tra xem trạng thái mới có hợp lệ không
+      const validNextStatuses = getValidNextStatuses(currentOrder.trangthai, currentOrder.thanhtoan);
       
-      if (currentOrder.thanhtoan) {
-        if (value === 'Đang vận chuyển') {
-          defaultValues = { trangthai: 'Đang vận chuyển', thanhtoan: true };
-        } else if (value === 'Đã nhận') {
-          defaultValues = { trangthai: 'Đã nhận', thanhtoan: true };
-        } else if (value === 'Hoàn thành') {
-          defaultValues = { trangthai: 'Hoàn thành', thanhtoan: true };
-        }
+      if (!validNextStatuses.includes(value)) {
+        throw new Error(`Không thể chuyển từ "${currentOrder.trangthai}" sang "${value}". Các trạng thái hợp lệ: ${validNextStatuses.join(', ')}`);
       }
       
-      if (!currentOrder.thanhtoan) {
-        if (value === 'Đã thanh toán') {
-          defaultValues = { trangthai: 'Đã thanh toán', thanhtoan: true };
-        } else if (value === 'Thanh toán thất bại') {
-          defaultValues = { trangthai: 'Thanh toán thất bại', thanhtoan: false };
-        } else if (value === 'Thanh toán hết hạn') {
-          defaultValues = { trangthai: 'Thanh toán hết hạn', thanhtoan: false };
-        }
+      // Xác định giá trị mặc định dựa trên trạng thái
+      let defaultValues = { trangthai: value };
+      
+      // Tự động set thanhtoan dựa trên trạng thái
+      if (value === 'Đã thanh toán') {
+        defaultValues.thanhtoan = true;
+      } else if (value === 'Thanh toán thất bại' || value === 'Thanh toán hết hạn') {
+        defaultValues.thanhtoan = false;
+      } else {
+        defaultValues.thanhtoan = currentOrder.thanhtoan;
       }
       
+      // Xác nhận hủy đơn
       if (value === 'Hủy Đơn Hàng') {
         if (!window.confirm('Bạn có chắc chắn muốn hủy đơn hàng này không?')) {
           setIsLoading(false);
           return;
         }
-        defaultValues = { trangthai: 'Hủy Đơn Hàng', thanhtoan: currentOrder.thanhtoan };
       }
-
+  
       const response = await fetch(`http://localhost:3005/settrangthai/${id}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ trangthai: value, ...defaultValues })
+        body: JSON.stringify(defaultValues)
       });
-
+  
       if (!response.ok) {
         const errorData = await response.json();
         throw new Error(errorData.message || 'Có lỗi xảy ra khi cập nhật trạng thái');
       }
       
-      // Cập nhật lại danh sách đơn hàng sau khi thay đổi trạng thái
       await fetchOrders();
     } catch (error) {
       console.error(error);
@@ -259,6 +247,20 @@ function HoaDonLayout() {
       setIsLoading(false);
     }
   }, [allOrders, fetchOrders]);
+  const getStatusIcon = (status) => {
+    const icons = {
+      'Đang xử lý': '🕒',
+      'Đã thanh toán': '💳',
+      'Đang vận chuyển': '🚚',
+      'Đã nhận': '✅',
+      'Hoàn thành': '✨',
+      'Thanh toán thất bại': '❌',
+      'Thanh toán hết hạn': '⏰',
+      'Hủy Đơn Hàng': '🗑️',
+      'Trả hàng/Hoàn tiền': '↩️'
+    };
+    return icons[status] || '';
+  };
   
   // Kiểm tra xem đơn hàng có thể thay đổi trạng thái không
   const canChangeStatus = useCallback((order) => {

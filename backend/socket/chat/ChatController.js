@@ -243,7 +243,7 @@ const callGroqAPI = async (message) => {
         messages: [
           {
             role: "system",
-            content: "Bạn là trợ lý AI thân thiện của Shopdunk.Luôn trả lời bằng tiếng Việt, văn phong ngắn gọn, lịch sự và dễ hiểu.Bạn có thể trả lời các câu hỏi không liên quan đến sản phẩm, miễn sao vẫn duy trì giọng điệu chuyên nghiệp và thân thiện."
+            content: "Bạn là trợ lý AI thân thiện của BeePhone. 1 website bán điện thoại apple ,Luôn trả lời bằng tiếng Việt, văn phong ngắn gọn, lịch sự và dễ hiểu.Bạn có thể trả lời các câu hỏi không liên quan đến sản phẩm, miễn sao vẫn duy trì giọng điệu chuyên nghiệp và thân thiện."
           },
           {
             role: "user",

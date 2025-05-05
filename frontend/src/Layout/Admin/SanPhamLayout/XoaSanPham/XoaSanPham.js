@@ -2,7 +2,7 @@ import { Modal } from '../../../../components/Modal'
 import { MdDeleteForever } from 'react-icons/md'
 import { MdCancelPresentation } from 'react-icons/md'
 
-function XoaSanPham ({ isOpen, onClose, idsanpham, fetchdata, setSelectedIds }) {
+function XoaSanPham ({ isOpen, onClose, idsanpham, fetchData, setSelectedIds }) {
   const handleXoaSanPham = async () => {
     try {
       const response = await fetch(
@@ -17,16 +17,22 @@ function XoaSanPham ({ isOpen, onClose, idsanpham, fetchdata, setSelectedIds }) 
           })
         }
       )
-      if (response.ok) {
-        onClose()
-        setSelectedIds([])
-        fetchdata()
-        alert('Xóa thành công!')
+      
+      if (!response.ok) {
+        throw new Error('Lỗi khi xóa sản phẩm');
       }
+      
+      await fetchData();
+      
+      setSelectedIds([]);
+      onClose();
+      alert('Xóa thành công!');
     } catch (error) {
-      console.error('lỗi xóa sản phẩm:', error)
+      console.error('Lỗi xóa sản phẩm:', error);
+      alert('Có lỗi xảy ra khi xóa sản phẩm');
     }
   }
+  
   return (
     <Modal isOpen={isOpen} onClose={onClose}>
       <div>

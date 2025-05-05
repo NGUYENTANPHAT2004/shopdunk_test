@@ -237,5 +237,98 @@ router.put('/auth/updateRole/:id', async (req, res) => {
     res.status(500).json({ message: 'Lỗi server' });
   }
 });
+router.put('/auth/updateStatus/:id', async (req, res) => {
+  try {
+    const { status } = req.body;
+    const userId = req.params.id;
+
+    const userBefore = await User.User.findById(userId);
+    const updatedUser = await User.User.findByIdAndUpdate(
+      userId,
+      { 
+        status,
+        lastStatusUpdate: new Date() // Thêm thời gian cập nhật
+      },
+      { new: true }
+    );
+
+    if (!updatedUser) {
+      return res.status(404).json({ message: 'Không tìm thấy người dùng' });
+    }
+
+    // Ghi log khi trạng thái thay đổi
+    if (userBefore.status !== status) {
+      console.log(`[${new Date().toISOString()}] User ${userId} status changed from ${userBefore.status} to ${status}`);
+    }
+
+    res.json({ message: 'Cập nhật trạng thái thành công', user: updatedUser });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: 'Lỗi server' });
+  }
+});
+
+// Cập nhật route checkStatus để xử lý token hết hạn
+router.get('/auth/checkStatus', async (req, res) => {
+  try {
+    const token = req.headers.authorization?.split(' ')[1];
+    
+    if (!token) {
+      return res.status(401).json({ 
+        message: 'Token không được cung cấp',
+        forceLogout: true 
+      });
+    }
+    
+    // Giải mã token với xử lý lỗi
+    let decoded;
+    try {
+      decoded = jwt.verify(token, jwtSecret);
+    } catch (tokenError) {
+      console.log('Token error:', tokenError.name);
+      // Xử lý token hết hạn
+      if (tokenError.name === 'TokenExpiredError') {
+        return res.status(401).json({ 
+          message: 'Phiên đăng nhập đã hết hạn, vui lòng đăng nhập lại',
+          forceLogout: true,
+          expired: true
+        });
+      }
+      
+      // Các lỗi token khác
+      return res.status(401).json({ 
+        message: 'Token không hợp lệ',
+        forceLogout: true 
+      });
+    }
+    
+    // Tiếp tục kiểm tra nếu token hợp lệ
+    const user = await User.User.findById(decoded.id);
+    
+    if (!user) {
+      return res.status(404).json({ 
+        message: 'Người dùng không tồn tại', 
+        forceLogout: true 
+      });
+    }
+    
+    // Kiểm tra trạng thái
+    if (user.status === 'inactive') {
+      console.log(`[${new Date().toISOString()}] Inactive user ${user._id} (${user.username}) attempted access`);
+      return res.status(403).json({ 
+        message: 'Tài khoản của bạn đã bị vô hiệu hóa', 
+        forceLogout: true 
+      });
+    }
+    
+    res.json({ 
+      status: user.status, 
+      valid: true 
+    });
+  } catch (error) {
+    console.error('Error checking user status:', error);
+    return res.status(500).json({ message: 'Lỗi server' });
+  }
+});
 
 module.exports = router;

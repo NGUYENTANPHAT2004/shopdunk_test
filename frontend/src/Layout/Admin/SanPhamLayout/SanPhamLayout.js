@@ -247,7 +247,7 @@ function SanPhamLayout ({ isOpen, onClose, idtheloai }) {
         isOpen={isOpenThem}
         onClose={() => setIsOpenThem(false)}
         idtheloai={idtheloai}
-        fetchData={fetchdata}
+        fetchdata={fetchdata}
       />
       <UpdateSanPham
         isOpen={isOpenEdit}

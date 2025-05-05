@@ -135,6 +135,7 @@ router.post('/stock/add', async (req, res) => {
     let existingStock = await ProductSizeStock.findOne({ productId, dungluongId, mausacId });
 
     if (!existingStock) {
+      // Trường hợp 1: Chưa có tồn kho, tạo mới
       const sku = `${productId}-${dungluongId || 'default'}-${mausacId || 'default'}`;
       const newStock = new ProductSizeStock({
         productId,
@@ -144,10 +145,47 @@ router.post('/stock/add', async (req, res) => {
         sku
       });
       await newStock.save();
+      
+      // Lấy thông tin sản phẩm để hiển thị trong thông báo
+      const productInfo = await ChitietSp.ChitietSp.findById(productId);
+      
+      // Phát sự kiện cập nhật tồn kho
+      const io = require('../config/socket').getIo();
+      if (io) {
+        io.of('/store').emit('stock_updated', {
+          productId,
+          dungluongId,
+          mausacId,
+          quantity,
+          productName: productInfo ? productInfo.name : 'Sản phẩm',
+          timestamp: new Date().toISOString()
+        });
+      }
+      
       return res.status(201).json({ message: "Thêm tồn kho thành công", stock: newStock });
     } else {
+      // Trường hợp 2: Đã có tồn kho, cập nhật số lượng
+      const previousQuantity = existingStock.quantity;
       existingStock.quantity = quantity;
       await existingStock.save();
+      
+      // Lấy thông tin thêm cho thông báo
+      const productInfo = await ChitietSp.ChitietSp.findById(productId);
+      
+      // Phát sự kiện cập nhật tồn kho
+      const io = require('../config/socket').getIo();
+      if (io) {
+        io.of('/store').emit('stock_updated', {
+          productId,
+          dungluongId,
+          mausacId,
+          quantity,
+          previousQuantity,
+          productName: productInfo ? productInfo.name : 'Sản phẩm',
+          timestamp: new Date().toISOString()
+        });
+      }
+      
       return res.status(200).json({ message: "Số lượng tồn kho đã được điều chỉnh", stock: existingStock });
     }
   } catch (error) {

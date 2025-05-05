@@ -105,11 +105,11 @@ function DoanhThuLayout() {
         default:
           url = '/getdoanhthu';
       }
-
+  
       const res = await axios.get(
         `http://localhost:3005${url}?startDate=${startDate}&endDate=${endDate}`
       );
-
+  
       // Handle different data types based on selected option
       switch (selectedOption) {
         case 'doanhthu':

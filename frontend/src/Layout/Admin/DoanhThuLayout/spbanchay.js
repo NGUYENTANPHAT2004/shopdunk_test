@@ -5,6 +5,21 @@ import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGri
 const SanPhamBanChay = ({ data }) => {
   const colors = ['#1976d2', '#2196f3', '#64b5f6', '#90caf9', '#bbdefb'];
 
+  // Ensure data is an array
+  const safeData = Array.isArray(data) ? data : [];
+
+  // If no data, show message
+  if (safeData.length === 0) {
+    return (
+      <div className='doanhthu-chart-wrapper'>
+        <h3>Top sản phẩm bán chạy</h3>
+        <div style={{ padding: '20px', textAlign: 'center' }}>
+          <p>Không có dữ liệu trong khoảng thời gian này.</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className='doanhthu-chart-wrapper'>
       <h3>Top sản phẩm bán chạy</h3>
@@ -24,16 +39,16 @@ const SanPhamBanChay = ({ data }) => {
             </tr>
           </thead>
           <tbody>
-            {data.map((sp, i) => (
+            {safeData.map((sp, i) => (
               <tr key={i}>
                 <td>{i + 1}</td>
-                <td>{sp.tensp}</td>
+                <td>{sp.tensp || 'N/A'}</td>
                 <td>{sp.dungluongName || 'N/A'}</td>
-                <td>{sp.soluong}</td>
-                <td>{sp.doanhthu.toLocaleString('vi-VN')}đ</td>
-                <td>{sp.percentOfTotalSales}%</td>
-                <td>{sp.percentOfTotalRevenue}%</td>
-                <td>{Math.round(sp.averagePrice).toLocaleString('vi-VN')}đ</td>
+                <td>{sp.soluong || 0}</td>
+                <td>{(sp.doanhthu || 0).toLocaleString('vi-VN')}đ</td>
+                <td>{sp.percentOfTotalSales || 0}%</td>
+                <td>{sp.percentOfTotalRevenue || 0}%</td>
+                <td>{Math.round(sp.averagePrice || 0).toLocaleString('vi-VN')}đ</td>
               </tr>
             ))}
           </tbody>
@@ -42,17 +57,20 @@ const SanPhamBanChay = ({ data }) => {
 
       <div className="chart-container" style={{ marginTop: '20px', height: '300px' }}>
         <ResponsiveContainer width="100%" height="100%">
-          <BarChart data={data}>
+          <BarChart data={safeData}>
             <CartesianGrid strokeDasharray="3 3" />
             <XAxis dataKey="tensp" />
             <YAxis />
             <Tooltip 
               formatter={(value, name) => {
-                return [value.toLocaleString('vi-VN'), name === 'doanhthu' ? 'Doanh thu (đ)' : 'Số lượng'];
+                return [
+                  (value || 0).toLocaleString('vi-VN'), 
+                  name === 'doanhthu' ? 'Doanh thu (đ)' : 'Số lượng'
+                ];
               }}
             />
             <Bar dataKey="soluong" name="Số lượng" fill="#2196f3">
-              {data.map((entry, index) => (
+              {safeData.map((entry, index) => (
                 <Cell key={`cell-${index}`} fill={colors[index % colors.length]} />
               ))}
             </Bar>
@@ -62,6 +80,5 @@ const SanPhamBanChay = ({ data }) => {
     </div>
   );
 };
+
 export default SanPhamBanChay;
-
-
